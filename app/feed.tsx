@@ -2738,12 +2738,12 @@ export default function FeedScreen() {
           router.push('/game-map');
         }}
         accessibilityRole="button"
-        accessibilityLabel="View nearby games on map"
+        accessibilityLabel="Open events map"
         accessibilityHint="Double tap to open map"
         accessible
       >
         <MaterialIcons name="map" size={24} color="#FFFFFF" />
-        <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
+        <Text style={styles.mapsButtonText}>View Events Map</Text>
         <MaterialIcons name="chevron-right" size={20} color="#FFFFFF" />
       </View>
 
