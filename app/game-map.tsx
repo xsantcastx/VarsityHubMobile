@@ -2,23 +2,17 @@ import EventMap, { EventMapData } from '@/components/EventMap';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Location from 'expo-location';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
-import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
 import SportFilterBar from '@/components/SportFilterBar';
-import { normalizeSportSlug } from '@/constants/sports';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 // SafeAreaView removed — native header handles safe area
-// @ts-ignore
-import { Game } from '@/api/entities';
 import { httpGet } from '@/api/http';
+import { buildMapDiscoveryPath, buildUpcomingDateButtons, toMapEvents } from '@/utils/mapDiscovery';
+import { validateEventCards } from '@/api/schemas/eventCard';
 
-const MAP_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
-const MAP_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
-const MAP_EVENT_LOOKAHEAD_MS = 5 * 24 * 60 * 60 * 1000;
 const USA_WIDE_REGION = {
   latitude: 39.8,
   longitude: -98.5,
@@ -26,21 +20,8 @@ const USA_WIDE_REGION = {
   longitudeDelta: 50,
 };
 
-function dedupeMapEvents(items: EventMapData[]): EventMapData[] {
-  const seen = new Set<string>();
-  const deduped: EventMapData[] = [];
-  items.forEach(item => {
-    const key = `${item.type || 'event'}:${item.id}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    deduped.push(item);
-  });
-  return deduped;
-}
-
 function GameMapScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ lat?: string; lng?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
 
   const [loading, setLoading] = useState(true);
@@ -53,183 +34,37 @@ function GameMapScreen() {
 
   const loadGames = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Get user location from params or current location
-      let lat = params.lat ? parseFloat(params.lat) : null;
-      let lng = params.lng ? parseFloat(params.lng) : null;
+      // The feed map shows ALL public VarsityHub event pages nationwide — not a
+      // nearby/pro-only slice. The single `/event-discovery?surface=map`
+      // endpoint already returns every approved, non-private game AND standalone
+      // event page in the server's map window, privacy-filtered and with NO
+      // location gate. Query shape + mapping live in utils/mapDiscovery so the
+      // "no data gates" rule is pinned in one place. Location is NOT requested
+      // here — EventMap requests it only to draw the user dot.
+      const res: unknown = await httpGet(buildMapDiscoveryPath());
+      const items = validateEventCards('/event-discovery?surface=map', res);
+      const now = new Date();
 
-      if (!lat || !lng) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          // GPS can hang indefinitely indoors or in a crowd — race it against
-          // a hard timeout so this fetch (and the "Loading nearby games..."
-          // overlay it drives) never gets stuck. On timeout we just fetch
-          // without a location filter instead of blocking the whole screen.
-          const location = await Promise.race([
-            Location.getCurrentPositionAsync({}),
-            new Promise<null>(resolve => setTimeout(() => resolve(null), 6000)),
-          ]);
-          if (location) {
-            lat = location.coords.latitude;
-            lng = location.coords.longitude;
-          }
-        }
-      }
+      // Map pins need coordinates; the calendar summarizes every upcoming event
+      // page in the dataset, including ones without a location.
+      const markers = toMapEvents(items, now);
+      setEvents(markers);
+      setCalendarEvents(toMapEvents(items, now, { requireCoords: false }));
 
-      const nowMs = Date.now();
-      const dateFrom = new Date(nowMs - MAP_EVENT_LOOKBACK_MS).toISOString();
-      const dateTo = new Date(nowMs + MAP_EVENT_LOOKAHEAD_MS).toISOString();
-
-      const buildEventsQuery = (league?: string) => {
-        const query = new URLSearchParams();
-        query.set('approval_status', 'approved');
-        query.set('event_type', 'game');
-        query.set('pro_only', 'true');
-        query.set('event_only', 'true');
-        query.set('from', dateFrom);
-        query.set('to', dateTo);
-        query.set('sort', 'date');
-        query.set('limit', '100');
-        if (league) query.set('pro_league', league);
-        if (!league && lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
-          query.set('lat', String(lat));
-          query.set('lng', String(lng));
-          query.set('radius', '50');
-        }
-        return query;
-      };
-
-      // Fetch games and event-only fixtures. NCAA gets dedicated queries so
-      // dense MLB/NFL slates cannot push college games out of the map/calendar.
-      const [gamesResponse, eventsResponse, ...ncaaEventResponses] = await Promise.all([
-        // v1.0.2: mapView restricts to games this week — past games drop off the map in real time.
-        Game.list(
-          'date',
-          lat != null && lng != null
-            ? { lat, lng, limit: 100, dateFrom, dateTo }
-            : { limit: 100, dateFrom, dateTo }
-        ).catch((error: any) => {
-          if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
-          return { items: [] };
-        }),
-        httpGet('/events?' + buildEventsQuery().toString()).catch(error => {
-          if (__DEV__) console.error('[game-map] Failed to fetch events:', error);
-          return [];
-        }),
-        ...MAP_NCAA_LEAGUES.map(league =>
-          httpGet('/events?' + buildEventsQuery(league).toString()).catch(error => {
-            if (__DEV__) console.error(`[game-map] Failed to fetch ${league} events:`, error);
-            return [];
-          })
-        ),
-      ]);
-
-      const gamesList = Array.isArray(gamesResponse)
-        ? gamesResponse
-        : gamesResponse?.games || gamesResponse?.items || [];
-      const eventsList = [eventsResponse, ...ncaaEventResponses].flatMap(response =>
-        Array.isArray(response) ? response : response?.items || []
-      );
-
-      // Helper: resolve the best available lat/lng for a game or event.
-      // Games can store coordinates in multiple fields depending on how
-      // they were created, so we fall back in order of preference.
-      const resolveCoords = (item: any): { latitude: number; longitude: number } | null => {
-        // Prefer explicit game-level coordinates, then venue coordinates
-        const lat = item.latitude ?? item.venue_lat ?? item.watch_location_lat ?? null;
-        const lng = item.longitude ?? item.venue_lng ?? item.watch_location_lng ?? null;
-        if (
-          lat != null &&
-          lng != null &&
-          typeof lat === 'number' &&
-          typeof lng === 'number' &&
-          !isNaN(lat) &&
-          !isNaN(lng) &&
-          lat >= -90 &&
-          lat <= 90 &&
-          lng >= -180 &&
-          lng <= 180
-        ) {
-          return { latitude: lat, longitude: lng };
-        }
-        return null;
-      };
-
-      const hasValidCoords = (item: any): boolean => resolveCoords(item) !== null;
-
-      // Transform games to EventMapData format.
-      // v1.0.3: past games must drop off the map immediately, same as events.
-      // Previously only events were date-filtered, so a past game remained as
-      // a tappable pin that routed to the dead-end "This event has ended" page.
-      const gameItems: EventMapData[] = gamesList.map((game: any) => {
-        const coords = resolveCoords(game);
-        return {
-          id: game.id,
-          title: game.title || 'Game',
-          date: game.date || new Date().toISOString(),
-          location: game.location || game.venue_address,
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
-          type: 'game' as const,
-          sport: normalizeSportSlug(game.sport),
-        };
-      });
-
-      const gameMarkers = gameItems.filter(
-        (g: any) => hasValidCoords(g) && shouldShowEventOnMap(g.date)
-      );
-
-      const eventItems: EventMapData[] = eventsList
-        .filter((e: any) => e.status !== 'cancelled')
-        .map((event: any) => {
-          const coords = resolveCoords(event);
-          return {
-            id: event.id,
-            title: event.title || 'Event',
-            date: event.date || new Date().toISOString(),
-            location: event.location,
-            latitude: coords?.latitude,
-            longitude: coords?.longitude,
-            type: 'event' as const,
-            sport: normalizeSportSlug(event.sport),
-          };
-        });
-
-      // Transform events to EventMapData format (never show cancelled events on map)
-      const gameMarkerIds = new Set(gameMarkers.map(g => String(g.id)));
-      const eventMarkers: EventMapData[] = eventItems
-        // A game-linked event duplicates its game's pin — show the fixture once.
-        .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
-        // Feed/list views intentionally keep recent past events visible for recap.
-        // The map should not: past events should drop off immediately.
-        .filter((e: any) => shouldShowEventOnMap(e.date))
-        .filter(hasValidCoords);
-
-      // Combine games and events
-      const allMarkers = dedupeMapEvents([...gameMarkers, ...eventMarkers]);
-      setEvents(allMarkers);
-      setCalendarEvents(dedupeMapEvents([...gameItems, ...eventItems]));
-
-      // Log for debugging
-      const totalItems = gamesList.length + eventsList.length;
-      if (allMarkers.length === 0 && totalItems > 0) {
-        if (__DEV__)
-          console.warn(
-            `[game-map] Loaded ${gamesList.length} games and ${eventsList.length} events, but none have valid coordinates`
-          );
-      } else {
-        if (__DEV__)
-          console.warn(
-            `[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`
-          );
+      if (__DEV__) {
+        console.warn(
+          `[game-map] Loaded ${items.length} discovery items (${markers.length} with map pins)`
+        );
       }
     } catch (err) {
-      if (__DEV__) console.error('Error loading games:', err);
-      setError('Unable to load nearby games. Please check your connection.');
+      if (__DEV__) console.error('Error loading events:', err);
+      setError('Unable to load events. Please check your connection.');
     } finally {
       setLoading(false);
     }
-  }, [params.lat, params.lng]);
+  }, []);
 
   useEffect(() => {
     void loadGames();
@@ -258,26 +93,12 @@ function GameMapScreen() {
     [events, selectedSport]
   );
 
-  const recentDateButtons = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() - (6 - index));
-      const dateString = date.toISOString().split('T')[0];
-      const count = calendarEvents.filter(event => {
-        if (!event.date) return false;
-        const d = new Date(event.date);
-        return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === dateString;
-      }).length;
-      return {
-        dateString,
-        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-        label: date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
-        count,
-      };
-    });
-  }, [calendarEvents]);
+  // Upcoming days (today forward) — the feed map shows what's still to come, so
+  // its date picker looks forward, not back. Logic lives in utils/mapDiscovery.
+  const recentDateButtons = useMemo(
+    () => buildUpcomingDateButtons(calendarEvents, new Date(), 7),
+    [calendarEvents]
+  );
 
   const selectedDateEvents = useMemo(() => {
     if (!selectedDate) return [];
@@ -292,7 +113,7 @@ function GameMapScreen() {
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen
         options={{
-          title: 'Nearby Games',
+          title: 'Events Map',
           headerShown: true,
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
@@ -323,6 +144,7 @@ function GameMapScreen() {
           dataLoaded={!loading}
           preventAutoCenterOnUser
           hideCenterOnUser
+          autoFitPins={false}
           onCalendarPress={() => setCalendarOpen(open => !open)}
           calendarActive={calendarOpen || Boolean(selectedDate)}
           onRefresh={!loading && !error ? loadGames : undefined}
@@ -442,7 +264,7 @@ function GameMapScreen() {
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>
-              Loading nearby games...
+              Loading events...
             </Text>
           </View>
         )}

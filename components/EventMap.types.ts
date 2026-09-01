@@ -31,4 +31,10 @@ export interface EventMapProps {
   onCalendarPress?: () => void;
   /** Highlights the calendar control when a specific date is being viewed. */
   calendarActive?: boolean;
+  /** When false, the map does NOT auto-zoom to fit the loaded pins on data load —
+   *  it stays on `initialRegion`. The feed map uses this so it opens USA-wide and
+   *  shows all event pages nationwide instead of zooming into whichever pins
+   *  happened to load near the user. The manual "fit to events" button still works.
+   *  Defaults to true to preserve the zoom-to-pins behavior other callers rely on. */
+  autoFitPins?: boolean;
 }

@@ -41,6 +41,7 @@ export default function EventMap({
   hideCenterOnUser = false,
   onCalendarPress,
   calendarActive = false,
+  autoFitPins = true,
 }: EventMapProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const mapRef = useRef<MapView>(null);
@@ -199,13 +200,14 @@ export default function EventMap({
   // never do — re-firing here is what made the map zoom out on every tap.
   const lastAutoFitEventsRef = useRef<EventMapData[] | null>(null);
   useEffect(() => {
+    if (!autoFitPins) return;
     if (eventsWithCoordinates.length === 0 || !dataLoaded || loading) return;
     if (lastAutoFitEventsRef.current === eventsWithCoordinates) return;
     lastAutoFitEventsRef.current = eventsWithCoordinates;
     // Small delay to ensure map is fully mounted
     const timer = setTimeout(() => fitToEvents(), 500);
     return () => clearTimeout(timer);
-  }, [eventsWithCoordinates, dataLoaded, fitToEvents, loading]);
+  }, [eventsWithCoordinates, dataLoaded, fitToEvents, loading, autoFitPins]);
 
   // Center map on user location
   const centerOnUser = () => {
@@ -352,9 +354,9 @@ export default function EventMap({
           </TouchableOpacity>
         )}
 
-        {/* Dates-tracker Button — owner note 8: replaces the middle
-            "center on user" button on the Nearby Games page. Opens the parent's
-            date picker so users can view past days' games/events. */}
+        {/* Dates-tracker Button — replaces the middle "center on user" button on
+            the events map. Opens the parent's date picker so users can browse
+            upcoming days' games/events. */}
         {onCalendarPress && (
           <TouchableOpacity
             style={[
@@ -367,7 +369,7 @@ export default function EventMap({
             ]}
             onPress={onCalendarPress}
             accessibilityRole="button"
-            accessibilityLabel="Pick a date to view past games"
+            accessibilityLabel="Pick a date to view upcoming games"
           >
             <Ionicons
               name="calendar-outline"

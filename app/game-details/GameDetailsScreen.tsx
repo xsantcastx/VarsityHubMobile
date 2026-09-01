@@ -1083,10 +1083,10 @@ const GameDetailsScreen = () => {
         });
 
       // H1 fix (2026-07-14): the rich page must actually fetch a standalone
-      // event's posts/media. Previously loadVirtualFromEvent left posts:[]/
-      // media:[] so a fan's posts to an event were invisible here (while the
-      // deprecated bare page did fetch them). Mirror the game path: hydrate
-      // posts via Post.getByEvent and derive the media grid from them.
+      // event's posts. Previously loadVirtualFromEvent left posts:[] so a fan's
+      // posts to an event were invisible here (while the deprecated bare page
+      // did fetch them). Keep the Stories/media rail separate: normal event
+      // posts must not masquerade as Story rows.
       void retryWithBackoff(() => Post.getByEvent(eventIdValue), {
         maxRetries: 2,
         initialDelayMs: 800,
@@ -1099,24 +1099,9 @@ const GameDetailsScreen = () => {
               ? postsResult.items
               : [];
           if (!items.length) return;
-          const media: MediaItem[] = items
-            .filter((p: any) => p?.media_url)
-            .map((p: any) => {
-              const url = String(p.media_url);
-              const isVideo = VIDEO_EXT.test(url.toLowerCase());
-              return {
-                id: String(p.id),
-                url,
-                thumbnail_url: p.preview_url || undefined,
-                kind: isVideo ? 'video' : 'photo',
-                created_at: p.created_at,
-                caption: p.caption ?? p.content ?? null,
-                user_id: p.author?.id ?? p.author_id ?? null,
-              } as MediaItem;
-            });
           setVm(prev => {
             if (!prev || prev.eventId !== eventIdValue || prev.gameId) return prev;
-            return { ...prev, posts: items, media };
+            return { ...prev, posts: items };
           });
         })
         .catch(error => {

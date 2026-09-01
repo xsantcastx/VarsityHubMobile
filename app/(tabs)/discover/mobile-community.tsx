@@ -2837,113 +2837,12 @@ function CommunityDiscoverScreen() {
               </View>
             </View>
 
-            {renderCalendar()}
-
-            {selectedDate
-              ? (() => {
-                  const gamesOnDate = getSelectedDateGames();
-                  const eventsOnDate = getSelectedDateEvents();
-                  if (gamesOnDate.length === 0 && eventsOnDate.length === 0) return null;
-
-                  return (
-                    <View
-                      style={[
-                        styles.selectedDateSection,
-                        {
-                          backgroundColor: Colors[colorScheme].surface,
-                          borderColor: Colors[colorScheme].border,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.selectedDateTitle, { color: Colors[colorScheme].text }]}>
-                        Events on{' '}
-                        {new Date(selectedDate).toLocaleDateString('en-US', {
-                          month: 'long',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </Text>
-                      {[...gamesOnDate, ...eventsOnDate].slice(0, 12).map((item: any) => {
-                        const time = item.date
-                          ? new Date(item.date).toLocaleTimeString('en-US', {
-                              hour: 'numeric',
-                              minute: '2-digit',
-                            })
-                          : 'TBD';
-                        const title = item.title || 'Event';
-                        return (
-                          <Pressable
-                            key={`${item.source_type || 'event'}-${item.event_id || item.id}`}
-                            style={[
-                              styles.dateGameCard,
-                              {
-                                backgroundColor: Colors[colorScheme].background,
-                                borderColor: Colors[colorScheme].border,
-                              },
-                            ]}
-                            onPress={() =>
-                              void router.push(
-                                item.source_type === 'event' || item.event_id
-                                  ? buildEventDetailRoute(item.event_id || item.id, item.game_id)
-                                  : { pathname: '/game/[id]', params: { id: String(item.id) } }
-                              )
-                            }
-                            accessibilityRole="button"
-                            accessibilityLabel={`${title} at ${time}`}
-                          >
-                            <View style={styles.dateGameTime}>
-                              <MaterialIcons
-                                name="event"
-                                size={16}
-                                color={Colors[colorScheme].tint}
-                              />
-                              <Text
-                                style={[
-                                  styles.dateGameTimeText,
-                                  { color: Colors[colorScheme].tint },
-                                ]}
-                              >
-                                {time}
-                              </Text>
-                            </View>
-                            <Text
-                              style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]}
-                              numberOfLines={1}
-                            >
-                              {title}
-                            </Text>
-                            {item.location ? (
-                              <View style={styles.dateGameLocation}>
-                                <MaterialIcons
-                                  name="location-on"
-                                  size={14}
-                                  color={Colors[colorScheme].mutedText}
-                                />
-                                <Text
-                                  style={[
-                                    styles.dateGameLocationText,
-                                    { color: Colors[colorScheme].mutedText },
-                                  ]}
-                                  numberOfLines={1}
-                                >
-                                  {item.location}
-                                </Text>
-                              </View>
-                            ) : null}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  );
-                })()
-              : null}
-
             {/* Full Map View */}
             {(() => {
-              // Filter to upcoming events with coordinates only. The calendar
-              // above keeps the recent-past upload path available; pins stay
-              // current/upcoming so the map itself does not fill with expired
-              // venues.
+              // Filter to upcoming events with coordinates only. Map view is a
+              // map, not a calendar — the followed/managed calendar lives in
+              // list view. Pins stay current/upcoming so the map itself does not
+              // fill with expired venues.
               const nowMs = Date.now();
               const allGamesWithCoords = games.filter(g => {
                 if (typeof g.latitude !== 'number' || typeof g.longitude !== 'number') return false;
