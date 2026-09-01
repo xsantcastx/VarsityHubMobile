@@ -94,7 +94,7 @@ android {
         applicationId 'com.varsityhub.varsityhub'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 58
+        versionCode 59
         versionName "1.0.5"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
@@ -106,10 +106,9 @@ android {
     }
     lint {
         disable 'ExtraTranslation'
-        abortOnError false
+        abortOnError = false
         baseline file("lint-baseline.xml")
-        checkReleaseBuilds false
-        ignoreFailures true
+        checkReleaseBuilds = false
     }
     signingConfigs {
         debug {
