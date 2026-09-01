@@ -11,6 +11,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 // SafeAreaView removed — native header handles safe area
 import { httpGet } from '@/api/http';
 import { buildMapDiscoveryPath, buildUpcomingDateButtons, toMapEvents } from '@/utils/mapDiscovery';
+import { validateEventCards } from '@/api/schemas/eventCard';
 
 const USA_WIDE_REGION = {
   latitude: 39.8,
@@ -42,8 +43,8 @@ function GameMapScreen() {
       // location gate. Query shape + mapping live in utils/mapDiscovery so the
       // "no data gates" rule is pinned in one place. Location is NOT requested
       // here — EventMap requests it only to draw the user dot.
-      const res: any = await httpGet(buildMapDiscoveryPath());
-      const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+      const res: unknown = await httpGet(buildMapDiscoveryPath());
+      const items = validateEventCards('/event-discovery?surface=map', res);
       const now = new Date();
 
       // Map pins need coordinates; the calendar summarizes every upcoming event

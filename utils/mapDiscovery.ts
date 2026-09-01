@@ -13,24 +13,11 @@
  * separate followed/managed system. Do not fetch followed-only data here.
  */
 import type { EventMapData } from '@/components/EventMap.types';
+import type { EventCard } from '@/api/schemas/eventCard';
 import { normalizeSportSlug } from '@/constants/sports';
 import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
 
 const DEFAULT_MAP_LIMIT = 200;
-
-/** A discovery item as returned by `GET /event-discovery` (map surface). */
-export interface MapDiscoveryItem {
-  id: string;
-  source_type: 'game' | 'event';
-  event_id?: string | null;
-  game_id?: string | null;
-  title?: string | null;
-  date?: string | null;
-  location?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  sport?: string | null;
-}
 
 /** The upcoming-days strip shown by the feed-map calendar button. */
 export interface UpcomingDateButton {
@@ -65,7 +52,7 @@ function toDateKey(date: Date): string {
  * existing map rule that past pins must fall off immediately.
  */
 export function toMapEvents(
-  items: MapDiscoveryItem[] | null | undefined,
+  items: EventCard[] | null | undefined,
   now: Date = new Date(),
   { requireCoords = true }: { requireCoords?: boolean } = {}
 ): EventMapData[] {

@@ -1,9 +1,5 @@
-import {
-  buildMapDiscoveryPath,
-  toMapEvents,
-  buildUpcomingDateButtons,
-  type MapDiscoveryItem,
-} from '../mapDiscovery';
+import { buildMapDiscoveryPath, toMapEvents, buildUpcomingDateButtons } from '../mapDiscovery';
+import type { EventCard } from '@/api/schemas/eventCard';
 
 describe('buildMapDiscoveryPath', () => {
   it('targets the event-discovery map surface', () => {
@@ -33,7 +29,7 @@ describe('buildMapDiscoveryPath', () => {
 describe('toMapEvents', () => {
   const now = new Date('2026-09-01T12:00:00.000Z');
 
-  const items: MapDiscoveryItem[] = [
+  const items: EventCard[] = [
     {
       id: 'game-1',
       source_type: 'game',
@@ -100,7 +96,7 @@ describe('toMapEvents', () => {
   });
 
   it('drops past events so the map only shows what is still upcoming', () => {
-    const withPast: MapDiscoveryItem[] = [
+    const withPast: EventCard[] = [
       ...items,
       {
         id: 'past-game',
