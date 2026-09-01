@@ -4,7 +4,7 @@
  * personalization queries mount after the InteractionManager deferral and an
  * upcoming game row renders.
  */
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
 
 beforeAll(() => jest.useFakeTimers());
 afterAll(() => jest.useRealTimers());
@@ -74,6 +74,9 @@ jest.mock('@/api/entities', () => ({
   Search: { unified: jest.fn().mockResolvedValue({}) },
   Organization: { list: jest.fn().mockResolvedValue([]) },
 }));
+jest.mock('@/api/http', () => ({
+  httpGet: jest.fn().mockResolvedValue({ items: [] }),
+}));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
     user: { id: 'u1' },
@@ -118,7 +121,9 @@ describe('MobileCommunityScreen (react-query render smoke)', () => {
       </QueryWrapper>
     );
     // Queries are gated behind InteractionManager.runAfterInteractions.
-    jest.runOnlyPendingTimers();
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
     await waitFor(() =>
       expect(mockGameList).toHaveBeenCalledWith(
         'date',

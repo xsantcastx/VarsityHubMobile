@@ -3,8 +3,7 @@ import path from 'path';
 
 const ROOT = path.join(__dirname, '..');
 const SCAN_ROOTS = ['__tests__', 'app', 'server/src/__tests__'];
-const ALLOWED_DESCRIBE_SKIP = 'server/src/__tests__/helpers/dbTestSuite.ts';
-
+const DB_HELPER = 'server/src/__tests__/helpers/dbTestSuite.ts';
 function walk(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;
   for (const name of fs.readdirSync(dir)) {
@@ -27,7 +26,7 @@ function rel(file: string): string {
 describe('test-suite guardrails', () => {
   const files = SCAN_ROOTS.flatMap(root => walk(path.join(ROOT, root)));
 
-  it('does not commit skipped tests outside the centralized DB-test helper', () => {
+  it('does not commit skipped or todo tests', () => {
     const offenders = files.flatMap(file => {
       const relative = rel(file);
       const source = fs.readFileSync(file, 'utf8');
@@ -35,24 +34,28 @@ describe('test-suite guardrails', () => {
         .split('\n')
         .map((line, index) => ({ line, index }))
         .filter(({ line }) => /\.(?:skip|todo)\s*\(/.test(line))
-        .filter(({ line }) => !(relative === ALLOWED_DESCRIBE_SKIP && /describe\.skip/.test(line)))
         .map(({ index, line }) => `${relative}:${index + 1}: ${line.trim()}`);
     });
 
     expect(offenders).toEqual([]);
   });
 
-  it('keeps DB-backed test skip policy centralized', () => {
+  it('keeps DB-backed tests impossible to skip by environment', () => {
     const offenders = files.flatMap(file => {
       const relative = rel(file);
-      if (relative === ALLOWED_DESCRIBE_SKIP) return [];
+      if (relative === DB_HELPER) return [];
       if (relative === '__tests__/test-suite-guardrails.test.ts') return [];
       const source = fs.readFileSync(file, 'utf8');
-      return source.includes('SKIP_SERVER_DB_TESTS') || source.includes('process.env.CI')
+      return source.includes('SKIP_SERVER_DB_TESTS') || source.includes('describe.skip')
         ? [relative]
         : [];
     });
 
     expect(offenders).toEqual([]);
+
+    const helper = fs.readFileSync(path.join(ROOT, DB_HELPER), 'utf8');
+    expect(helper).toContain('SKIP_SERVER_DB_TESTS');
+    expect(helper).toContain('throw new Error');
+    expect(helper).not.toContain('describe.skip');
   });
 });

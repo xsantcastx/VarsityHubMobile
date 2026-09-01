@@ -1,10 +1,10 @@
 import 'dotenv/config';
-import { PrismaClient } from '../../server/node_modules/@prisma/client/index.js';
+import { Prisma, PrismaClient } from '../../server/node_modules/@prisma/client/index.js';
 import { test, expect } from '@playwright/test';
 
 /**
  * Teams API Integration Tests
- * 
+ *
  * Tests the teams endpoints for creating and managing teams.
  * Note: Team creation requires coach role and verified email.
  */
@@ -26,7 +26,7 @@ async function createTestCoach(request: any) {
       email: testEmail,
       password: testPassword,
       display_name: 'Test Coach',
-      role: 'coach',
+      role: 'fan',
       dob: '1990-01-15',
     },
   });
@@ -80,7 +80,7 @@ async function createTestCoach(request: any) {
       payment_pending: false,
       payment_approved: false,
       subscription_tier: 'free',
-      preferences: nextPreferences,
+      preferences: nextPreferences as Prisma.InputJsonValue,
     },
   });
 
@@ -113,7 +113,9 @@ test.describe('Teams API', () => {
     expect(Array.isArray(body)).toBeTruthy();
   });
 
-  test('POST /teams/create returns either success or an actionable coach-team setup error', async ({ request }) => {
+  test('POST /teams/create returns either success or an actionable coach-team setup error', async ({
+    request,
+  }) => {
     const response = await request.post(`${API_BASE_URL}/teams/create`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -214,7 +216,7 @@ test.describe('Teams API', () => {
     // 2. Rookie plan (max 2 teams)
     // 3. Create 2 teams successfully
     // 4. Attempt 3rd team (should fail)
-    
+
     // For now, just verify the endpoint handles the request
     const response = await request.post(`${API_BASE_URL}/teams/create`, {
       headers: {

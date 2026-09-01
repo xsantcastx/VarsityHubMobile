@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 const skipEmbeddedServer = process.env.PLAYWRIGHT_SKIP_SERVER === '1';
 const reuseEmbeddedServer = process.env.PLAYWRIGHT_REUSE_SERVER === '1' && !process.env.CI;
 process.env.API_URL = process.env.API_URL || 'http://localhost:4000';
+process.env.HEALTH_CHECK_SECRET = process.env.HEALTH_CHECK_SECRET || 'playwright-local-health';
+process.env.DISABLE_RATE_LIMITING = process.env.DISABLE_RATE_LIMITING || '1';
 
 const webServerConfig = skipEmbeddedServer
   ? undefined

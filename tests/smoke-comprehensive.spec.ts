@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 /**
  * Comprehensive Smoke Tests
- * 
+ *
  * Quick validation tests that verify the app is working correctly.
  * These should run fast (< 5 minutes) and catch critical issues.
  */
@@ -11,7 +11,9 @@ const APP_URL = process.env.APP_URL || 'http://localhost:8081';
 const API_URL = process.env.API_URL || 'http://localhost:4000';
 const HEALTH_CHECK_SECRET = process.env.HEALTH_CHECK_SECRET;
 const RATE_LIMITING_DISABLED = ['1', 'true', 'yes', 'on'].includes(
-  String(process.env.DISABLE_RATE_LIMITING || '').trim().toLowerCase()
+  String(process.env.DISABLE_RATE_LIMITING || '')
+    .trim()
+    .toLowerCase()
 );
 
 async function waitForAppShell(page: import('@playwright/test').Page) {
@@ -24,13 +26,13 @@ test.describe('Comprehensive Smoke Tests', () => {
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
 
-    page.on('console', (msg) => {
+    page.on('console', msg => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());
       }
     });
 
-    page.on('pageerror', (error) => {
+    page.on('pageerror', error => {
       pageErrors.push(error.message);
     });
 
@@ -39,7 +41,7 @@ test.describe('Comprehensive Smoke Tests', () => {
 
     // Filter out non-critical errors
     const criticalConsoleErrors = consoleErrors.filter(
-      (error) =>
+      error =>
         !error.includes('favicon') &&
         !error.includes('sourcemap') &&
         !error.includes('extension') &&
@@ -64,7 +66,7 @@ test.describe('Comprehensive Smoke Tests', () => {
   });
 
   test('Backend API has database connection', async ({ request }) => {
-    test.skip(!HEALTH_CHECK_SECRET, 'Detailed integration status requires HEALTH_CHECK_SECRET');
+    expect(HEALTH_CHECK_SECRET).toBeTruthy();
 
     const response = await request.get(`${API_URL}/health`, {
       headers: {
@@ -73,16 +75,12 @@ test.describe('Comprehensive Smoke Tests', () => {
     });
     const body = await response.json();
 
-    // Defend against local env mismatch where the client has HEALTH_CHECK_SECRET
-    // but the server doesn't (or has a different value) — in that case the
-    // server returns the plain shape and `integrations` is absent. Skip rather
-    // than produce a misleading failure that looks like a contract drift.
-    test.skip(!body.integrations, 'Server did not honor HEALTH_CHECK_SECRET (env mismatch)');
+    expect(body.integrations).toBeDefined();
     expect(body.integrations.database).toBe(true);
   });
 
   test('Backend API has JWT configured', async ({ request }) => {
-    test.skip(!HEALTH_CHECK_SECRET, 'Detailed integration status requires HEALTH_CHECK_SECRET');
+    expect(HEALTH_CHECK_SECRET).toBeTruthy();
 
     const response = await request.get(`${API_URL}/health`, {
       headers: {
@@ -91,7 +89,7 @@ test.describe('Comprehensive Smoke Tests', () => {
     });
     const body = await response.json();
 
-    test.skip(!body.integrations, 'Server did not honor HEALTH_CHECK_SECRET (env mismatch)');
+    expect(body.integrations).toBeDefined();
     expect(body.integrations.jwt).toBe(true);
   });
 
@@ -138,12 +136,12 @@ test.describe('Comprehensive Smoke Tests', () => {
 
     // Try clicking on any visible button/link
     const clickableElements = await page.locator('button, a, [role="button"]').count();
-    
+
     if (clickableElements > 0) {
       const firstButton = page.locator('button, a, [role="button"]').first();
       await firstButton.click();
       await page.waitForTimeout(1000);
-      
+
       // Should not crash
       const errorText = page.locator('text=/error/i, text=/crash/i').first();
       const hasError = await errorText.isVisible().catch(() => false);
@@ -152,8 +150,6 @@ test.describe('Comprehensive Smoke Tests', () => {
   });
 
   test('API rate limiting works', async ({ request }) => {
-    test.skip(RATE_LIMITING_DISABLED, 'Smoke harness disables rate limiting to avoid auth-setup contention.');
-
     // Make multiple rapid requests to auth endpoint
     const requests = [];
     for (let i = 0; i < 20; i++) {
@@ -168,13 +164,13 @@ test.describe('Comprehensive Smoke Tests', () => {
     }
 
     const responses = await Promise.all(requests);
-    
-    // At least one should be rate limited (429) or all should be 401
-    const statusCodes = responses.map((r) => r.status());
-    const hasRateLimit = statusCodes.includes(429);
-    const allUnauthorized = statusCodes.every((code) => code === 401);
 
-    expect(hasRateLimit || allUnauthorized).toBeTruthy();
+    // At least one should be rate limited (429) or all should be 401
+    const statusCodes = responses.map(r => r.status());
+    const hasRateLimit = statusCodes.includes(429);
+    const allUnauthorized = statusCodes.every(code => code === 401);
+
+    expect(hasRateLimit || (RATE_LIMITING_DISABLED && allUnauthorized)).toBeTruthy();
   });
 
   test('API validates input correctly', async ({ request }) => {
@@ -207,9 +203,13 @@ test.describe('Comprehensive Smoke Tests', () => {
     // without text nodes, so textContent length alone is too brittle.
     const hasContent = await Promise.all([
       page.locator('body').isVisible(),
-      page.locator('main, [role="main"], #root, #app').first().isVisible().catch(() => false),
+      page
+        .locator('main, [role="main"], #root, #app')
+        .first()
+        .isVisible()
+        .catch(() => false),
     ]);
 
-    expect(hasContent.some((v) => v)).toBeTruthy();
+    expect(hasContent.some(v => v)).toBeTruthy();
   });
 });

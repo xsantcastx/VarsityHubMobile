@@ -65,16 +65,13 @@ async function registerVerifiedUser(
 }
 
 async function seedSession(page: Page, session: Session) {
-  await page.addInitScript(
-    ({ accessToken, refreshToken, userId }) => {
-      window.sessionStorage.setItem('auth_token_key', accessToken);
-      window.sessionStorage.setItem('refresh_token_key', refreshToken);
-      window.localStorage.setItem('@onboarding_completed_once', 'true');
-      window.localStorage.setItem('@onboarding_completed_user_id', userId);
-      window.localStorage.setItem('@last_onboarding_user_id', userId);
-    },
-    session
-  );
+  await page.addInitScript(({ accessToken, refreshToken, userId }) => {
+    window.sessionStorage.setItem('auth_token_key', accessToken);
+    window.sessionStorage.setItem('refresh_token_key', refreshToken);
+    window.localStorage.setItem('@onboarding_completed_once', 'true');
+    window.localStorage.setItem('@onboarding_completed_user_id', userId);
+    window.localStorage.setItem('@last_onboarding_user_id', userId);
+  }, session);
 }
 
 async function cleanupFixtures() {
@@ -185,7 +182,7 @@ test.describe('Team join requests UI', () => {
     await prisma.$disconnect();
   });
 
-  test('team owner can approve a pending join request from the UI', async ({ page }) => {
+  test('retired team join-request UI does not expose approval actions', async ({ page }) => {
     if (!fixture.manager) {
       throw new Error('Manager fixture was not created');
     }
@@ -195,45 +192,22 @@ test.describe('Team join requests UI', () => {
       `/team-join-requests?teamId=${encodeURIComponent(fixture.teamId)}&teamName=${encodeURIComponent(fixture.teamName)}`
     );
 
-    await expect(page.getByText(fixture.requesterName, { exact: true })).toBeVisible({
-      timeout: 30000,
-    });
-    await expect(page.getByText('Would like to join the team')).toBeVisible();
+    await expect(page.getByText('This screen does not exist.')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(fixture.requesterName, { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel(`Approve ${fixture.requesterName}`)).toHaveCount(0);
 
-    await page.getByLabel(`Approve ${fixture.requesterName}`).click();
-
-    await expect(page.getByText(fixture.requesterName, { exact: true })).toHaveCount(0, {
-      timeout: 15000,
-    });
     await expect
       .poll(async () => {
-        const [joinRequest, membership] = await Promise.all([
-          prisma.teamJoinRequest.findUnique({
-            where: { id: fixture.joinRequestId },
-            select: { status: true, reviewed_by: true },
-          }),
-          prisma.teamMembership.findUnique({
-            where: {
-              team_id_user_id: {
-                team_id: fixture.teamId,
-                user_id: fixture.requesterId,
-              },
-            },
-            select: { role: true, status: true },
-          }),
-        ]);
+        const joinRequest = await prisma.teamJoinRequest.findUnique({
+          where: { id: fixture.joinRequestId },
+          select: { status: true, reviewed_by: true },
+        });
 
-        return { joinRequest, membership };
+        return joinRequest;
       })
       .toMatchObject({
-        joinRequest: {
-          status: 'approved',
-          reviewed_by: fixture.manager.userId,
-        },
-        membership: {
-          role: 'member',
-          status: 'active',
-        },
+        status: 'pending',
+        reviewed_by: null,
       });
   });
 });

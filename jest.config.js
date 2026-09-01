@@ -4,6 +4,8 @@ module.exports = {
   testEnvironment: 'node',
   setupFiles: ['<rootDir>/jest.env.ts'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  globalTeardown: '<rootDir>/scripts/jest-global-teardown.cjs',
+  forceExit: true,
   moduleNameMapper: {
     '^@/ui/(.*)$': '<rootDir>/components/ui/$1',
     '^@/components/ui/(.*)$': '<rootDir>/components/ui/$1',
