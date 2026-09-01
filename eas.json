@@ -106,6 +106,12 @@
         "serviceAccountKeyPath": "./service-account-key.json",
         "track": "production"
       }
+    },
+    "playTesting": {
+      "android": {
+        "serviceAccountKeyPath": "./service-account-key.json",
+        "track": "Testing"
+      }
     }
   }
 }
