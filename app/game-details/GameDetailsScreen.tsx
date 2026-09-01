@@ -2816,17 +2816,18 @@ const GameDetailsScreen = () => {
                         );
                         return;
                       }
-                      // Game detail highlights must create highlight posts so they
-                      // show up in the game highlight surfaces and filters.
+                      // The Posts action creates a normal event post. Stories
+                      // are created only through Add Story above, so a single
+                      // upload never intentionally writes to both destinations.
                       void router.push({
                         pathname: '/create-post',
                         params: vm?.gameId
                           ? {
                               gameId: String(vm.gameId),
                               ...(vm.eventId ? { eventId: String(vm.eventId) } : {}),
-                              type: 'highlight',
+                              type: 'post',
                             }
-                          : { eventId: String(vm?.eventId), type: 'highlight' },
+                          : { eventId: String(vm?.eventId), type: 'post' },
                       } as any);
                     }}
                   >
@@ -2940,7 +2941,7 @@ const GameDetailsScreen = () => {
                 ) : (
                   <View>
                     <Text style={[styles.muted, styles.sectionHelper]}>
-                      Be the first to share a highlight for this game.
+                      Be the first to post about this game.
                     </Text>
                     <View style={styles.postsMasonryGrid}>
                       <View style={styles.masonryColumn}>

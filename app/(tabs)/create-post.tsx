@@ -332,8 +332,7 @@ function CreatePostScreen() {
   // device-origin GPS server-side; asking only after media selection can waste
   // an upload and make the final create step look broken.
   useEffect(() => {
-    const shouldRequestForSelectedEvent =
-      postType === 'highlight' && (Boolean(gameId) || Boolean(eventId));
+    const shouldRequestForSelectedEvent = Boolean(gameId) || Boolean(eventId);
     const shouldRequestForSuggestions = !hasAutoSuggested && !gameId && !eventId;
     if (
       permissionGranted === false &&
@@ -411,8 +410,9 @@ function CreatePostScreen() {
     })();
   }, [eventId, gameId]);
 
-  // Auto-suggest nearest event ONLY for highlights — regular posts appear on profile only
-  // Regular posts: no default event; user must explicitly tap "Attach to event" if desired
+  // Auto-suggest nearest event ONLY for highlights. Regular posts attach to an
+  // event only when launched from an event page or when the user explicitly
+  // chooses one.
   useEffect(() => {
     if (postType !== 'highlight') return;
     if (selectedGameId || selectedEventId || hasAutoSuggested) return;

@@ -1625,7 +1625,7 @@ function GameVerticalFeedScreen({
                 style={[styles.emptyStateCaption, { color: Colors[colorScheme].tabIconDefault }]}
               >
                 {gameId
-                  ? 'Be the first to share a highlight for this game.'
+                  ? 'Be the first to post about this game.'
                   : 'Be the first to create a post for this game.'}
               </Text>
             </View>

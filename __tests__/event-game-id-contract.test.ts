@@ -29,7 +29,7 @@ describe('event/game id contract', () => {
 
     expect(createPost).toContain('shouldRequestForSelectedEvent');
     expect(createPost).toContain(
-      "postType === 'highlight' && (Boolean(gameId) || Boolean(eventId))"
+      'const shouldRequestForSelectedEvent = Boolean(gameId) || Boolean(eventId);'
     );
     expect(gameDetails).toContain("'Location Not Ready'");
     expect(gameDetails).toContain('Event stories require current device location within 3 km');
