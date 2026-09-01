@@ -29,7 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Event, Game, Organization, Post, Search, Team, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { validateEventCards } from '@/api/schemas/eventCard';
-import { splitCalendarCards } from '@/utils/discoverCalendar';
+import { buildUpcomingCalendarDays, splitCalendarCards } from '@/utils/discoverCalendar';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -1084,30 +1084,12 @@ function CommunityDiscoverScreen() {
   }, [viewMode, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
 
   const calendarDays = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return Array.from({ length: DISCOVER_CALENDAR_DAYS }, (_, index) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() - (DISCOVER_CALENDAR_DAYS - 1 - index));
-      const dateString = date.toISOString().split('T')[0];
-      const count =
-        calendarGames.filter(game => {
-          if (!game.date) return false;
-          const d = new Date(game.date);
-          return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === dateString;
-        }).length +
-        calendarEvents.filter(event => {
-          if (!event.date) return false;
-          const d = new Date(event.date);
-          return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === dateString;
-        }).length;
-      return {
-        dateString,
-        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-        label: date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
-        count,
-      };
-    });
+    return buildUpcomingCalendarDays(
+      calendarGames,
+      calendarEvents,
+      new Date(),
+      DISCOVER_CALENDAR_DAYS
+    );
   }, [calendarEvents, calendarGames]);
 
   const getSelectedDateGames = useCallback(() => {

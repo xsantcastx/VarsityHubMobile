@@ -1,4 +1,4 @@
-import { splitCalendarCards } from '../discoverCalendar';
+import { buildUpcomingCalendarDays, splitCalendarCards } from '../discoverCalendar';
 import type { EventCard } from '@/api/schemas/eventCard';
 
 const cards: EventCard[] = [
@@ -40,5 +40,15 @@ describe('splitCalendarCards', () => {
   it('tolerates an empty or null input', () => {
     expect(splitCalendarCards([])).toEqual({ games: [], events: [] });
     expect(splitCalendarCards(null as any)).toEqual({ games: [], events: [] });
+  });
+});
+
+describe('buildUpcomingCalendarDays', () => {
+  it('builds today-forward days and counts games/events on each date', () => {
+    const { games, events } = splitCalendarCards(cards);
+    const days = buildUpcomingCalendarDays(games, events, new Date('2026-09-10T15:00:00.000Z'), 3);
+
+    expect(days.map(day => day.dateString)).toEqual(['2026-09-10', '2026-09-11', '2026-09-12']);
+    expect(days.map(day => day.count)).toEqual([1, 1, 0]);
   });
 });

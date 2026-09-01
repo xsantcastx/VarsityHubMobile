@@ -3,6 +3,11 @@ import { ORG_ADMIN_ROLES, TEAM_STAFF_ROLES } from './teamAuthorization.js';
 
 const SCOPE_TAKE = 5000;
 
+export type ViewerTeamScope = {
+  allTeamIds: Set<string>;
+  managedTeamIds: Set<string>;
+};
+
 /**
  * The set of team ids a viewer follows or manages. "Manages" mirrors
  * /teams/managed: an active staff TeamMembership (TEAM_STAFF_ROLES) OR being an
@@ -10,11 +15,11 @@ const SCOPE_TAKE = 5000;
  * (not the route's raw SQL) so it composes with the discovery pipeline and is
  * mockable in the same style as eventDiscovery's tests.
  */
-export async function getViewerTeamScope(
+export async function getViewerTeamScopeDetails(
   db: PrismaClient,
   viewerId: string | null | undefined
-): Promise<Set<string>> {
-  if (!viewerId) return new Set();
+): Promise<ViewerTeamScope> {
+  if (!viewerId) return { allTeamIds: new Set(), managedTeamIds: new Set() };
   const [follows, staff, orgAdmin] = await Promise.all([
     db.teamFollow.findMany({
       where: { user_id: viewerId },
@@ -33,9 +38,10 @@ export async function getViewerTeamScope(
     }),
   ]);
 
-  const teamIds = new Set<string>();
-  for (const row of follows) teamIds.add(row.team_id);
-  for (const row of staff) teamIds.add(row.team_id);
+  const followedTeamIds = new Set<string>();
+  const managedTeamIds = new Set<string>();
+  for (const row of follows) followedTeamIds.add(row.team_id);
+  for (const row of staff) managedTeamIds.add(row.team_id);
 
   const orgIds = orgAdmin.map((row: any) => row.organization_id).filter(Boolean);
   if (orgIds.length > 0) {
@@ -44,7 +50,17 @@ export async function getViewerTeamScope(
       select: { id: true },
       take: SCOPE_TAKE,
     });
-    for (const row of orgTeams) teamIds.add(row.id);
+    for (const row of orgTeams) managedTeamIds.add(row.id);
   }
-  return teamIds;
+  return {
+    allTeamIds: new Set([...followedTeamIds, ...managedTeamIds]),
+    managedTeamIds,
+  };
+}
+
+export async function getViewerTeamScope(
+  db: PrismaClient,
+  viewerId: string | null | undefined
+): Promise<Set<string>> {
+  return (await getViewerTeamScopeDetails(db, viewerId)).allTeamIds;
 }

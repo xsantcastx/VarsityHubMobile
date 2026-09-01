@@ -1,10 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
-import {
-  serializeGameCard,
-  serializeEventCard,
-  type SerializeCtx,
-} from './eventCardSerializer.js';
-import { getViewerTeamScope } from './viewerTeamScope.js';
+import { serializeGameCard, serializeEventCard, type SerializeCtx } from './eventCardSerializer.js';
+import { getViewerTeamScopeDetails } from './viewerTeamScope.js';
 import { normalizeSportToSlug } from './sportsTaxonomy.js';
 
 type Db = PrismaClient;
@@ -170,8 +166,10 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
 
   // Following scope: the viewer's followed/managed teams only. Resolve the set
   // up front; an empty set (or no viewer) means there is nothing to show.
-  const followingTeamIds =
-    scope === 'following' ? await getViewerTeamScope(db, params.viewerId) : null;
+  const viewerTeamScope =
+    scope === 'following' ? await getViewerTeamScopeDetails(db, params.viewerId) : null;
+  const followingTeamIds = viewerTeamScope?.allTeamIds ?? null;
+  const managedTeamIds = viewerTeamScope?.managedTeamIds ?? null;
   if (scope === 'following' && (!followingTeamIds || followingTeamIds.size === 0)) {
     return {
       items: [],
@@ -188,14 +186,38 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
 
   const dateWhere = { gte: from, lte: to };
   const queryLimit = Math.min(limit * 2, MAX_LIMIT);
+  const managedTeamIdList = managedTeamIds ? [...managedTeamIds] : [];
+  const managedGameScope =
+    scope === 'following' && managedTeamIdList.length > 0
+      ? {
+          approval_status: { in: ['approved', 'pending'] },
+          OR: [
+            { home_team_id: { in: managedTeamIdList } },
+            { away_team_id: { in: managedTeamIdList } },
+          ],
+        }
+      : null;
+  const gameWhere =
+    scope === 'following'
+      ? {
+          date: dateWhere,
+          OR: [
+            {
+              approval_status: 'approved',
+              opponent_approval_status: { in: ['not_required', 'approved'] },
+            },
+            ...(managedGameScope ? [managedGameScope] : []),
+          ],
+        }
+      : {
+          approval_status: 'approved',
+          opponent_approval_status: { in: ['not_required', 'approved'] },
+          date: dateWhere,
+        };
 
   const [games, events] = await Promise.all([
     db.game.findMany({
-      where: {
-        approval_status: 'approved',
-        opponent_approval_status: { in: ['not_required', 'approved'] },
-        date: dateWhere,
-      },
+      where: gameWhere,
       orderBy: { date: 'asc' },
       take: queryLimit,
       include: {
@@ -238,9 +260,19 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
   // Following scope narrows to games/events belonging to the viewer's teams.
   const inFollowScope = (teamId: string | null | undefined) =>
     !followingTeamIds || (!!teamId && followingTeamIds.has(teamId));
+  const isManagedTeam = (teamId: string | null | undefined) =>
+    !!managedTeamIds && !!teamId && managedTeamIds.has(teamId);
+  const isPublicApprovedGame = (game: any) =>
+    game.approval_status === 'approved' &&
+    ['not_required', 'approved'].includes(String(game.opponent_approval_status ?? ''));
+  const isManagedCalendarGame = (game: any) =>
+    ['approved', 'pending'].includes(String(game.approval_status ?? '')) &&
+    (isManagedTeam(game.home_team_id) || isManagedTeam(game.away_team_id));
   const scopedGames = followingTeamIds
     ? visibleGames.filter(
-        (game: any) => inFollowScope(game.home_team_id) || inFollowScope(game.away_team_id)
+        (game: any) =>
+          (inFollowScope(game.home_team_id) || inFollowScope(game.away_team_id)) &&
+          (isPublicApprovedGame(game) || isManagedCalendarGame(game))
       )
     : visibleGames;
   const scopedEvents = followingTeamIds
