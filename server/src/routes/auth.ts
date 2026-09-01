@@ -3763,14 +3763,18 @@ authRouter.post(
     updateData.preferences = mergeAuthStateIntoPreferences(merged, onboardingAuthPatch);
     Object.assign(updateData, buildAuthStateColumns(onboardingAuthPatch));
 
-    // SECURITY: If completing onboarding as coach, ensure approval_status is PENDING
-    // This prevents a fan from completing onboarding with role='coach' and retaining APPROVED status
-    // v1.0.2: Also guard against overwriting an already-APPROVED status from a stale client call
-    if (
-      finalRole === 'coach' &&
-      currentAuthState.role !== 'coach' &&
-      current?.approval_status !== 'APPROVED'
-    ) {
+    const hasReviewedCoachContext =
+      current?.approval_status === 'APPROVED' &&
+      currentAuthState.onboarding_completed === true &&
+      Boolean(currentAuthState.organization_id);
+
+    // SECURITY: Any fresh fan-to-coach onboarding transition must enter review.
+    // New fan rows default to APPROVED for normal app access, so that default
+    // cannot be trusted as coach approval. However, some legacy/retry rows have
+    // split role state while already carrying an explicit APPROVED, completed,
+    // org-bound coach context; onboarding replay must preserve that reviewed
+    // status instead of demoting.
+    if (finalRole === 'coach' && currentAuthState.role !== 'coach' && !hasReviewedCoachContext) {
       updateData.approval_status = 'PENDING';
     }
 

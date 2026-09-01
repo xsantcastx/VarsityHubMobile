@@ -844,6 +844,76 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
+  describe('POST /auth/me/complete-onboarding', () => {
+    it('forces fresh coach onboarding through review and ignores paid-plan payload fields', async () => {
+      const org = await prisma.organization.create({
+        data: {
+          name: `Onboarding Boundary Org ${Date.now()}`,
+          org_type: 'club',
+          updated_at: new Date(),
+        },
+      });
+      cleanupOrgIds.add(org.id);
+
+      const verifiedEmail = `test-api-auth-coach-onboarding-${Date.now()}@example.com`;
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const verifiedUser = await prisma.user.create({
+        data: {
+          email: verifiedEmail,
+          password_hash: passwordHash,
+          email_verified: true,
+          preferences: { role: 'fan', onboarding_completed: false },
+        },
+      });
+      cleanupUserIds.add(verifiedUser.id);
+
+      const verifiedAccessToken = signJwt({ id: verifiedUser.id });
+      await request(app)
+        .post('/auth/me/complete-onboarding')
+        .set('Authorization', `Bearer ${verifiedAccessToken}`)
+        .send({
+          role: 'coach',
+          username: `coach_${Date.now()}`,
+          organization_id: org.id,
+          dob: '1988-01-01',
+          approval_status: 'APPROVED',
+          plan: 'legend',
+          pending_plan: 'legend',
+          payment_pending: true,
+          payment_approved: true,
+        })
+        .expect(200);
+
+      const stored = await prisma.user.findUnique({
+        where: { id: verifiedUser.id },
+        select: {
+          role: true,
+          approval_status: true,
+          onboarding_completed: true,
+          plan: true,
+          pending_plan: true,
+          payment_pending: true,
+          payment_approved: true,
+          preferences: true,
+        },
+      });
+      const prefs = (stored?.preferences as any) || {};
+
+      expect(stored?.role).toBe('coach');
+      expect(stored?.approval_status).toBe('PENDING');
+      expect(stored?.onboarding_completed).toBe(true);
+      expect(stored?.plan).toBe('rookie');
+      expect(stored?.pending_plan).toBeNull();
+      expect(stored?.payment_pending).toBe(false);
+      expect(stored?.payment_approved).toBe(false);
+      expect(prefs.approval_status).toBeUndefined();
+      expect(prefs.plan).toBe('rookie');
+      expect(prefs.pending_plan ?? null).toBeNull();
+      expect(prefs.payment_pending ?? false).toBe(false);
+      expect(prefs.payment_approved ?? false).toBe(false);
+    });
+  });
+
   describe('POST /auth/verify/confirm', () => {
     it('should verify email with correct code', async () => {
       const response = await request(app)
