@@ -34,7 +34,12 @@ import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { AuthProvider, useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
-import { asyncStoragePersister, CACHE_BUSTER, queryClient } from '@/lib/queryClient';
+import {
+  asyncStoragePersister,
+  CACHE_BUSTER,
+  queryClient,
+  shouldPersistQuery,
+} from '@/lib/queryClient';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
@@ -314,9 +319,7 @@ function RootLayout() {
                 maxAge: 24 * 60 * 60 * 1000,
                 buster: CACHE_BUSTER,
                 dehydrateOptions: {
-                  // Only persist successful queries — never errors or
-                  // in-flight/pending states.
-                  shouldDehydrateQuery: query => query.state.status === 'success',
+                  shouldDehydrateQuery: shouldPersistQuery,
                 },
               }}
             >
