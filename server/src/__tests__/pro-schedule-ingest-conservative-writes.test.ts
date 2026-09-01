@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 const mockTeamFindMany = jest.fn();
+const mockTeamCreateMany = jest.fn();
+const mockTeamUpdate = jest.fn();
 const mockEventFindMany = jest.fn();
 const mockEventCreateMany = jest.fn();
 const mockEventCreate = jest.fn();
@@ -10,6 +12,8 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
     proTeam: {
       findMany: mockTeamFindMany,
+      createMany: mockTeamCreateMany,
+      update: mockTeamUpdate,
     },
     event: {
       findMany: mockEventFindMany,
@@ -25,6 +29,8 @@ const { ingestFixtures } = await import('../lib/proSchedule/ingest.js');
 describe('ingestFixtures conservative writes', () => {
   beforeEach(() => {
     mockTeamFindMany.mockReset();
+    mockTeamCreateMany.mockReset();
+    mockTeamUpdate.mockReset();
     mockEventFindMany.mockReset();
     mockEventCreateMany.mockReset();
     mockEventCreate.mockReset();
@@ -136,5 +142,109 @@ describe('ingestFixtures conservative writes', () => {
     expect(stats.skipped).toBe(0);
     expect(mockEventCreateMany).toHaveBeenCalledTimes(1);
     expect(mockEventCreate).not.toHaveBeenCalled();
+  });
+
+  it('creates provider-supplied NCAA teams before resolving fixtures', async () => {
+    mockTeamFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: 'team-home',
+        external_ref: 'ncaaf:espn-30',
+        name: 'USC Trojans',
+        short_name: 'Trojans',
+        venue_name: null,
+        venue_address: null,
+        venue_lat: null,
+        venue_lng: null,
+        timezone: null,
+      },
+      {
+        id: 'team-away',
+        external_ref: 'ncaaf:espn-23',
+        name: 'San Jose State Spartans',
+        short_name: 'Spartans',
+        venue_name: null,
+        venue_address: null,
+        venue_lat: null,
+        venue_lng: null,
+        timezone: null,
+      },
+    ]);
+    mockEventFindMany.mockResolvedValue([]);
+    mockEventCreateMany.mockResolvedValue({ count: 1 });
+
+    const stats = await ingestFixtures('ncaaf', [
+      {
+        external_ref: 'ncaaf:401864494',
+        league: 'ncaaf',
+        starts_at: new Date('2026-08-29T19:00:00.000Z'),
+        home_team_ref: 'ncaaf:espn-30',
+        away_team_ref: 'ncaaf:espn-23',
+        home_team: {
+          external_ref: 'ncaaf:espn-30',
+          league: 'ncaaf',
+          name: 'USC Trojans',
+          short_name: 'Trojans',
+          abbreviation: 'USC',
+          city: 'USC',
+          state: null,
+          conference: null,
+          division: null,
+          venue_name: null,
+          venue_address: null,
+          venue_lat: null,
+          venue_lng: null,
+          timezone: null,
+          primary_color: '#990000',
+        },
+        away_team: {
+          external_ref: 'ncaaf:espn-23',
+          league: 'ncaaf',
+          name: 'San Jose State Spartans',
+          short_name: 'Spartans',
+          abbreviation: 'SJSU',
+          city: 'San Jose State',
+          state: null,
+          conference: null,
+          division: null,
+          venue_name: null,
+          venue_address: null,
+          venue_lat: null,
+          venue_lng: null,
+          timezone: null,
+          primary_color: '#0055a2',
+        },
+        venue_name: 'Los Angeles Memorial Coliseum',
+        venue_address: 'Los Angeles, CA, USA',
+        venue_lat: 34.0141,
+        venue_lng: -118.2879,
+        status: 'scheduled',
+      },
+    ]);
+
+    expect(mockTeamCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ external_ref: 'ncaaf:espn-30', active: true }),
+          expect.objectContaining({ external_ref: 'ncaaf:espn-23', active: true }),
+        ]),
+        skipDuplicates: true,
+      })
+    );
+    expect(stats.created).toBe(1);
+    expect(stats.skipped).toBe(0);
+    expect(mockEventCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            pro_external_ref: 'ncaaf:401864494',
+            title: 'Spartans at Trojans',
+            latitude: 34.0141,
+            longitude: -118.2879,
+            pro_home_team_id: 'team-home',
+            pro_away_team_id: 'team-away',
+          }),
+        ]),
+      })
+    );
   });
 });

@@ -17,6 +17,7 @@ import { debugLog } from '../lib/debugLog.js';
 import { sendError } from '../lib/http/sendError.js';
 import { geoBoundingBox, getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
+import { PRO_SCHEDULE_LEAGUES } from '../lib/proSchedule/types.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { serializeLiveWindow, viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import {
@@ -26,6 +27,11 @@ import {
   sendPushNotification,
 } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import {
+  buildPrivateTeamEventVisibilityWhere,
+  getExcludedPrivateTeamIds,
+  mergeAndWhere,
+} from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { mustSucceed } from '../lib/sideEffect.js';
@@ -53,7 +59,6 @@ registerIdValidation(eventsRouter);
  *  raise if/when production traces show a real ceiling. */
 const RSVP_FANOUT_LIMIT = 50_000;
 const RSVP_FANOUT_BATCH = 200;
-const PRO_LEAGUES = ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const;
 const encodeEventRsvpCursor = (row: { created_at: Date | string; id: string }) => {
   const createdAt =
     row.created_at instanceof Date
@@ -424,15 +429,17 @@ eventsRouter.get(
     const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
-    const proOnly =
-      String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
     const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
-    if (proLeagueRaw && !PRO_LEAGUES.includes(proLeagueRaw as (typeof PRO_LEAGUES)[number])) {
+    if (
+      proLeagueRaw &&
+      !PRO_SCHEDULE_LEAGUES.includes(proLeagueRaw as (typeof PRO_SCHEDULE_LEAGUES)[number])
+    ) {
       return sendError(res, 400, 'Invalid pro_league');
     }
-    const proLeague = proLeagueRaw as (typeof PRO_LEAGUES)[number] | '';
+    const proLeague = proLeagueRaw as (typeof PRO_SCHEDULE_LEAGUES)[number] | '';
 
     const where: any = {};
     if (status) where.status = status;
@@ -454,6 +461,12 @@ eventsRouter.get(
           { game: { is: { date: { lt: new Date() } } } },
         ],
       });
+      mergeAndWhere(
+        where,
+        buildPrivateTeamEventVisibilityWhere(
+          await getExcludedPrivateTeamIds((req as any).user?.id ?? null)
+        )
+      );
     }
     if (eventType) where.event_type = eventType;
     if (eventOnly) where.game_id = null;
@@ -1273,6 +1286,14 @@ eventsRouter.post(
     // Normalize: accept either team_id or home_team_id from frontend
     if (data.team_id && !data.home_team_id) {
       data.home_team_id = data.team_id;
+    }
+
+    if (data.event_type === 'game' && !data.game_id) {
+      return sendError(res, 400, 'Competitive games must be created through /games', {
+        message:
+          'Competitive games require a linked game_id so polls, scores, stories, and approvals use the Game record. Use /games for competitive games and /events for non-competitive events.',
+        code: 'COMPETITIVE_EVENT_REQUIRES_GAME',
+      });
     }
 
     // Validate event date is in the future

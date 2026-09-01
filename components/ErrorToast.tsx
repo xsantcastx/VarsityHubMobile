@@ -94,14 +94,7 @@ export function ErrorToastContainer() {
   if (visibleToasts.length === 0) return null;
 
   return (
-    <View
-      style={[
-        styles.container,
-        { top: insets.top + 10 },
-        Platform.OS === 'web' ? { pointerEvents: 'box-none' } : null,
-      ]}
-      pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
-    >
+    <View style={[styles.container, { top: insets.top + 10 }, { pointerEvents: 'box-none' }]}>
       {visibleToasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onDismiss={() => hideToast(toast.id)} />
       ))}

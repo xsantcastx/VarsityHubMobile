@@ -15,9 +15,25 @@ const refreshAccessTokenWithCacheMock = jest.fn(async () => ({
   accessToken: 'refreshed-token',
   reason: 'success' as const,
 }));
+const mockGetInfoAsync = jest.fn(async () => ({
+  exists: true,
+  size: 12345,
+}));
+const mockCreateUploadTask = jest.fn(() => ({
+  uploadAsync: jest.fn(async () => ({ status: 200, body: '' })),
+  cancelAsync: jest.fn(async () => undefined),
+}));
 
 jest.mock('@/utils/ensureUploadableUri', () => ({
   compressImageForUpload: jest.fn(async (uri: string, mimeType: string) => ({ uri, mimeType })),
+}));
+
+jest.mock('expo-file-system/legacy', () => ({
+  getInfoAsync: mockGetInfoAsync,
+  createUploadTask: mockCreateUploadTask,
+  FileSystemUploadType: {
+    BINARY_CONTENT: 'binary',
+  },
 }));
 
 jest.mock('../auth', () => ({
@@ -127,6 +143,9 @@ describe('uploadFile routing', () => {
       accessToken: 'refreshed-token',
       reason: 'success',
     });
+    mockGetInfoAsync.mockReset();
+    mockGetInfoAsync.mockResolvedValue({ exists: true, size: 12345 });
+    mockCreateUploadTask.mockClear();
     openVerificationGateMock.mockReset();
     openVerificationGateMock.mockResolvedValue(false);
     MockXHR.instances.length = 0;
@@ -307,7 +326,7 @@ describe('uploadFile routing', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      'https://api.test/uploads/r2-presign?content_type=image%2Fjpeg'
+      'https://api.test/uploads/r2-presign?content_type=image%2Fjpeg&content_length=12345'
     );
     expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
       'https://api.test/uploads/cloudinary-signature'
@@ -321,6 +340,52 @@ describe('uploadFile routing', () => {
       type: 'image',
       mime: 'image/jpeg',
       provider: 'cloudinary',
+    });
+  });
+
+  it('uploads directly to R2 with the server-approved content length when R2 is available', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        uploadUrl: 'https://r2.test/upload',
+        key: 'varsityhub/test/image.jpg',
+        publicUrl: 'https://media.test/varsityhub/test/image.jpg',
+        expiresIn: 600,
+        contentLength: 12345,
+        maxBytes: 10485760,
+      }),
+    });
+
+    const { uploadFile } = await import('../upload');
+    const result = await uploadFile(
+      'https://api.test',
+      'file:///tmp/pic.jpg',
+      'pic.jpg',
+      'image/jpeg'
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.test/uploads/r2-presign?content_type=image%2Fjpeg&content_length=12345'
+    );
+    expect(mockCreateUploadTask).toHaveBeenCalledWith(
+      'https://r2.test/upload',
+      'file:///tmp/pic.jpg',
+      expect.objectContaining({
+        httpMethod: 'PUT',
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Content-Length': '12345',
+        },
+      }),
+      undefined
+    );
+    expect(result).toEqual({
+      url: 'https://media.test/varsityhub/test/image.jpg',
+      type: 'image',
+      mime: 'image/jpeg',
+      provider: 'r2',
     });
   });
 

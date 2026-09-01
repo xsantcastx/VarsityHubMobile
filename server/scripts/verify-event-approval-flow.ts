@@ -294,7 +294,11 @@ async function verifyEventFlow(managerToken: string, outsiderToken: string) {
   record('manager sees pending event', visibleBefore, managerPendingBefore.status);
 
   const outsiderPending = await api('GET', '/events/pending', undefined, outsiderToken);
-  record('outsider blocked from pending events', outsiderPending.status === 403, outsiderPending.status);
+  record(
+    'outsider blocked from pending events',
+    outsiderPending.status === 403,
+    outsiderPending.status
+  );
 
   const outsiderApprove = await api(
     'PUT',
@@ -302,7 +306,11 @@ async function verifyEventFlow(managerToken: string, outsiderToken: string) {
     {},
     outsiderToken
   );
-  record('outsider blocked from event approve', outsiderApprove.status === 403, outsiderApprove.status);
+  record(
+    'outsider blocked from event approve',
+    outsiderApprove.status === 403,
+    outsiderApprove.status
+  );
 
   const approve = await api<EventListItem>(
     'PUT',
@@ -405,14 +413,16 @@ async function verifyGameFlow(managerToken: string, outsiderToken: string) {
 
   const managerPendingBefore = await api<GameListBody>(
     'GET',
-    '/games?show_pending=true&limit=50',
+    '/games?approval_status=pending&limit=50',
     undefined,
     managerToken
   );
   const gameVisibleBefore =
     managerPendingBefore.status === 200 &&
     Array.isArray((managerPendingBefore.data as GameListBody | null)?.games) &&
-    ((managerPendingBefore.data as GameListBody).games || []).some(game => game?.id === pendingGame.id);
+    ((managerPendingBefore.data as GameListBody).games || []).some(
+      game => game?.id === pendingGame.id
+    );
   record('manager sees pending game', gameVisibleBefore, managerPendingBefore.status);
 
   const outsiderApprove = await api(
@@ -421,7 +431,11 @@ async function verifyGameFlow(managerToken: string, outsiderToken: string) {
     { approval_status: 'approved' },
     outsiderToken
   );
-  record('outsider blocked from game approve', outsiderApprove.status === 403, outsiderApprove.status);
+  record(
+    'outsider blocked from game approve',
+    outsiderApprove.status === 403,
+    outsiderApprove.status
+  );
 
   const approve = await api(
     'PUT',
@@ -451,7 +465,7 @@ async function verifyGameFlow(managerToken: string, outsiderToken: string) {
 
   const managerPendingAfterApprove = await api<GameListBody>(
     'GET',
-    '/games?show_pending=true&limit=50',
+    '/games?approval_status=pending&limit=50',
     undefined,
     managerToken
   );
@@ -522,28 +536,28 @@ async function verifyGameFlow(managerToken: string, outsiderToken: string) {
 async function cleanup() {
   const userIds = [managerId, submitterId, outsiderId].filter(Boolean);
   await prisma.notification.deleteMany({ where: { user_id: { in: userIds } } }).catch(() => {});
-  await prisma.event.deleteMany({
-    where: {
-      OR: [
-        { creator_id: submitterId || '__none__' },
-        { team_id: teamId || '__none__' },
-      ],
-    },
-  }).catch(() => {});
-  await prisma.game.deleteMany({
-    where: {
-      OR: [
-        { created_by_id: submitterId || '__none__' },
-        { home_team_id: teamId || '__none__' },
-      ],
-    },
-  }).catch(() => {});
+  await prisma.event
+    .deleteMany({
+      where: {
+        OR: [{ creator_id: submitterId || '__none__' }, { team_id: teamId || '__none__' }],
+      },
+    })
+    .catch(() => {});
+  await prisma.game
+    .deleteMany({
+      where: {
+        OR: [{ created_by_id: submitterId || '__none__' }, { home_team_id: teamId || '__none__' }],
+      },
+    })
+    .catch(() => {});
   if (teamId) {
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
   }
   if (orgId) {
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
   }
   await prisma.refreshToken.deleteMany({ where: { user_id: { in: userIds } } }).catch(() => {});

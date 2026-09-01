@@ -341,7 +341,7 @@ A: Business hours (9 AM - 5 PM) with team available. Avoid weekends/holidays.
 **Date**: **\*\***\_\_\_\_**\*\***  
 **Time**: **\*\***\_\_\_\_**\*\***  
 **All Tests Passed**: YES / NO  
-**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
+**Notes**: \***\*\*\*\*\***\*\*\***\*\*\*\*\***\_\_\_\***\*\*\*\*\***\*\*\***\*\*\*\*\***
 
 ### Release Lead Sign-Off (After Deployment)
 
@@ -349,7 +349,7 @@ A: Business hours (9 AM - 5 PM) with team available. Avoid weekends/holidays.
 **Date**: **\*\***\_\_\_\_**\*\***  
 **Time**: **\*\***\_\_\_\_**\*\***  
 **Deployment Successful**: YES / NO  
-**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
+**Notes**: \***\*\*\*\*\***\*\*\***\*\*\*\*\***\_\_\_\***\*\*\*\*\***\*\*\***\*\*\*\*\***
 
 ---
 

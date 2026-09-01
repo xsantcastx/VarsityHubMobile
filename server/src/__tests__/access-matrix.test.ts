@@ -319,6 +319,12 @@ function record(
   if (rv === 'CRASHED') flags.push('FLAG_CRASH_ROOKIE');
   if (vv === 'CRASHED') flags.push('FLAG_CRASH_VETERAN');
 
+  // Flag: audited route drift. A 404 in the matrix usually means the client or
+  // test is hitting a stale path, which is exactly how tab workflows break.
+  if (fv === 'NOT_FOUND') flags.push('FLAG_ROUTE_MISSING_FAN');
+  if (rv === 'NOT_FOUND') flags.push('FLAG_ROUTE_MISSING_ROOKIE');
+  if (vv === 'NOT_FOUND') flags.push('FLAG_ROUTE_MISSING_VETERAN');
+
   // Flag: denial without clean error message
   if (fv === 'DENIED' && !fan.body?.error && !fan.body?.message) flags.push('FLAG_BAD_DENIAL_FAN');
   if (rv === 'DENIED' && !rookie.body?.error && !rookie.body?.message)
@@ -437,11 +443,11 @@ describe('Access Matrix — Full Feature Scan', () => {
 
     it('POST /teams/:id/invites — invite to team (owner only)', async () => {
       if (!rookieTeamId) return;
-      const { fan, rookie, veteran } = await hitAll('post', `/teams/${rookieTeamId}/invites`, {
+      const { fan, rookie, veteran } = await hitAll('post', `/teams/${rookieTeamId}/invite`, {
         email: `invite-test-${ts}@example.com`,
         role: 'coach',
       });
-      record('Invite to team', 'POST /teams/:id/invites', fan, rookie, veteran, {
+      record('Invite to team', 'POST /teams/:id/invite', fan, rookie, veteran, {
         coachOnly: true,
       });
       // Fan should be denied (not team owner)
@@ -601,7 +607,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Fan Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
           }),
         request(fullApp)
           .post('/events')
@@ -610,7 +616,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Rookie Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
             home_team_id: rookieTeamId,
           }),
         request(fullApp)
@@ -620,7 +626,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Veteran Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
             home_team_id: veteranTeamId,
           }),
       ]);
@@ -972,10 +978,12 @@ describe('Access Matrix — Full Feature Scan', () => {
       const crashes = allFlags.filter(f => f.startsWith('FLAG_CRASH'));
       const fanCoach = allFlags.filter(f => f === 'FLAG_FAN_COACH');
       const rookieVet = allFlags.filter(f => f === 'FLAG_ROOKIE_VETERAN');
+      const missingRoutes = allFlags.filter(f => f.startsWith('FLAG_ROUTE_MISSING'));
       const badDenial = allFlags.filter(f => f.startsWith('FLAG_BAD_DENIAL'));
 
       console.log('\n─── FLAG SUMMARY ───');
       console.log(`  Crashes (5xx):                   ${crashes.length}`);
+      console.log(`  Missing audited routes (404):    ${missingRoutes.length}`);
       console.log(`  Fan accessing coach features:    ${fanCoach.length}`);
       console.log(`  Rookie accessing vet features:   ${rookieVet.length}`);
       console.log(`  Denials without clean message:   ${badDenial.length}`);
@@ -1014,6 +1022,7 @@ describe('Access Matrix — Full Feature Scan', () => {
       lines.push('');
       lines.push('FLAG SUMMARY');
       lines.push(`  Crashes (5xx):                   ${crashes.length}`);
+      lines.push(`  Missing audited routes (404):    ${missingRoutes.length}`);
       lines.push(`  Fan accessing coach features:    ${fanCoach.length}`);
       lines.push(`  Rookie accessing vet features:   ${rookieVet.length}`);
       lines.push(`  Denials without clean message:   ${badDenial.length}`);
@@ -1034,6 +1043,8 @@ describe('Access Matrix — Full Feature Scan', () => {
 
       // ASSERT: no crashes
       expect(crashes).toEqual([]);
+      // ASSERT: audited routes still exist
+      expect(missingRoutes).toEqual([]);
       // ASSERT: no fan accessing coach features
       expect(fanCoach).toEqual([]);
       // ASSERT: no rookie accessing veteran features

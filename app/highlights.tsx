@@ -435,6 +435,7 @@ const HighlightCard = ({
                     item.caption || (sanitizeTitle(item.title) ?? undefined)
                   );
                   await Share.share(buildNativeSharePayload(link.shareMessage, link.webUrl));
+                  void Post.share(String(item.id)).catch(() => {});
                 } catch {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);
@@ -1028,10 +1029,10 @@ function HighlightsScreen() {
                     borderBottomWidth: 1,
                     borderBottomColor: Colors[colorScheme].border,
                   }}
-                  onPress={() => setSearchQuery(user.display_name || user.username || user.email)}
+                  onPress={() => setSearchQuery(user.username || '')}
                 >
                   <Text style={{ color: Colors[colorScheme].text }}>
-                    👤 {user.display_name || user.username || user.email}
+                    👤 @{user.username || 'user'}
                   </Text>
                 </Pressable>
               ))}
@@ -1216,15 +1217,7 @@ function HighlightsScreen() {
                     }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>
-                      {user.display_name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.searchResultSubtitle,
-                        { color: Colors[colorScheme].tabIconDefault },
-                      ]}
-                    >
-                      @{user.username || user.email}
+                      @{user.username || 'user'}
                     </Text>
                   </Pressable>
                 ))}

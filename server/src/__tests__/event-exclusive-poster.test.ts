@@ -10,12 +10,19 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 const mockEventFindUnique = jest.fn();
 const mockGameFindUnique = jest.fn();
 const mockDesignatedFindUnique = jest.fn();
+const mockUnlockFindUnique = jest.fn();
+const mockUnlockCreateMany = jest.fn();
+const mockPostFindFirst = jest.fn();
+const mockStoryFindFirst = jest.fn();
 
 jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
     event: { findUnique: mockEventFindUnique },
     game: { findUnique: mockGameFindUnique },
     eventDesignatedPoster: { findUnique: mockDesignatedFindUnique },
+    eventPostingUnlock: { findUnique: mockUnlockFindUnique, createMany: mockUnlockCreateMany },
+    post: { findFirst: mockPostFindFirst },
+    story: { findFirst: mockStoryFindFirst },
   },
 }));
 
@@ -39,10 +46,18 @@ describe('verifyEventPostingPermission — exclusive poster lock', () => {
     mockGameFindUnique.mockReset();
     mockDesignatedFindUnique.mockReset();
     mockDesignatedFindUnique.mockResolvedValue(null); // no additive grant by default
+    mockUnlockFindUnique.mockReset();
+    mockUnlockFindUnique.mockResolvedValue(null);
+    mockUnlockCreateMany.mockReset();
+    mockUnlockCreateMany.mockResolvedValue({ count: 0 });
+    mockPostFindFirst.mockReset();
+    mockPostFindFirst.mockResolvedValue(null);
+    mockStoryFindFirst.mockReset();
+    mockStoryFindFirst.mockResolvedValue(null);
   });
   afterEach(() => jest.restoreAllMocks());
 
-  it('allows the designated exclusive poster, bypassing window + geofence (no coords, past date)', async () => {
+  it('allows the exclusive poster, bypassing window + geofence (no coords, past date)', async () => {
     mockEventFindUnique.mockResolvedValue(
       baseEvent({
         exclusive_poster_id: 'nico',

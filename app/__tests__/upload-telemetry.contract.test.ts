@@ -1,17 +1,17 @@
 /**
  * Production video uploads go phone → Cloudinary directly, so the server never
  * sees the failure and client console logs are stripped. Without Sentry in
- * api/upload.ts, video-upload outages are invisible (this is how the max_bytes
+ * apiclient/upload.ts, video-upload outages are invisible (this is how the max_bytes
  * "Invalid Signature" 401 outage went undiagnosed). These assertions pin the
  * telemetry in place.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const uploadSrc = readFileSync(join(process.cwd(), 'api', 'upload.ts'), 'utf8');
+const uploadSrc = readFileSync(join(process.cwd(), 'apiclient', 'upload.ts'), 'utf8');
 
 describe('client upload telemetry contract', () => {
-  it('api/upload.ts imports captureException from the shared sentry util', () => {
+  it('apiclient/upload.ts imports captureException from the shared sentry util', () => {
     expect(uploadSrc).toMatch(/import \{ captureException \} from '@\/utils\/sentry'/);
   });
 

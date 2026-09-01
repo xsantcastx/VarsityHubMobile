@@ -12,6 +12,7 @@ import {
 } from '../lib/cloudinary.js';
 import { createR2UploadTicket, isR2Configured } from '../lib/r2.js';
 import { debugLog } from '../lib/debugLog.js';
+import { sendError } from '../lib/http/sendError.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
 import { prisma } from '../lib/prisma.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
@@ -413,8 +414,13 @@ uploadsRouter.get(
     if (!contentType) {
       return res.status(400).json({ error: 'content_type is required' });
     }
+    const contentLengthRaw = String((req.query as any).content_length || '').trim();
+    const contentLength = Number(contentLengthRaw);
+    if (!contentLengthRaw) {
+      return sendError(res, 400, 'content_length is required');
+    }
     try {
-      const ticket = await createR2UploadTicket({ contentType });
+      const ticket = await createR2UploadTicket({ contentType, contentLength });
       if (!ticket) {
         return res
           .status(503)
@@ -424,7 +430,9 @@ uploadsRouter.get(
       return res.json(ticket);
     } catch (error: any) {
       // Unsupported content type is a client error; anything else is upstream.
-      if (/Unsupported content type/i.test(String(error?.message))) {
+      if (
+        /Unsupported content type|content_length|File size exceeds/i.test(String(error?.message))
+      ) {
         return res.status(400).json({ error: error.message });
       }
       console.error('[uploads] Failed to presign R2 upload:', error);

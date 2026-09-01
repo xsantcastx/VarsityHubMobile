@@ -10,7 +10,8 @@ import 'dotenv/config';
  * - Flagged-banner approvals require an override reason on the dashboard path
  *
  * This script always boots its own local API with a controlled ADMIN_EMAILS
- * allowlist so it does not depend on whatever localhost server is already running.
+ * notification allowlist and TEST_PLATFORM_ADMIN_EMAILS access allowlist so it
+ * does not depend on whatever localhost server is already running.
  *
  * Usage:
  *   npm --prefix server run verify:ad-dashboard-review-flow
@@ -96,6 +97,7 @@ async function ensureLocalServer() {
   process.env.NODE_ENV = 'test';
   process.env.EMAIL_PROVIDER = 'test';
   process.env.ADMIN_EMAILS = ADMIN_EMAIL;
+  process.env.TEST_PLATFORM_ADMIN_EMAILS = ADMIN_EMAIL;
   const { app } = await import('../src/testApp.js');
 
   await new Promise<void>((resolve, reject) => {

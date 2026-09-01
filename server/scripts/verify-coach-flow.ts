@@ -96,7 +96,9 @@ async function assertApiReachable() {
       throw new Error(`/health returned ${res.status}`);
     }
   } catch {
-    throw new Error(`Local API is not reachable at ${BASE}. Start the server before running verify:coach-flow.`);
+    throw new Error(
+      `Local API is not reachable at ${BASE}. Start the server before running verify:coach-flow.`
+    );
   }
 }
 
@@ -126,7 +128,9 @@ async function showDbState(label: string, userId: string) {
 async function cleanup() {
   if (coachId) {
     await prisma.notification.deleteMany({ where: { user_id: coachId } }).catch(() => {});
-    await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coachId } }).catch(() => {});
+    await prisma.organizationJoinRequest
+      .deleteMany({ where: { user_id: coachId } })
+      .catch(() => {});
     await prisma.organizationMembership.deleteMany({ where: { user_id: coachId } }).catch(() => {});
     await prisma.teamMembership.deleteMany({ where: { user_id: coachId } }).catch(() => {});
   }
@@ -140,9 +144,11 @@ async function cleanup() {
   if (orgId) {
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
   }
-  await prisma.user.deleteMany({
-    where: { email: { in: [COACH_EMAIL, OWNER_EMAIL] } },
-  }).catch(() => {});
+  await prisma.user
+    .deleteMany({
+      where: { email: { in: [COACH_EMAIL, OWNER_EMAIL] } },
+    })
+    .catch(() => {});
 }
 
 async function getMe(token: string) {
@@ -224,7 +230,10 @@ async function main() {
     role: 'fan',
     dob: DOB,
   });
-  assert(register.status === 200 || register.status === 201, `Register failed with ${register.status}`);
+  assert(
+    register.status === 200 || register.status === 201,
+    `Register failed with ${register.status}`
+  );
   coachToken = register.data.access_token;
   coachId = register.data.user?.id;
   coachVerificationCode = String(register.data.dev_verification_code || '');
@@ -300,7 +309,10 @@ async function main() {
     where: { user_id: coachId, organization_id: orgId },
     select: { id: true, status: true },
   });
-  assert(joinRequestRow?.status === 'pending', `Expected pending join request, got ${joinRequestRow?.status}`);
+  assert(
+    joinRequestRow?.status === 'pending',
+    `Expected pending join request, got ${joinRequestRow?.status}`
+  );
   if (!joinRequestId && joinRequestRow?.id) {
     joinRequestId = joinRequestRow.id;
   }
@@ -338,24 +350,42 @@ async function main() {
   );
   assert(blockedPost.status === 403, `Expected post create 403, got ${blockedPost.status}`);
 
-  const nonOwnerView = await api('GET', `/organizations/${orgId}/join-requests`, undefined, coachToken);
-  assert(nonOwnerView.status === 403, `Expected join-request list 403 for coach, got ${nonOwnerView.status}`);
+  const nonOwnerView = await api(
+    'GET',
+    `/organizations/${orgId}/join-requests`,
+    undefined,
+    coachToken
+  );
+  assert(
+    nonOwnerView.status === 403,
+    `Expected join-request list 403 for coach, got ${nonOwnerView.status}`
+  );
 
   divider('8. League owner approves join request');
-  const ownerList = await api('GET', `/organizations/${orgId}/join-requests`, undefined, ownerToken);
+  const ownerList = await api(
+    'GET',
+    `/organizations/${orgId}/join-requests`,
+    undefined,
+    ownerToken
+  );
   assert(ownerList.status === 200, `Owner join-request list failed with ${ownerList.status}`);
 
-  const approve = await api('POST', `/organizations/join-requests/${joinRequestId}/approve`, {}, ownerToken);
+  const approve = await api(
+    'POST',
+    `/organizations/join-requests/${joinRequestId}/approve`,
+    {},
+    ownerToken
+  );
   assert(approve.status === 200, `Join request approval failed with ${approve.status}`);
 
   const meApproved = await getMe(coachToken);
   assert(
-    meApproved.account_state === 'coach_agreement_required',
-    `Expected coach_agreement_required after approval, got ${meApproved.account_state}`
+    meApproved.account_state === 'coach_active',
+    `Expected coach_active after approval, got ${meApproved.account_state}`
   );
   assert(
-    meApproved.next_step === '/onboarding/coach-agreement',
-    `Expected /onboarding/coach-agreement after approval, got ${meApproved.next_step}`
+    meApproved.next_step === '/(tabs)',
+    `Expected /(tabs) after approval, got ${meApproved.next_step}`
   );
 
   const approvalNotification = await prisma.notification.findFirst({
@@ -365,7 +395,7 @@ async function main() {
   });
   assert(approvalNotification, 'JOIN_REQUEST_APPROVED notification was not created');
 
-  divider('9. Accept coach agreement');
+  divider('9. Re-accept coach agreement idempotently');
   const agreement = await api(
     'PATCH',
     '/auth/me/preferences',
@@ -381,16 +411,21 @@ async function main() {
     meActive.account_state === 'coach_active',
     `Expected coach_active after agreement, got ${meActive.account_state}`
   );
-  assert(meActive.next_step === '/(tabs)', `Expected /(tabs) after agreement, got ${meActive.next_step}`);
+  assert(
+    meActive.next_step === '/(tabs)',
+    `Expected /(tabs) after agreement, got ${meActive.next_step}`
+  );
   await showDbState('after agreement', coachId);
 
   divider('RESULTS');
   console.log('✅ Canonical coach join-request flow verified');
-  console.log('   fan register → verify → upgrade-to-coach → onboarding → join request → owner approve → agreement → active');
+  console.log(
+    '   fan register → verify → upgrade-to-coach → onboarding → join request → owner approve → agreement → active'
+  );
 }
 
 main()
-  .catch((err) => {
+  .catch(err => {
     console.error('💥 Script error:', err);
     process.exitCode = 1;
   })

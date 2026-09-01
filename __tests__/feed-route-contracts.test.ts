@@ -15,4 +15,26 @@ describe('feed route contracts', () => {
     // The (tabs) route stays a one-line bridge — one implementation, no duplication.
     expect(tabsBridgeSource.trim()).toBe("export { default } from '../../feed';");
   });
+
+  it('paginates followed social post sections with independent feed bundle cursors', () => {
+    expect(routeSource).toContain('followedPostsCursor');
+    expect(routeSource).toContain('followedTeamsPostsCursor');
+    expect(routeSource).toContain('posts_cursor: cursor');
+    expect(routeSource).toContain('posts_followed_teams_cursor: cursor');
+    expect(routeSource).toContain('feed-load-more-followed-posts');
+    expect(routeSource).toContain('feed-load-more-team-posts');
+  });
+
+  it('surfaces partial feed bundle fallback warnings instead of treating them as true empties', () => {
+    expect(routeSource).toContain('socialFeedWarning');
+    expect(routeSource).toContain('feed-bundle-warning');
+    expect(routeSource).toContain('Some feed sections could not load');
+  });
+
+  it('covers VarsityHub-wide games and event-only pages, not only local/pro fixtures', () => {
+    expect(routeSource).toContain('buildFeedGameQueries(Date.now())');
+    expect(routeSource).toContain('feed-varsityhub-events-upcoming');
+    expect(routeSource).toContain('feed-varsityhub-events-past');
+    expect(routeSource).toContain('event_only: true');
+  });
 });

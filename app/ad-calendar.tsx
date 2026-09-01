@@ -1838,8 +1838,7 @@ function AdCalendarScreen() {
       {/* Free promo success overlay */}
       {showFreeSuccess && (
         <Animated.View
-          style={[styles.successOverlay, { opacity: freeSuccessOpacity }]}
-          pointerEvents="none"
+          style={[styles.successOverlay, { opacity: freeSuccessOpacity, pointerEvents: 'none' }]}
         >
           <View style={styles.successBadge}>
             <Text style={[styles.successCheck, { color: Colors[colorScheme].text }]}>✓</Text>

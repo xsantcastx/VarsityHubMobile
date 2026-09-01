@@ -31,7 +31,7 @@ function ExpoVideoPoster({ uri, style }: { uri: string; style?: StyleProp<ViewSt
     }
   });
   return (
-    <View style={style} pointerEvents="none">
+    <View style={[style, { pointerEvents: 'none' }]}>
       <VideoView
         style={StyleSheet.absoluteFill}
         player={player}

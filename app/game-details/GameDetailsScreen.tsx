@@ -34,6 +34,7 @@ import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -59,7 +60,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getApiBaseUrl } from '../../api/http';
+import { getApiBaseUrl } from '../../apiclient/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
@@ -308,6 +309,7 @@ const GameDetailsScreen = () => {
   const [preciseBannerDismissed, setPreciseBannerDismissed] = useState(false);
   const showTopFabRef = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
+  const hasCompletedInitialLoadRef = useRef(false);
   const headerTranslateY = useMemo(
     () =>
       feedY.interpolate({
@@ -1240,6 +1242,28 @@ const GameDetailsScreen = () => {
       }
     }
 
+    if (
+      hasEvent &&
+      !isDemoMatchup &&
+      !isAdminUser &&
+      !hasPostingUnlock &&
+      (typeof location?.latitude !== 'number' || typeof location?.longitude !== 'number')
+    ) {
+      const granted = permissionGranted ? true : await requestPermission();
+      if (
+        !granted ||
+        typeof location?.latitude !== 'number' ||
+        typeof location?.longitude !== 'number'
+      ) {
+        Alert.alert(
+          'Location Not Ready',
+          'Event stories require current device location within 3 km of the venue. Wait a moment and try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
     try {
       setStoryBusy(true);
       const pickerOptions: ImagePicker.ImagePickerOptions = {
@@ -1616,6 +1640,7 @@ const GameDetailsScreen = () => {
       } finally {
         // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] load() — finally: clearing loading state');
+        hasCompletedInitialLoadRef.current = true;
         if (isRefresh) setRefreshing(false);
         else setLoading(false);
       }
@@ -1632,6 +1657,14 @@ const GameDetailsScreen = () => {
     analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, { gameId: id, eventId });
     return () => task.cancel();
   }, [eventId, id, load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasCompletedInitialLoadRef.current) return undefined;
+      void load(true);
+      return undefined;
+    }, [load])
+  );
 
   // Reset per-event UI state immediately when navigating to a different event
   useEffect(() => {
@@ -1795,9 +1828,8 @@ const GameDetailsScreen = () => {
         return applyVoteSelection(prev, team);
       });
 
-      // Use gameId if available, otherwise fall back to eventId for event-only pages
-      const voteId = vm?.gameId || vm?.eventId;
-      if (!voteId) return; // Safety check
+      const voteId = vm?.gameId;
+      if (!voteId) return; // Competitive polls are keyed by Game.id, never Event.id.
 
       setVoteBusy(true);
       try {
@@ -2011,7 +2043,7 @@ const GameDetailsScreen = () => {
             )}
           </Animated.View>
 
-          <View style={styles.voteTouchLayer} pointerEvents={pressDisabled ? 'none' : 'auto'}>
+          <View style={[styles.voteTouchLayer, { pointerEvents: pressDisabled ? 'none' : 'auto' }]}>
             <Pressable
               style={styles.voteTouchHalf}
               disabled={pressDisabled}
@@ -2161,13 +2193,12 @@ const GameDetailsScreen = () => {
         />
         {/* Shade the banner less when this is a hero image so logos are visible */}
         <LinearGradient
-          pointerEvents="none"
           colors={
             isHero
               ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)']
               : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']
           }
-          style={styles.bannerShade}
+          style={[styles.bannerShade, { pointerEvents: 'none' }]}
         />
 
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
@@ -2583,11 +2614,11 @@ const GameDetailsScreen = () => {
       <Stack.Screen options={{ headerShown: false }} />
 
       <Animated.View
-        pointerEvents="box-none"
         style={[
           styles.headerWrap,
           {
             top: insets.top,
+            pointerEvents: 'box-none',
             transform: [{ translateY: headerTranslateY }],
             opacity: headerOpacity,
           },
@@ -2612,7 +2643,7 @@ const GameDetailsScreen = () => {
           />
         }
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: feedY } } }], {
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
           listener: handleScroll,
         })}
         scrollEventThrottle={16}
@@ -2769,8 +2800,8 @@ const GameDetailsScreen = () => {
                   <Pressable
                     style={styles.addPostButton}
                     onPress={() => {
-                      const targetGameId = vm?.gameId || vm?.eventId;
-                      if (!targetGameId) {
+                      const targetId = vm?.gameId || vm?.eventId;
+                      if (!targetId) {
                         Alert.alert('Create Post', 'Reload this event before creating a post.');
                         return;
                       }
@@ -2785,11 +2816,18 @@ const GameDetailsScreen = () => {
                         );
                         return;
                       }
-                      // Game detail highlights must create highlight posts so they
-                      // show up in the game highlight surfaces and filters.
+                      // The Posts action creates a normal event post. Stories
+                      // are created only through Add Story above, so a single
+                      // upload never intentionally writes to both destinations.
                       void router.push({
                         pathname: '/create-post',
-                        params: { gameId: String(targetGameId), type: 'highlight' },
+                        params: vm?.gameId
+                          ? {
+                              gameId: String(vm.gameId),
+                              ...(vm.eventId ? { eventId: String(vm.eventId) } : {}),
+                              type: 'post',
+                            }
+                          : { eventId: String(vm?.eventId), type: 'post' },
                       } as any);
                     }}
                   >
@@ -2903,7 +2941,7 @@ const GameDetailsScreen = () => {
                 ) : (
                   <View>
                     <Text style={[styles.muted, styles.sectionHelper]}>
-                      Be the first to share a highlight for this game.
+                      Be the first to post about this game.
                     </Text>
                     <View style={styles.postsMasonryGrid}>
                       <View style={styles.masonryColumn}>

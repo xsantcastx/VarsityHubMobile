@@ -251,6 +251,7 @@ describeDb('GET /feed/bundle', () => {
     expect(Array.isArray(res.body?.posts_followed_teams?.items)).toBe(true);
     expect(Array.isArray(res.body?.highlights?.nationalTop)).toBe(true);
     expect(Array.isArray(res.body?.highlights?.ranked)).toBe(true);
+    expect(res.body?.errors).toEqual([]);
     expect(res.body?.unread_notifications).toBe(1);
     expect(res.body?.unread_messages).toBe(1);
 

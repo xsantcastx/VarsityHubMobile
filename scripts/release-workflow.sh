@@ -42,6 +42,7 @@ phase_local() {
   run_step "Lint" npm run lint
   run_step "App typecheck" npm run typecheck
   run_step "Server typecheck" npx tsc --noEmit --project server/tsconfig.json
+  run_step "Access matrix" npm --prefix server run verify:access-matrix
   run_step "Guardrails" npm run verify:guardrails
   run_step "Navigation audit" npm run audit:navigation:fail
   run_step "Pre-release drift audit" npm run audit:pre-release

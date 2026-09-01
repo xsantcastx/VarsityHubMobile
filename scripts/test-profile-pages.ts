@@ -6,7 +6,7 @@
  * they work correctly in real-world scenarios.
  */
 
-import { Organization, Team, User } from '../api/entities.js';
+import { Organization, Team, User } from '../apiclient/entities.js';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 

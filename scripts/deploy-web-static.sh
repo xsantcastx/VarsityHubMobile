@@ -84,7 +84,17 @@ fs.writeFileSync(process.argv[2], JSON.stringify(cfg, null, 2) + "\n");
 cd "$DEPLOY_DIR"
 
 echo "Deploying static bundle to Vercel..."
-DEPLOY_URL="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"
+DEPLOY_OUTPUT="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"
+echo "$DEPLOY_OUTPUT"
+DEPLOY_URL="$(DEPLOY_OUTPUT="$DEPLOY_OUTPUT" node -e '
+const output = process.env.DEPLOY_OUTPUT || "";
+const matches = output.match(/https:\/\/[^\s"]+\.vercel\.app/g) || [];
+const deploymentUrl = matches.find((url) => !url.includes("vercel.com/"));
+if (!deploymentUrl) {
+  process.exit(1);
+}
+console.log(deploymentUrl);
+')"
 echo "Deployed: $DEPLOY_URL"
 
 # `vercel --prod` creates a new deployment but does NOT move existing custom

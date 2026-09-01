@@ -97,14 +97,14 @@ echo ""
 # Test 4: Strings in default locale
 echo -e "${BLUE}Test 4: Strings in default locale...${NC}"
 if [ -f "android/app/src/main/res/values/strings.xml" ]; then
-    if grep -q '<string name="name">' android/app/src/main/res/values/strings.xml; then
+    if grep -q '<string name="name"[^>]*>' android/app/src/main/res/values/strings.xml; then
         echo -e "${GREEN}✅ 'name' string in default locale${NC}"
     else
         echo -e "${RED}❌ 'name' string missing from default locale${NC}"
         ERRORS=$((ERRORS + 1))
     fi
     
-    if grep -q '<string name="displayName">' android/app/src/main/res/values/strings.xml; then
+    if grep -q '<string name="displayName"[^>]*>' android/app/src/main/res/values/strings.xml; then
         echo -e "${GREEN}✅ 'displayName' string in default locale${NC}"
     else
         echo -e "${RED}❌ 'displayName' string missing from default locale${NC}"

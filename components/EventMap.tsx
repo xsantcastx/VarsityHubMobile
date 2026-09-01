@@ -36,7 +36,11 @@ export default function EventMap({
   initialRegion,
   showUserLocation = true,
   dataLoaded = true,
+  preventAutoCenterOnUser = false,
   onRefresh,
+  hideCenterOnUser = false,
+  onCalendarPress,
+  calendarActive = false,
 }: EventMapProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const mapRef = useRef<MapView>(null);
@@ -108,7 +112,7 @@ export default function EventMap({
             setUserLocation(location);
 
             // Auto-center on user location if no specific region was requested
-            if (!initialRegion) {
+            if (!initialRegion && !preventAutoCenterOnUser) {
               setTimeout(() => {
                 mapRef.current?.animateToRegion(
                   {
@@ -140,7 +144,7 @@ export default function EventMap({
     return () => {
       cancelled = true;
     };
-  }, [showUserLocation, initialRegion]);
+  }, [showUserLocation, initialRegion, preventAutoCenterOnUser]);
 
   // Search filter — applied before the coordinate filter so it also thins out
   // the cluster groups (a search match inside a cluster surfaces on its own).
@@ -348,8 +352,33 @@ export default function EventMap({
           </TouchableOpacity>
         )}
 
+        {/* Dates-tracker Button — owner note 8: replaces the middle
+            "center on user" button on the Nearby Games page. Opens the parent's
+            date picker so users can view past days' games/events. */}
+        {onCalendarPress && (
+          <TouchableOpacity
+            style={[
+              styles.controlButton,
+              {
+                backgroundColor: calendarActive
+                  ? Colors[colorScheme].tint
+                  : Colors[colorScheme].background,
+              },
+            ]}
+            onPress={onCalendarPress}
+            accessibilityRole="button"
+            accessibilityLabel="Pick a date to view past games"
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={24}
+              color={calendarActive ? '#FFFFFF' : Colors[colorScheme].tint}
+            />
+          </TouchableOpacity>
+        )}
+
         {/* Center on User Button */}
-        {showUserLocation && userLocation && (
+        {!hideCenterOnUser && showUserLocation && userLocation && (
           <TouchableOpacity
             style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
             onPress={centerOnUser}

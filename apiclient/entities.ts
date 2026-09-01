@@ -240,6 +240,7 @@ export const Game = {
       mapView?: boolean; // v1.0.2: restricts server-side to games this week only
       teamless?: boolean; // curated/marquee events with no real team matchup
       following?: boolean; // Discover calendar: scope to viewer's followed teams
+      showAll?: boolean; // Bypass device/profile-zip proximity for global surfaces
     }
   ) => {
     const params: string[] = [];
@@ -262,6 +263,7 @@ export const Game = {
     if (options?.mapView) params.push('map_view=true');
     if (options?.teamless) params.push('teamless=true');
     if (options?.following) params.push('following=true');
+    if (options?.showAll) params.push('show_all=true');
     const qs = params.length ? `?${params.join('&')}` : '';
     return httpGet('/games' + qs, {}, 15000, 2);
   },
@@ -528,7 +530,7 @@ export const Event = {
       team_ids?: string[];
       following?: boolean;
       pro_only?: boolean;
-      pro_league?: 'nfl' | 'nba' | 'wnba' | 'mlb' | 'wwe';
+      pro_league?: string;
       event_only?: boolean;
       from?: string;
       to?: string;
@@ -1126,6 +1128,8 @@ export const Feed = {
       posts_limit?: number;
       highlights_limit?: number;
       ads_limit?: number;
+      posts_cursor?: string;
+      posts_followed_teams_cursor?: string;
     } = {}
   ) => {
     const q: string[] = [];
@@ -1138,6 +1142,11 @@ export const Feed = {
     if (params.highlights_limit)
       q.push('highlights_limit=' + encodeURIComponent(String(params.highlights_limit)));
     if (params.ads_limit) q.push('ads_limit=' + encodeURIComponent(String(params.ads_limit)));
+    if (params.posts_cursor) q.push('posts_cursor=' + encodeURIComponent(params.posts_cursor));
+    if (params.posts_followed_teams_cursor)
+      q.push(
+        'posts_followed_teams_cursor=' + encodeURIComponent(params.posts_followed_teams_cursor)
+      );
     return httpGet('/feed/bundle' + (q.length ? '?' + q.join('&') : ''));
   },
 };
