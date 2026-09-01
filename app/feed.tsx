@@ -174,9 +174,6 @@ const normalizeFeedEvents = (
     }));
 };
 
-const PRO_SPOTLIGHT_LEAGUES: ReadonlyArray<NonNullable<GameItem['pro_league']>> = ['wwe', 'nfl'];
-const NCAA_FEED_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
-
 function getFeedEntityKey(item: GameItem): string {
   const eventId = typeof item.event_id === 'string' && item.event_id ? item.event_id : null;
   if (eventId) return `event:${eventId}`;
@@ -951,9 +948,6 @@ export default function FeedScreen() {
               proPastData,
               varsityhubUpcomingEventsData,
               varsityhubPastEventsData,
-              proWweUpcomingData,
-              proNflUpcomingData,
-              ...ncaaUpcomingData
             ] = await Promise.all([
               queryClient
                 .fetchQuery({
@@ -968,7 +962,7 @@ export default function FeedScreen() {
                         to: proLookaheadTo,
                       },
                       'date',
-                      80
+                      300
                     ),
                 })
                 .catch((err: any) => {
@@ -1044,76 +1038,6 @@ export default function FeedScreen() {
                   if (__DEV__) console.warn('[Feed] Failed to load VarsityHub past events:', err);
                   return null;
                 }),
-              queryClient
-                .fetchQuery({
-                  queryKey: ['feed-pro-events-upcoming-wwe', queryPlan.upcoming.options.dateFrom],
-                  queryFn: () =>
-                    Event.filter(
-                      {
-                        event_type: 'game',
-                        pro_only: true,
-                        pro_league: 'wwe',
-                        event_only: true,
-                        from: queryPlan.upcoming.options.dateFrom,
-                        to: proLookaheadTo,
-                      },
-                      'date',
-                      20
-                    ),
-                })
-                .catch((err: any) => {
-                  if (__DEV__) console.warn('[Feed] Failed to load WWE upcoming events:', err);
-                  return null;
-                }),
-              queryClient
-                .fetchQuery({
-                  queryKey: ['feed-pro-events-upcoming-nfl', queryPlan.upcoming.options.dateFrom],
-                  queryFn: () =>
-                    Event.filter(
-                      {
-                        event_type: 'game',
-                        pro_only: true,
-                        pro_league: 'nfl',
-                        event_only: true,
-                        from: queryPlan.upcoming.options.dateFrom,
-                        to: proLookaheadTo,
-                      },
-                      'date',
-                      20
-                    ),
-                })
-                .catch((err: any) => {
-                  if (__DEV__) console.warn('[Feed] Failed to load NFL upcoming events:', err);
-                  return null;
-                }),
-              ...NCAA_FEED_LEAGUES.map(league =>
-                queryClient
-                  .fetchQuery({
-                    queryKey: [
-                      'feed-pro-events-upcoming-ncaa',
-                      league,
-                      queryPlan.upcoming.options.dateFrom,
-                    ],
-                    queryFn: () =>
-                      Event.filter(
-                        {
-                          event_type: 'game',
-                          pro_only: true,
-                          pro_league: league,
-                          event_only: true,
-                          from: queryPlan.upcoming.options.dateFrom,
-                          to: proLookaheadTo,
-                        },
-                        'date',
-                        100
-                      ),
-                  })
-                  .catch((err: any) => {
-                    if (__DEV__)
-                      console.warn(`[Feed] Failed to load ${league} upcoming events:`, err);
-                    return null;
-                  })
-              ),
             ]);
 
             if (!isCurrentRequest()) return;
@@ -1133,28 +1057,11 @@ export default function FeedScreen() {
               gameRows,
               normalizeFeedEvents(varsityhubPastEventsData)
             );
-            const proWweRows = filterProEventsAlreadyRepresentedByGames(
-              gameRows,
-              normalizeFeedEvents(proWweUpcomingData, 'wwe')
-            );
-            const proNflRows = filterProEventsAlreadyRepresentedByGames(
-              gameRows,
-              normalizeFeedEvents(proNflUpcomingData, 'nfl')
-            );
-            const ncaaRows = ncaaUpcomingData.flatMap((eventsData, index) =>
-              filterProEventsAlreadyRepresentedByGames(
-                gameRows,
-                normalizeFeedEvents(eventsData, NCAA_FEED_LEAGUES[index])
-              )
-            );
             const enrichmentRows = [
               proPastRows,
               proUpcomingRows,
               varsityhubEventRows,
               varsityhubPastEventRows,
-              proWweRows,
-              proNflRows,
-              ncaaRows,
             ];
             if (!enrichmentRows.some(rows => rows.length > 0)) return;
             setGames(prev => dedupeFeedEntities(mergeFeedGames(prev, ...enrichmentRows)));
@@ -1637,24 +1544,10 @@ export default function FeedScreen() {
       else unpinned.push(game);
     });
 
-    // Root-cause fix (2026-08-05): WWE/NFL pro rows existed in payloads but
-    // were buried deep in global upcoming lists. Surface the next entry for
-    // each spotlight league at the top, then keep chronological order below.
-    const spotlight: GameItem[] = [];
-    const spotlightIds = new Set<string>();
-    for (const league of PRO_SPOTLIGHT_LEAGUES) {
-      const nextLeagueItem = unpinned.find(game => (game as any)?.pro_league === league);
-      if (nextLeagueItem && !spotlightIds.has(String(nextLeagueItem.id))) {
-        spotlight.push(nextLeagueItem);
-        spotlightIds.add(String(nextLeagueItem.id));
-      }
-    }
-    const remainingUpcoming = unpinned.filter(game => !spotlightIds.has(String(game.id)));
-
     return {
       pinnedEvents: pinned,
-      spotlightProEvents: spotlight,
-      upcomingEvents: remainingUpcoming,
+      spotlightProEvents: [],
+      upcomingEvents: unpinned,
       pastEvents: past,
     };
   }, [filtered, viewerPosition]);

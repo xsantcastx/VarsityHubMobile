@@ -7,9 +7,13 @@ const mockEventFindMany = jest.fn();
 const mockEventCreateMany = jest.fn();
 const mockEventCreate = jest.fn();
 const mockEventUpdate = jest.fn();
+const mockSportsLeagueFindMany = jest.fn();
 
 jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
+    sportsLeague: {
+      findMany: mockSportsLeagueFindMany,
+    },
     proTeam: {
       findMany: mockTeamFindMany,
       createMany: mockTeamCreateMany,
@@ -35,6 +39,8 @@ describe('ingestFixtures conservative writes', () => {
     mockEventCreateMany.mockReset();
     mockEventCreate.mockReset();
     mockEventUpdate.mockReset();
+    mockSportsLeagueFindMany.mockReset();
+    mockSportsLeagueFindMany.mockResolvedValue([]);
   });
 
   it('skips updates when provider-owned fields are unchanged', async () => {
@@ -100,6 +106,7 @@ describe('ingestFixtures conservative writes', () => {
   });
 
   it('batches creates with createMany for new fixtures', async () => {
+    mockSportsLeagueFindMany.mockResolvedValue([{ id: 'sports_league_nfl', slug: 'nfl' }]);
     mockTeamFindMany.mockResolvedValue([
       {
         id: 'team-1',
@@ -141,6 +148,13 @@ describe('ingestFixtures conservative writes', () => {
     expect(stats.updated).toBe(0);
     expect(stats.skipped).toBe(0);
     expect(mockEventCreateMany).toHaveBeenCalledTimes(1);
+    expect(mockEventCreateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ sports_league_id: 'sports_league_nfl' }),
+        ]),
+      })
+    );
     expect(mockEventCreate).not.toHaveBeenCalled();
   });
 

@@ -19,8 +19,9 @@ import type { ProLeague } from '@prisma/client';
 import { prisma } from '../src/lib/prisma.js';
 import { NO_ADAPTER_MESSAGE, resolveConfiguredAdapter } from '../src/lib/proSchedule/adapters.js';
 import { ingestLeague } from '../src/lib/proSchedule/ingest.js';
+import { PRO_SCHEDULE_LEAGUES } from '../src/lib/proSchedule/types.js';
 
-const ALL_LEAGUES: ProLeague[] = ['nfl', 'nba', 'wnba', 'mlb', 'wwe'];
+const ALL_LEAGUES: ProLeague[] = [...PRO_SCHEDULE_LEAGUES];
 
 const apply = process.argv.includes('--apply');
 const leagueArg = process.argv.find(a => a.startsWith('--league='))?.split('=')[1];

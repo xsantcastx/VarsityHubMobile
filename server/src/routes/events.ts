@@ -420,8 +420,14 @@ const serializeEvent = (
       event.team?.sport ??
       event.game?.homeTeam?.sport ??
       event.game?.awayTeam?.sport ??
+      event.sportsLeague?.sport_slug ??
       proLeagueToSport(event.proHomeTeam?.league ?? event.proAwayTeam?.league) ??
       null,
+    sports_league_id: event.sports_league_id ?? null,
+    league_slug: event.sportsLeague?.slug ?? null,
+    league_name: event.sportsLeague?.name ?? null,
+    league_level: event.sportsLeague?.level ?? null,
+    league_gender: event.sportsLeague?.gender ?? null,
     // Pro teams carry no logo (trademark), only an accent color. The card uses
     // these two to render a branded gradient when a pro event has no banner.
     pro_home_color: event.proHomeTeam?.primary_color ?? null,
@@ -474,16 +480,39 @@ eventsRouter.get(
             .filter(Boolean)
             .slice(0, 50)
         : [];
+    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
     // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
     // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
-    const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
+    const maxTake = proOnly ? 300 : 100;
+    const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, maxTake) : 100;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
-    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
-    const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
+    const sportsLeagueId =
+      typeof req.query.sports_league_id === 'string' ? req.query.sports_league_id.trim() : '';
+    const leagueSlug =
+      typeof req.query.league_slug === 'string' ? req.query.league_slug.trim().toLowerCase() : '';
+    const sportSlug =
+      typeof req.query.sport === 'string' ? req.query.sport.trim().toLowerCase() : '';
+    const leagueLevel =
+      typeof req.query.level === 'string' ? req.query.level.trim().toLowerCase() : '';
+    const leagueGender =
+      typeof req.query.gender === 'string' ? req.query.gender.trim().toLowerCase() : '';
+    const slugPattern = /^[a-z0-9_-]{1,120}$/;
+    if (sportsLeagueId && !/^[a-zA-Z0-9_-]{1,120}$/.test(sportsLeagueId)) {
+      return sendError(res, 400, 'Invalid sports_league_id');
+    }
+    for (const [label, value] of [
+      ['league_slug', leagueSlug],
+      ['sport', sportSlug],
+      ['level', leagueLevel],
+      ['gender', leagueGender],
+    ] as const) {
+      if (value && !slugPattern.test(value)) return sendError(res, 400, `Invalid ${label}`);
+    }
     if (
       proLeagueRaw &&
       !PRO_SCHEDULE_LEAGUES.includes(proLeagueRaw as (typeof PRO_SCHEDULE_LEAGUES)[number])
@@ -524,8 +553,36 @@ eventsRouter.get(
     if (proOnly) {
       where.AND = where.AND || [];
       where.AND.push({
-        OR: [{ pro_home_team_id: { not: null } }, { pro_away_team_id: { not: null } }],
+        OR: [
+          { pro_home_team_id: { not: null } },
+          { pro_away_team_id: { not: null } },
+          { sports_league_id: { not: null } },
+        ],
       });
+    }
+    if (sportsLeagueId) where.sports_league_id = sportsLeagueId;
+    if (leagueSlug) {
+      where.AND = where.AND || [];
+      where.AND.push({ sportsLeague: { is: { slug: leagueSlug } } });
+    }
+    if (sportSlug) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { team: { is: { sport: sportSlug } } },
+          { game: { is: { homeTeam: { is: { sport: sportSlug } } } } },
+          { game: { is: { awayTeam: { is: { sport: sportSlug } } } } },
+          { sportsLeague: { is: { sport_slug: sportSlug } } },
+        ],
+      });
+    }
+    if (leagueLevel) {
+      where.AND = where.AND || [];
+      where.AND.push({ sportsLeague: { is: { level: leagueLevel } } });
+    }
+    if (leagueGender) {
+      where.AND = where.AND || [];
+      where.AND.push({ sportsLeague: { is: { gender: leagueGender } } });
     }
     if (proLeague) {
       where.AND = where.AND || [];
@@ -533,6 +590,7 @@ eventsRouter.get(
         OR: [
           { proHomeTeam: { is: { league: proLeague } } },
           { proAwayTeam: { is: { league: proLeague } } },
+          { sportsLeague: { is: { slug: proLeague } } },
         ],
       });
     }
@@ -670,6 +728,9 @@ eventsRouter.get(
         // game-linked event borrows its matchup's sport; a pro event derives
         // it from its league.
         team: { select: { sport: true } },
+        sportsLeague: {
+          select: { slug: true, name: true, sport_slug: true, level: true, gender: true },
+        },
         proHomeTeam: { select: { league: true, primary_color: true } },
         proAwayTeam: { select: { league: true, primary_color: true } },
         game: {

@@ -534,6 +534,11 @@ export const Event = {
       following?: boolean;
       pro_only?: boolean;
       pro_league?: string;
+      sports_league_id?: string;
+      league_slug?: string;
+      sport?: string;
+      level?: string;
+      gender?: string;
       event_only?: boolean;
       from?: string;
       to?: string;
@@ -545,6 +550,12 @@ export const Event = {
     if (where.following) q.push('following=true');
     if (where.pro_only) q.push('pro_only=true');
     if (where.pro_league) q.push('pro_league=' + encodeURIComponent(where.pro_league));
+    if (where.sports_league_id)
+      q.push('sports_league_id=' + encodeURIComponent(where.sports_league_id));
+    if (where.league_slug) q.push('league_slug=' + encodeURIComponent(where.league_slug));
+    if (where.sport) q.push('sport=' + encodeURIComponent(where.sport));
+    if (where.level) q.push('level=' + encodeURIComponent(where.level));
+    if (where.gender) q.push('gender=' + encodeURIComponent(where.gender));
     if (where.event_only) q.push('event_only=true');
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
     if (where.approval_status)

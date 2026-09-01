@@ -46,6 +46,7 @@ type ExistingEventSnapshot = {
   longitude: number | null;
   pro_home_team_id: string | null;
   pro_away_team_id: string | null;
+  sports_league_id: string | null;
   live_window_hours_after_start: number | null;
   status: EventStatus;
 };
@@ -70,7 +71,10 @@ type ProviderTeamSnapshot = {
   active: boolean;
 };
 
-function hasProviderFieldChanges(existing: ExistingEventSnapshot, next: ResolvedFixture): boolean {
+function hasProviderFieldChanges(
+  existing: ExistingEventSnapshot,
+  next: ResolvedFixture & { sports_league_id: string | null }
+): boolean {
   return (
     existing.title !== next.title ||
     existing.date.getTime() !== next.date.getTime() ||
@@ -80,6 +84,7 @@ function hasProviderFieldChanges(existing: ExistingEventSnapshot, next: Resolved
     existing.longitude !== next.longitude ||
     existing.pro_home_team_id !== next.pro_home_team_id ||
     existing.pro_away_team_id !== next.pro_away_team_id ||
+    (existing.sports_league_id ?? null) !== next.sports_league_id ||
     existing.live_window_hours_after_start !== next.live_window_hours_after_start ||
     existing.status !== next.status
   );
@@ -102,6 +107,19 @@ async function loadTeams(league: ProLeague): Promise<Map<string, ProTeamVenue>> 
     take: 1000,
   });
   return new Map(teams.map(t => [t.external_ref, t]));
+}
+
+async function loadSportsLeagueIds(leagues: readonly ProLeague[]): Promise<Map<ProLeague, string>> {
+  const unique = [...new Set(leagues)];
+  if (unique.length === 0) return new Map();
+
+  const rows = await prisma.sportsLeague.findMany({
+    where: { slug: { in: unique } },
+    select: { id: true, slug: true },
+    take: unique.length,
+  });
+
+  return new Map(rows.map(row => [row.slug as ProLeague, row.id]));
 }
 
 function hasProviderTeamChanges(existing: ProviderTeamSnapshot, next: ProviderTeam): boolean {
@@ -199,6 +217,7 @@ export async function ingestFixtures(
 
   await ensureProviderTeams(fixtures, options);
   const teamsByRef = await loadTeams(league);
+  const sportsLeagueIds = await loadSportsLeagueIds(fixtures.map(f => f.league));
 
   const refs = fixtures.map(f => f.external_ref);
   const existing = await prisma.event.findMany({
@@ -214,6 +233,7 @@ export async function ingestFixtures(
       longitude: true,
       pro_home_team_id: true,
       pro_away_team_id: true,
+      sports_league_id: true,
       live_window_hours_after_start: true,
       status: true,
     },
@@ -242,6 +262,7 @@ export async function ingestFixtures(
     pro_home_team_id: string | null;
     pro_away_team_id: string | null;
     live_window_hours_after_start: number | null;
+    sports_league_id: string | null;
     status: EventStatus;
     approval_status: 'approved';
     event_type: 'game';
@@ -258,6 +279,7 @@ export async function ingestFixtures(
       longitude: number | null;
       pro_home_team_id: string | null;
       pro_away_team_id: string | null;
+      sports_league_id: string | null;
       live_window_hours_after_start: number | null;
       status: EventStatus;
     };
@@ -278,6 +300,8 @@ export async function ingestFixtures(
     }
 
     const v = resolved.value;
+    const sportsLeagueId = sportsLeagueIds.get(fixture.league) ?? null;
+    const next = { ...v, sports_league_id: sportsLeagueId };
     const existingEvent = existingByRef.get(v.pro_external_ref);
     const isUpdate = Boolean(existingEvent);
 
@@ -288,7 +312,7 @@ export async function ingestFixtures(
     }
 
     if (existingEvent) {
-      if (hasProviderFieldChanges(existingEvent, v)) {
+      if (hasProviderFieldChanges(existingEvent, next)) {
         updates.push({
           id: existingEvent.id,
           externalRef: fixture.external_ref,
@@ -296,16 +320,17 @@ export async function ingestFixtures(
             // Deliberately narrow. Only provider-owned fields are refreshed —
             // banner_url, description, and the poster grants are set by staff on
             // our side and must survive a re-ingest.
-            title: v.title,
-            date: v.date,
-            timezone: v.timezone,
-            location: v.location,
-            latitude: v.latitude,
-            longitude: v.longitude,
-            pro_home_team_id: v.pro_home_team_id,
-            pro_away_team_id: v.pro_away_team_id,
-            live_window_hours_after_start: v.live_window_hours_after_start,
-            status: v.status,
+            title: next.title,
+            date: next.date,
+            timezone: next.timezone,
+            location: next.location,
+            latitude: next.latitude,
+            longitude: next.longitude,
+            pro_home_team_id: next.pro_home_team_id,
+            pro_away_team_id: next.pro_away_team_id,
+            sports_league_id: next.sports_league_id,
+            live_window_hours_after_start: next.live_window_hours_after_start,
+            status: next.status,
           },
         });
       }
@@ -314,17 +339,18 @@ export async function ingestFixtures(
     }
 
     createRows.push({
-      pro_external_ref: v.pro_external_ref,
-      title: v.title,
-      date: v.date,
-      timezone: v.timezone,
-      location: v.location,
-      latitude: v.latitude,
-      longitude: v.longitude,
-      pro_home_team_id: v.pro_home_team_id,
-      pro_away_team_id: v.pro_away_team_id,
-      live_window_hours_after_start: v.live_window_hours_after_start,
-      status: v.status,
+      pro_external_ref: next.pro_external_ref,
+      title: next.title,
+      date: next.date,
+      timezone: next.timezone,
+      location: next.location,
+      latitude: next.latitude,
+      longitude: next.longitude,
+      pro_home_team_id: next.pro_home_team_id,
+      pro_away_team_id: next.pro_away_team_id,
+      sports_league_id: next.sports_league_id,
+      live_window_hours_after_start: next.live_window_hours_after_start,
+      status: next.status,
       // System-ingested: no creator, and pre-approved because there is no human
       // submission to review. creator_id stays null, which marks these apart
       // from fan-pitched events.

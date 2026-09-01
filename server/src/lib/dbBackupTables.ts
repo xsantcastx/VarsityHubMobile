@@ -26,8 +26,11 @@ export const TABLES_IN_ORDER = [
   'SportProgram',
   'Team',
   'Game',
+  'SportsLeague',
+  'SportsSeason', // needs SportsLeague
+  'SportsIngestRun', // needs SportsLeague when league-scoped
   'ProTeam', // no FK deps; must precede Event (pro_home_team_id / pro_away_team_id)
-  'Event',
+  'Event', // needs SportsLeague + ProTeam when external schedule-backed
   'Post',
   'Ad',
   'Message',
@@ -38,6 +41,7 @@ export const TABLES_IN_ORDER = [
   'PollVote',
   'Story',
   'GameVote',
+  'EventVote',
   'PostUpvote',
   'PostBookmark',
   'CategoryAssignment',
