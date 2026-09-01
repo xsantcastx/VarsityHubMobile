@@ -125,7 +125,63 @@ describe('event discovery contract', () => {
     );
   });
 
-  it('clamps caller-supplied map windows to the five-day server policy', async () => {
+  it('caps the map window to the five-day range even when the pick is in the past', async () => {
+    const now = new Date('2026-08-31T12:00:00.000Z');
+    const db: any = {
+      game: { findMany: jest.fn(async () => []) },
+      event: { findMany: jest.fn(async () => []) },
+      eventDesignatedPoster: { findMany: jest.fn(async () => []) },
+      eventPostingUnlock: { findMany: jest.fn(async () => []) },
+    };
+
+    // The date-picker can now reach arbitrarily far into the past, so the past floor
+    // is gone — but a single request still can't span more than the 5-day policy: an
+    // over-wide window keeps the first five days from the requested start.
+    await listEventDiscoveryItems(db, {
+      surface: 'map',
+      now,
+      from: new Date('2026-08-01T00:00:00.000Z'),
+      to: new Date('2026-12-31T00:00:00.000Z'),
+    });
+
+    expect(db.game.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          date: {
+            gte: new Date('2026-08-01T00:00:00.000Z'),
+            lte: new Date('2026-08-06T00:00:00.000Z'),
+          },
+        }),
+      })
+    );
+  });
+
+  it('still clamps the map forward edge to +5 days', async () => {
+    const now = new Date('2026-08-31T12:00:00.000Z');
+    const db: any = {
+      game: { findMany: jest.fn(async () => []) },
+      event: { findMany: jest.fn(async () => []) },
+      eventDesignatedPoster: { findMany: jest.fn(async () => []) },
+      eventPostingUnlock: { findMany: jest.fn(async () => []) },
+    };
+
+    await listEventDiscoveryItems(db, {
+      surface: 'map',
+      now,
+      from: now,
+      to: new Date('2026-12-31T00:00:00.000Z'),
+    });
+
+    expect(db.game.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          date: { gte: now, lte: new Date('2026-09-05T12:00:00.000Z') },
+        }),
+      })
+    );
+  });
+
+  it('map surface requires a media post for past event pages only', async () => {
     const now = new Date('2026-08-31T12:00:00.000Z');
     const db: any = {
       game: { findMany: jest.fn(async () => []) },
@@ -138,16 +194,18 @@ describe('event discovery contract', () => {
       surface: 'map',
       now,
       from: new Date('2026-08-01T00:00:00.000Z'),
-      to: new Date('2026-12-31T00:00:00.000Z'),
+      to: new Date('2026-08-02T00:00:00.000Z'),
     });
 
-    expect(db.game.findMany).toHaveBeenCalledWith(
+    // Past events (date < now) are only pinned when they carry a live media post;
+    // upcoming events (date >= now) are always shown.
+    expect(db.event.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          date: {
-            gte: now,
-            lte: new Date('2026-09-05T12:00:00.000Z'),
-          },
+          OR: [
+            { date: { gte: now } },
+            { posts: { some: { media_url: { not: null }, deleted_at: null } } },
+          ],
         }),
       })
     );

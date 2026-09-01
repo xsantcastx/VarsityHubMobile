@@ -7,8 +7,18 @@ import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
 import SportFilterBar from '@/components/SportFilterBar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 // SafeAreaView removed — native header handles safe area
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { httpGet } from '@/api/http';
 import { buildMapDiscoveryPath, buildUpcomingDateButtons, toMapEvents } from '@/utils/mapDiscovery';
 import { validateEventCards } from '@/api/schemas/eventCard';
@@ -31,6 +41,12 @@ function GameMapScreen() {
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
+  // A picked past day fetches its own markers (past days sit outside the loaded
+  // 5-day window). null = not in past-day mode.
+  const [pastDayMarkers, setPastDayMarkers] = useState<EventMapData[] | null>(null);
+  const [pastLoading, setPastLoading] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerDate, setPickerDate] = useState<Date>(() => new Date());
 
   const loadGames = useCallback(async () => {
     setLoading(true);
@@ -86,28 +102,67 @@ function GameMapScreen() {
     [events]
   );
 
-  // Client-side filter — no refetch. A stale selection (sport no longer present)
-  // simply yields an empty map until cleared, which is self-explanatory.
-  const visibleEvents = useMemo(
-    () => (selectedSport ? events.filter(e => e.sport === selectedSport) : events),
-    [events, selectedSport]
-  );
+  // Tapping a date chip filters the MAP to that day (no list). A forward chip lives
+  // inside the already-loaded window, so it filters client-side with no refetch.
+  const selectForwardDate = useCallback((dateString: string) => {
+    setPastDayMarkers(null);
+    setSelectedDate(prev => (prev === dateString ? '' : dateString));
+  }, []);
 
-  // Upcoming days (today forward) — the feed map shows what's still to come, so
-  // its date picker looks forward, not back. Logic lives in utils/mapDiscovery.
+  const clearDate = useCallback(() => {
+    setSelectedDate('');
+    setPastDayMarkers(null);
+  }, []);
+
+  // The trailing calendar button reaches ANY earlier day (back to VarsityHub's
+  // start). Past days sit outside the 5-day map window, so they need their own
+  // fetch; the server only returns past event pages that carry a media post.
+  const selectPastDate = useCallback(async (picked: Date) => {
+    const start = new Date(
+      Date.UTC(picked.getFullYear(), picked.getMonth(), picked.getDate(), 0, 0, 0, 0)
+    );
+    const end = new Date(
+      Date.UTC(picked.getFullYear(), picked.getMonth(), picked.getDate(), 23, 59, 59, 999)
+    );
+    setSelectedDate(start.toISOString().split('T')[0]);
+    setPastLoading(true);
+    try {
+      const path = `/event-discovery?surface=map&from=${encodeURIComponent(
+        start.toISOString()
+      )}&to=${encodeURIComponent(end.toISOString())}&limit=200`;
+      const res: unknown = await httpGet(path);
+      const items = validateEventCards('/event-discovery?surface=map', res);
+      setPastDayMarkers(toMapEvents(items, new Date()));
+    } catch (err) {
+      if (__DEV__) console.error('[game-map] past-day load failed:', err);
+      setPastDayMarkers([]);
+    } finally {
+      setPastLoading(false);
+    }
+  }, []);
+
+  // Upcoming days (today forward) as quick chips. Logic lives in utils/mapDiscovery.
   const recentDateButtons = useMemo(
     () => buildUpcomingDateButtons(calendarEvents, new Date(), 7),
     [calendarEvents]
   );
 
-  const selectedDateEvents = useMemo(() => {
-    if (!selectedDate) return [];
-    return calendarEvents.filter(event => {
-      if (!event.date) return false;
-      const d = new Date(event.date);
-      return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === selectedDate;
-    });
-  }, [calendarEvents, selectedDate]);
+  // Markers on the map: a picked past day uses its own fetched set; a forward chip
+  // filters the loaded set to that day; otherwise the full loaded set. The sport
+  // filter applies on top in every case.
+  const mapMarkers = useMemo(() => {
+    let base: EventMapData[];
+    if (pastDayMarkers !== null) {
+      base = pastDayMarkers;
+    } else if (selectedDate) {
+      base = events.filter(
+        e => e.date && new Date(e.date).toISOString().split('T')[0] === selectedDate
+      );
+    } else {
+      base = events;
+    }
+    return selectedSport ? base.filter(e => e.sport === selectedSport) : base;
+  }, [pastDayMarkers, selectedDate, events, selectedSport]);
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -137,14 +192,14 @@ function GameMapScreen() {
       */}
       <View style={styles.container}>
         <EventMap
-          events={visibleEvents}
+          events={mapMarkers}
           onEventPress={handleEventPress}
           initialRegion={USA_WIDE_REGION}
           showUserLocation={true}
           dataLoaded={!loading}
           preventAutoCenterOnUser
           hideCenterOnUser
-          autoFitPins={false}
+          autoFitPins={Boolean(selectedDate)}
           onCalendarPress={() => setCalendarOpen(open => !open)}
           calendarActive={calendarOpen || Boolean(selectedDate)}
           onRefresh={!loading && !error ? loadGames : undefined}
@@ -173,7 +228,7 @@ function GameMapScreen() {
                 return (
                   <Pressable
                     key={day.dateString}
-                    onPress={() => setSelectedDate(selected ? '' : day.dateString)}
+                    onPress={() => selectForwardDate(day.dateString)}
                     style={[
                       styles.dateChip,
                       {
@@ -207,52 +262,104 @@ function GameMapScreen() {
                   </Pressable>
                 );
               })}
-            </ScrollView>
-            {calendarOpen ? (
-              selectedDate ? (
-                <ScrollView
-                  style={[styles.selectedDateList, { backgroundColor: Colors[colorScheme].card }]}
+
+              {/* Trailing calendar button — pick any earlier day (past event pages
+                  that carry a media post). Sits at the end of the same row. */}
+              <Pressable
+                onPress={() => setShowPicker(true)}
+                style={[
+                  styles.dateChip,
+                  styles.calendarChip,
+                  {
+                    backgroundColor: Colors[colorScheme].background,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Pick an earlier date"
+              >
+                <MaterialIcons name="event" size={18} color={Colors[colorScheme].tint} />
+              </Pressable>
+
+              {pastDayMarkers !== null ? (
+                <Pressable
+                  onPress={clearDate}
+                  style={[
+                    styles.dateChip,
+                    {
+                      backgroundColor: Colors[colorScheme].tint,
+                      borderColor: Colors[colorScheme].tint,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Showing ${selectedDate}, tap to clear`}
                 >
-                  {selectedDateEvents.slice(0, 10).map(event => (
-                    <Pressable
-                      key={`${event.type}-${event.id}`}
-                      onPress={() => handleEventPress(event.id, event.type)}
-                      style={[
-                        styles.selectedDateRow,
-                        { borderTopColor: Colors[colorScheme].border },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Open ${event.title}`}
-                    >
-                      <Text
-                        style={[styles.selectedDateTitle, { color: Colors[colorScheme].text }]}
-                        numberOfLines={1}
-                      >
-                        {event.title}
+                  {pastLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={[styles.dateChipText, { color: '#FFFFFF' }]}>
+                        {selectedDate}
                       </Text>
-                      <Text
-                        style={[styles.selectedDateMeta, { color: Colors[colorScheme].mutedText }]}
-                        numberOfLines={1}
-                      >
-                        {[
-                          event.date
-                            ? new Date(event.date).toLocaleTimeString('en-US', {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                              })
-                            : null,
-                          event.location,
-                        ]
-                          .filter(Boolean)
-                          .join(' • ')}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              ) : null
-            ) : null}
+                      <MaterialIcons name="close" size={14} color="#FFFFFF" />
+                    </>
+                  )}
+                </Pressable>
+              ) : null}
+            </ScrollView>
           </View>
         )}
+
+        {showPicker &&
+          (Platform.OS === 'ios' ? (
+            <Modal visible transparent animationType="slide">
+              <View style={styles.pickerOverlay}>
+                <View
+                  style={[styles.pickerSheet, { backgroundColor: Colors[colorScheme].background }]}
+                >
+                  <View style={styles.pickerHeader}>
+                    <Pressable onPress={() => setShowPicker(false)}>
+                      <Text style={[styles.pickerCancel, { color: Colors[colorScheme].mutedText }]}>
+                        Cancel
+                      </Text>
+                    </Pressable>
+                    <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
+                      Pick a date
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        setShowPicker(false);
+                        void selectPastDate(pickerDate);
+                      }}
+                    >
+                      <Text style={[styles.pickerDone, { color: Colors[colorScheme].tint }]}>
+                        Done
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={pickerDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={(_, d) => d && setPickerDate(d)}
+                    maximumDate={new Date()}
+                    textColor={Colors[colorScheme].text}
+                  />
+                </View>
+              </View>
+            </Modal>
+          ) : (
+            <DateTimePicker
+              value={pickerDate}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              onChange={(_, d) => {
+                setShowPicker(false);
+                if (d) void selectPastDate(d);
+              }}
+            />
+          ))}
 
         {loading && (
           <View style={styles.loadingOverlay}>
@@ -345,26 +452,37 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 3,
   },
-  // Only the selected-day event list gets a card background (for legibility over the map).
-  selectedDateList: {
-    marginTop: 8,
-    marginHorizontal: 12,
-    maxHeight: 140,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  selectedDateRow: {
+  // Trailing calendar button — square-ish chip holding just the icon.
+  calendarChip: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  selectedDateTitle: {
-    fontSize: 14,
+  pickerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  pickerSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 24,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pickerCancel: {
+    fontSize: 16,
+  },
+  pickerTitle: {
+    fontSize: 16,
     fontWeight: '700',
   },
-  selectedDateMeta: {
-    marginTop: 2,
-    fontSize: 12,
+  pickerDone: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   loadingOverlay: {
     position: 'absolute',

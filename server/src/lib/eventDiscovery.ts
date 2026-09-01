@@ -39,7 +39,16 @@ function defaultWindow(surface: DiscoverySurface, now: Date) {
 }
 
 function clampWindow(surface: DiscoverySurface, requestedFrom: Date, requestedTo: Date, now: Date) {
-  const earliest = surface === 'feed' ? new Date(now.getTime() - FEED_PAST_LOOKBACK_MS) : now;
+  // The map's date-picker can reach arbitrarily far back (past event pages, since
+  // VarsityHub's start), so the map surface has no past floor. Feed keeps its short
+  // lookback; everything else is now-forward. The forward edge and the max range
+  // are unchanged — a single request still can't span more than the 5-day policy.
+  const earliest =
+    surface === 'map'
+      ? new Date(0)
+      : surface === 'feed'
+        ? new Date(now.getTime() - FEED_PAST_LOOKBACK_MS)
+        : now;
   const latest = new Date(now.getTime() + MAP_LOOKAHEAD_MS);
   const from = new Date(Math.max(requestedFrom.getTime(), earliest.getTime()));
   const to = new Date(Math.min(requestedTo.getTime(), latest.getTime()));
@@ -239,6 +248,17 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
         status: { not: 'cancelled' },
         game_id: null,
         date: dateWhere,
+        // Map surface: a PAST event page only earns a map pin if it has at least one
+        // media post (photo/video) — a past event with nothing to show is noise.
+        // Upcoming/today events are always shown. (Feed/all surfaces unaffected.)
+        ...(surface === 'map'
+          ? {
+              OR: [
+                { date: { gte: now } },
+                { posts: { some: { media_url: { not: null }, deleted_at: null } } },
+              ],
+            }
+          : {}),
       },
       orderBy: { date: 'asc' },
       take: queryLimit,
