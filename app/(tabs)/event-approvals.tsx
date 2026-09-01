@@ -672,7 +672,7 @@ export default function EventApprovalsScreen() {
             <View style={styles.metaRow}>
               <Ionicons name="person-outline" size={14} color={C.mutedText} />
               <Text style={[styles.metaText, { color: C.mutedText }]}>
-                {item.creator.display_name}
+                {item.creator?.username ? `@${item.creator.username}` : 'User'}
               </Text>
             </View>
           ) : null}

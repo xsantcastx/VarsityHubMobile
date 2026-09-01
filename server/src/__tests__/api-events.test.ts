@@ -147,7 +147,7 @@ describe('API Event Endpoints', () => {
   });
 
   describe('POST /events', () => {
-    it('should auto-approve events created by coaches', async () => {
+    it('should auto-approve non-competitive events created by coaches', async () => {
       const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
 
       const response = await request(app)
@@ -158,7 +158,7 @@ describe('API Event Endpoints', () => {
           date: futureDate.toISOString(),
           location: 'Test Stadium',
           team_id: testTeamId,
-          event_type: 'game',
+          event_type: 'fundraiser',
         })
         .expect(201);
 
@@ -166,6 +166,24 @@ describe('API Event Endpoints', () => {
       expect(response.body.status).toBe('approved');
       expect(response.body.approval_status).toBe('approved');
       expect(response.body.creator_id).toBe(coachUserId);
+    });
+
+    it('rejects competitive events created without a linked game record', async () => {
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      const response = await request(app)
+        .post('/events')
+        .set('Authorization', `Bearer ${coachToken}`)
+        .send({
+          title: 'Orphan Competitive Event',
+          date: futureDate.toISOString(),
+          location: 'Test Stadium',
+          team_id: testTeamId,
+          event_type: 'game',
+        })
+        .expect(400);
+
+      expect(response.body?.code).toBe('COMPETITIVE_EVENT_REQUIRES_GAME');
     });
 
     it('should require approval for events created by fans', async () => {

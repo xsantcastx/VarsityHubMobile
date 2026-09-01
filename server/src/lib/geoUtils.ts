@@ -49,8 +49,7 @@ export function geoBoundingBox(
 ): { minLat: number; maxLat: number; minLng: number; maxLng: number } {
   const MILES_PER_DEGREE_LAT = 69;
   const latDelta = radiusMiles / MILES_PER_DEGREE_LAT;
-  const lngDelta =
-    radiusMiles / (MILES_PER_DEGREE_LAT * Math.max(Math.cos(toRadians(lat)), 0.01));
+  const lngDelta = radiusMiles / (MILES_PER_DEGREE_LAT * Math.max(Math.cos(toRadians(lat)), 0.01));
   return {
     minLat: lat - latDelta,
     maxLat: lat + latDelta,

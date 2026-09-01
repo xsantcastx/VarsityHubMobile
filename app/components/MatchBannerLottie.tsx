@@ -89,7 +89,7 @@ export default function MatchBannerLottie({
   }
 
   return (
-    <View style={style} pointerEvents="none">
+    <View style={[style, { pointerEvents: 'none' }]}>
       <LottieView
         ref={animationRef}
         source={anim}

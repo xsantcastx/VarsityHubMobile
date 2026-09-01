@@ -1,11 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import { randomUUID } from 'node:crypto';
 
 let prisma: any;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
 describeDb('Post soft-delete Prisma scope', () => {
   let userId: string;

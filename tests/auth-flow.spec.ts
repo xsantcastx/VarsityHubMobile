@@ -165,13 +165,14 @@ test.describe('Authentication Flow', () => {
     await emailSignupButton.click();
 
     await page.getByLabel('Email').fill(email);
-    await page.getByLabel('Password').fill(password);
+    await page.getByRole('textbox', { name: 'Password', exact: true }).fill(password);
     await submitSignUpRequest(page);
 
     await waitForVerificationScreen(page);
 
     await page.getByRole('button', { name: /wrong account\? sign out/i }).click();
     await recoverFromOfflineBanner(page);
+    await page.goto(`${baseURL}/sign-in`);
     await expect(page.getByText('Welcome back')).toBeVisible();
 
     await page.getByTestId('sign-in-email').fill(email);

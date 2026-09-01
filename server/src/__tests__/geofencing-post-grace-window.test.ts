@@ -40,7 +40,7 @@ const {
 } = await import('../lib/geofencing.js');
 
 const EVENT_DATE = new Date('2026-05-10T18:00:00.000Z');
-// Default live window: -1h → +3h around event start (owner rule 2026-07-15).
+// Default live window: no early cutoff → +3h after start (owner rule 2026-08-28).
 const LIVE_CUTOFF = new Date(EVENT_DATE.getTime() + 3 * 60 * 60 * 1000);
 const GRACE_END = new Date(LIVE_CUTOFF.getTime() + 7 * 24 * 60 * 60 * 1000);
 const BASE_EVENT = {
@@ -87,22 +87,39 @@ describe('first-post-unlocks-7-days posting rule', () => {
   });
 
   describe('regular posts — live window (geofenced first posts)', () => {
-    it('denies posting before the window opens (more than 1h before start)', async () => {
-      jest.setSystemTime(new Date(EVENT_DATE.getTime() - 60 * 60 * 1000 - 1));
-
-      const result = await verifyEventPostingPermission('event-1', 'user-1', VENUE.lat, VENUE.lon);
-
-      expect(result.allowed).toBe(false);
-      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
-      expect(mockUnlockFindUnique).not.toHaveBeenCalled();
-    });
-
-    it('allows a geofenced post 30 minutes BEFORE start (window opens -1h)', async () => {
-      jest.setSystemTime(new Date(EVENT_DATE.getTime() - 30 * 60 * 1000));
+    it('allows a geofenced post half a day BEFORE start — no early cutoff (owner rule 2026-08-28)', async () => {
+      // The old rule returned before_open and blocked early arrivals. There is
+      // no early cutoff anymore: an at-venue post 12h+ before start is allowed
+      // and earns the unlock.
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() - 12 * 60 * 60 * 1000 - 1));
 
       const result = await verifyEventPostingPermission('event-1', 'user-1', VENUE.lat, VENUE.lon);
 
       expect(result.allowed).toBe(true);
+      expect(mockUnlockCreateMany).toHaveBeenCalled();
+    });
+
+    it('allows a geofenced post on game-day morning, hours BEFORE start', async () => {
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() - 8 * 60 * 60 * 1000));
+
+      const result = await verifyEventPostingPermission('event-1', 'user-1', VENUE.lat, VENUE.lon);
+
+      expect(result.allowed).toBe(true);
+    });
+
+    it('still enforces the geofence for an early post — far away is blocked before start', async () => {
+      // No early time cutoff, but the 3km geofence is still the presence gate.
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() - 8 * 60 * 60 * 1000));
+
+      const result = await verifyEventPostingPermission(
+        'event-1',
+        'user-1',
+        FAR_AWAY.lat,
+        FAR_AWAY.lon
+      );
+
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('TOO_FAR_FROM_VENUE');
     });
 
     it('allows a geofenced first post during the event and grants the unlock', async () => {
@@ -301,7 +318,7 @@ describe('first-post-unlocks-7-days posting rule', () => {
     });
 
     it('denies once the unlock is older than 7 days, even inside the grace window', async () => {
-      // Unlock earned 1h before start (window opens -1h); exactly 7 days after
+      // Unlock earned 1h before start (inside the game-day window); exactly 7 days after
       // event start the personal week is up (anchor + 7d passed 1h ago), while
       // the event-level grace window (LIVE_CUTOFF + 7d) is still open.
       jest.setSystemTime(new Date(EVENT_DATE.getTime() + 7 * 24 * 60 * 60 * 1000));
@@ -350,14 +367,14 @@ describe('first-post-unlocks-7-days posting rule', () => {
       expect(result.reason).not.toContain('Posting opens');
     });
 
-    it('still tells a user BEFORE the window opens when it opens', async () => {
-      jest.setSystemTime(new Date(EVENT_DATE.getTime() - 6 * 60 * 60 * 1000));
+    it('has no early cutoff: an at-venue post a full day before start is allowed', async () => {
+      // Regression guard for the removed before_open state — a user who shows up
+      // very early is never told "Posting opens <future date>"; they can post.
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() - 24 * 60 * 60 * 1000));
 
       const result = await verifyEventPostingPermission('event-1', 'user-1', VENUE.lat, VENUE.lon);
 
-      expect(result.allowed).toBe(false);
-      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
-      expect(result.reason).toContain('Posting opens');
+      expect(result.allowed).toBe(true);
     });
   });
 
@@ -372,9 +389,14 @@ describe('first-post-unlocks-7-days posting rule', () => {
     // anywhere. Both are deliberately reversed here.
     const STORY_TIME = new Date('2026-05-10T19:00:00.000Z'); // 1h into the event
 
-    it('opens 1h before start and closes at the live cutoff — not +48h', () => {
-      jest.setSystemTime(new Date('2026-05-10T16:59:59.000Z')); // >1h before
-      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(false);
+    it('has no early cutoff and closes at the live cutoff — not +48h', () => {
+      // No early cutoff (owner rule 2026-08-28): stories are open any time before
+      // the event, all the way up to the live cutoff. The only hard bound is +Nh.
+      jest.setSystemTime(new Date('2026-05-09T18:00:00.000Z')); // a full day before
+      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
+
+      jest.setSystemTime(new Date('2026-05-10T06:30:00.000Z')); // game-day morning
+      expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
 
       jest.setSystemTime(new Date('2026-05-10T17:30:00.000Z')); // 30m before
       expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
@@ -525,20 +547,22 @@ describe('first-post-unlocks-7-days posting rule', () => {
     });
   });
 
-  // Additive designated-poster grant (owner rule, 2026-07-19 Fanatics Fest):
-  // a user allowlisted for an event may post AND upload stories at any time,
-  // from anywhere — bypassing the live window and the venue geofence — WITHOUT
-  // affecting any other user. This is the post-event "give a specific person
-  // continued access for marketing/continuity" grant. Contrast the single-user
-  // exclusive_poster_id lock, which blocks everyone else.
+  // Additive designated-poster marker (owner rule, 2026-07-19 Fanatics Fest):
+  // paired with an active EventPostingUnlock row, it lets one user post and
+  // upload stories from anywhere for the same capped 7-day grant, without
+  // affecting any other user. Contrast exclusive_poster_id, which blocks
+  // everyone else.
   describe('additive designated-poster grant', () => {
     const AT_VENUE_LIVE = () => jest.setSystemTime(new Date(EVENT_DATE.getTime() + 30 * 60 * 1000));
+    const AFTER_LIVE_WITHIN_GRACE = () =>
+      jest.setSystemTime(new Date(EVENT_DATE.getTime() + 5 * 60 * 60 * 1000));
     const LONG_AFTER_CLOSE = () =>
       jest.setSystemTime(new Date(GRACE_END.getTime() + 24 * 60 * 60 * 1000));
 
-    it('lets a designated poster post from anywhere after the event has fully closed', async () => {
-      LONG_AFTER_CLOSE();
+    it('allows explicit designated-poster access only while the 7-day unlock is active', async () => {
+      AFTER_LIVE_WITHIN_GRACE();
       mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
 
       const result = await verifyEventPostingPermission('event-1', 'nicon', null, null);
 
@@ -549,11 +573,38 @@ describe('first-post-unlocks-7-days posting rule', () => {
       });
     });
 
-    it('lets a designated poster upload a STORY from anywhere after the event has closed (closes the story gap)', async () => {
-      LONG_AFTER_CLOSE();
+    it('does not let a designated-poster row become permanent access by itself', async () => {
+      AFTER_LIVE_WITHIN_GRACE();
       mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue(null);
+
+      const result = await verifyEventPostingPermission('event-1', 'nicon', null, null);
+
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+    });
+
+    it('allows designated-poster story uploads during the active 7-day grant', async () => {
+      AFTER_LIVE_WITHIN_GRACE();
+      mockDesignatedFindUnique.mockResolvedValue({ user_id: 'nicon' });
+      mockUnlockFindUnique.mockResolvedValue({ unlocked_at: new Date(EVENT_DATE) });
 
       const result = await verifyStoryPostingPermission('event-1', 'nicon', null, null, null);
+
+      expect(result.allowed).toBe(true);
+    });
+
+    it('does not block other attendees during the live window', async () => {
+      AT_VENUE_LIVE();
+      mockDesignatedFindUnique.mockResolvedValue(null);
+
+      const result = await verifyStoryPostingPermission(
+        'event-1',
+        'someone-else',
+        VENUE.lat,
+        VENUE.lon,
+        null
+      );
 
       expect(result.allowed).toBe(true);
     });
@@ -564,7 +615,12 @@ describe('first-post-unlocks-7-days posting rule', () => {
       // standing at the venue. Additive means they follow the normal rules.
       mockDesignatedFindUnique.mockResolvedValue(null); // this user is not on the list
 
-      const result = await verifyEventPostingPermission('event-1', 'someone-else', VENUE.lat, VENUE.lon);
+      const result = await verifyEventPostingPermission(
+        'event-1',
+        'someone-else',
+        VENUE.lat,
+        VENUE.lon
+      );
 
       expect(result.allowed).toBe(true);
     });
@@ -573,7 +629,12 @@ describe('first-post-unlocks-7-days posting rule', () => {
       LONG_AFTER_CLOSE();
       mockDesignatedFindUnique.mockResolvedValue(null);
 
-      const result = await verifyEventPostingPermission('event-1', 'random', FAR_AWAY.lat, FAR_AWAY.lon);
+      const result = await verifyEventPostingPermission(
+        'event-1',
+        'random',
+        FAR_AWAY.lat,
+        FAR_AWAY.lon
+      );
 
       expect(result.allowed).toBe(false);
       expect(result.code).toBe('POSTING_WINDOW_CLOSED');

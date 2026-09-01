@@ -306,12 +306,13 @@ export default React.memo(function MatchBanner({
 
       {/* Animated VS overlay - stacked: Left name above VS, Right name below VS */}
       <Animated.View
-        style={[styles.vsWrapper as any, { transform: [{ scale }], opacity: glow }]}
-        pointerEvents="box-none"
+        style={[
+          styles.vsWrapper as any,
+          { transform: [{ scale }], opacity: glow, pointerEvents: 'box-none' },
+        ]}
       >
         <Animated.View
-          style={[styles.titlesColumn as any, { opacity: glow }]}
-          pointerEvents="box-none"
+          style={[styles.titlesColumn as any, { opacity: glow, pointerEvents: 'box-none' }]}
         >
           <Pressable
             style={styles.topTitleWrap as any}

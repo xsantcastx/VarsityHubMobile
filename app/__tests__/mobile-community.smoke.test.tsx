@@ -4,7 +4,7 @@
  * personalization queries mount after the InteractionManager deferral and an
  * upcoming game row renders.
  */
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
 
 beforeAll(() => jest.useFakeTimers());
 afterAll(() => jest.useRealTimers());
@@ -53,10 +53,12 @@ jest.mock('@/hooks/useDeviceLocation', () => ({
 }));
 
 const mockGameList = jest.fn();
+const mockEventFilter = jest.fn();
 const mockTrendingPage = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
   Game: { list: (...args: any[]) => mockGameList(...args), create: jest.fn() },
+  Event: { filter: (...args: any[]) => mockEventFilter(...args) },
   Post: {
     trendingPage: (...args: any[]) => mockTrendingPage(...args),
     listPage: jest.fn().mockResolvedValue({ items: [] }),
@@ -71,6 +73,9 @@ jest.mock('@/api/entities', () => ({
   },
   Search: { unified: jest.fn().mockResolvedValue({}) },
   Organization: { list: jest.fn().mockResolvedValue([]) },
+}));
+jest.mock('@/api/http', () => ({
+  httpGet: jest.fn().mockResolvedValue({ items: [] }),
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
@@ -104,6 +109,7 @@ const sampleGame = {
 
 beforeEach(() => {
   mockGameList.mockReset().mockResolvedValue([sampleGame]);
+  mockEventFilter.mockReset().mockResolvedValue([]);
   mockTrendingPage.mockReset().mockResolvedValue({ items: [] });
 });
 
@@ -115,8 +121,16 @@ describe('MobileCommunityScreen (react-query render smoke)', () => {
       </QueryWrapper>
     );
     // Queries are gated behind InteractionManager.runAfterInteractions.
-    jest.runOnlyPendingTimers();
-    await waitFor(() => expect(mockGameList).toHaveBeenCalledWith('-date'));
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    await waitFor(() =>
+      expect(mockGameList).toHaveBeenCalledWith(
+        'date',
+        expect.objectContaining({ dateFrom: expect.any(String), limit: 100 })
+      )
+    );
+    await waitFor(() => expect(mockEventFilter).toHaveBeenCalled());
     await waitFor(() => expect(mockTrendingPage).toHaveBeenCalled());
     expect(await screen.findByText('Tigers vs Sharks')).toBeTruthy();
   });

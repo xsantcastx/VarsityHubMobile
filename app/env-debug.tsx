@@ -1,7 +1,7 @@
 import { Redirect } from 'expo-router';
 import { getEnvValue } from '@/config/env';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getApiBaseUrl } from '../api/http';
+import { getApiBaseUrl } from '../apiclient/http';
 
 export default function EnvDebugScreen() {
   const envVars = {

@@ -91,7 +91,7 @@ export default function MatchBannerOverlayLayer({
   if (suppressAllOverlays) return null;
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+    <View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'none' }]}>
       <LinearGradient
         colors={palette.backgroundGradient}
         start={{ x: 0, y: 1 }}

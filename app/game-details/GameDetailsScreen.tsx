@@ -34,6 +34,7 @@ import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -59,7 +60,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getApiBaseUrl } from '../../api/http';
+import { getApiBaseUrl } from '../../apiclient/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
@@ -308,6 +309,7 @@ const GameDetailsScreen = () => {
   const [preciseBannerDismissed, setPreciseBannerDismissed] = useState(false);
   const showTopFabRef = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
+  const hasCompletedInitialLoadRef = useRef(false);
   const headerTranslateY = useMemo(
     () =>
       feedY.interpolate({
@@ -448,7 +450,7 @@ const GameDetailsScreen = () => {
 
     if ((!home || !away) && title) {
       const parts = title
-        .split(/\s+vs\.?\s+/i)
+        .split(/\s+(?:vs\.?|at)\s+/i)
         .map(part => part.trim())
         .filter(Boolean);
       if (!home && parts[0]) home = parts[0];
@@ -510,8 +512,8 @@ const GameDetailsScreen = () => {
   }, [vm?.date, nowTs]);
 
   const canShowVoteSection = useMemo(
-    () => canShowGamePoll({ gameId: vm?.gameId, eventType: vm?.eventType }),
-    [vm?.eventType, vm?.gameId]
+    () => canShowGamePoll({ gameId: vm?.gameId, eventId: vm?.eventId, eventType: vm?.eventType }),
+    [vm?.eventId, vm?.eventType, vm?.gameId]
   );
 
   // Keep event-page interactions active through the end of the event day.
@@ -595,7 +597,7 @@ const GameDetailsScreen = () => {
     const title = (vm?.title || '').replace(/\s+/g, ' ').trim();
     if (title) {
       const parts = title
-        .split(/\s+vs\.?\s+/i)
+        .split(/\s+(?:vs\.?|at)\s+/i)
         .map(part => part.trim())
         .filter(Boolean);
       if (parts.length >= 2) {
@@ -1081,10 +1083,10 @@ const GameDetailsScreen = () => {
         });
 
       // H1 fix (2026-07-14): the rich page must actually fetch a standalone
-      // event's posts/media. Previously loadVirtualFromEvent left posts:[]/
-      // media:[] so a fan's posts to an event were invisible here (while the
-      // deprecated bare page did fetch them). Mirror the game path: hydrate
-      // posts via Post.getByEvent and derive the media grid from them.
+      // event's posts. Previously loadVirtualFromEvent left posts:[] so a fan's
+      // posts to an event were invisible here (while the deprecated bare page
+      // did fetch them). Keep the Stories/media rail separate: normal event
+      // posts must not masquerade as Story rows.
       void retryWithBackoff(() => Post.getByEvent(eventIdValue), {
         maxRetries: 2,
         initialDelayMs: 800,
@@ -1097,24 +1099,9 @@ const GameDetailsScreen = () => {
               ? postsResult.items
               : [];
           if (!items.length) return;
-          const media: MediaItem[] = items
-            .filter((p: any) => p?.media_url)
-            .map((p: any) => {
-              const url = String(p.media_url);
-              const isVideo = VIDEO_EXT.test(url.toLowerCase());
-              return {
-                id: String(p.id),
-                url,
-                thumbnail_url: p.preview_url || undefined,
-                kind: isVideo ? 'video' : 'photo',
-                created_at: p.created_at,
-                caption: p.caption ?? p.content ?? null,
-                user_id: p.author?.id ?? p.author_id ?? null,
-              } as MediaItem;
-            });
           setVm(prev => {
             if (!prev || prev.eventId !== eventIdValue || prev.gameId) return prev;
-            return { ...prev, posts: items, media };
+            return { ...prev, posts: items };
           });
         })
         .catch(error => {
@@ -1237,6 +1224,28 @@ const GameDetailsScreen = () => {
             },
           ]
         );
+      }
+    }
+
+    if (
+      hasEvent &&
+      !isDemoMatchup &&
+      !isAdminUser &&
+      !hasPostingUnlock &&
+      (typeof location?.latitude !== 'number' || typeof location?.longitude !== 'number')
+    ) {
+      const granted = permissionGranted ? true : await requestPermission();
+      if (
+        !granted ||
+        typeof location?.latitude !== 'number' ||
+        typeof location?.longitude !== 'number'
+      ) {
+        Alert.alert(
+          'Location Not Ready',
+          'Event stories require current device location within 3 km of the venue. Wait a moment and try again.',
+          [{ text: 'OK' }]
+        );
+        return;
       }
     }
 
@@ -1552,21 +1561,25 @@ const GameDetailsScreen = () => {
   ]);
 
   const _refreshVotes = useCallback(async () => {
-    if (!canShowVoteSection || !vm?.gameId) {
+    const voteId = vm?.gameId ?? vm?.eventId;
+    if (!canShowVoteSection || !voteId) {
       setVoteSummary(null);
       return;
     }
     try {
-      const res: any = await retryWithBackoff(() => Game.votesSummary(vm.gameId!), {
-        maxRetries: 2,
-        initialDelayMs: 800,
-        maxDelayMs: 4000,
-      });
+      const res: any = await retryWithBackoff(
+        () => (vm?.gameId ? Game.votesSummary(voteId) : Event.votesSummary(voteId)),
+        {
+          maxRetries: 2,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
+        }
+      );
       setVoteSummary(parseVoteSummary(res));
     } catch (err) {
       if (__DEV__) console.warn('Failed to load game votes', err);
     }
-  }, [canShowVoteSection, vm?.gameId]);
+  }, [canShowVoteSection, vm?.eventId, vm?.gameId]);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -1616,6 +1629,7 @@ const GameDetailsScreen = () => {
       } finally {
         // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] load() — finally: clearing loading state');
+        hasCompletedInitialLoadRef.current = true;
         if (isRefresh) setRefreshing(false);
         else setLoading(false);
       }
@@ -1633,18 +1647,26 @@ const GameDetailsScreen = () => {
     return () => task.cancel();
   }, [eventId, id, load]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasCompletedInitialLoadRef.current) return undefined;
+      void load(true);
+      return undefined;
+    }, [load])
+  );
+
   // Reset per-event UI state immediately when navigating to a different event
   useEffect(() => {
     setVoteSummary(null); // Clear previous event's vote data right away
     setSeenStories({}); // Reset seen-story badges for fresh event
   }, [id, eventId]);
 
-  // Fetch vote summary for this event once vm.gameId is available
+  // Fetch vote summary once a competitive game/event id is available.
   useEffect(() => {
-    if (vm?.gameId) {
+    if (vm?.gameId || vm?.eventId) {
       void _refreshVotes();
     }
-  }, [vm?.gameId, _refreshVotes]);
+  }, [vm?.eventId, vm?.gameId, _refreshVotes]);
 
   useEffect(() => {
     const total = _voteSummary?.total ?? 0;
@@ -1795,17 +1817,19 @@ const GameDetailsScreen = () => {
         return applyVoteSelection(prev, team);
       });
 
-      // Use gameId if available, otherwise fall back to eventId for event-only pages
-      const voteId = vm?.gameId || vm?.eventId;
-      if (!voteId) return; // Safety check
+      const voteId = vm?.gameId ?? vm?.eventId;
+      if (!voteId) return;
 
       setVoteBusy(true);
       try {
-        const res: any = await retryWithBackoff(() => Game.castVote(voteId, team), {
-          maxRetries: 2,
-          initialDelayMs: 800,
-          maxDelayMs: 4000,
-        });
+        const res: any = await retryWithBackoff(
+          () => (vm?.gameId ? Game.castVote(voteId, team) : Event.castVote(voteId, team)),
+          {
+            maxRetries: 2,
+            initialDelayMs: 800,
+            maxDelayMs: 4000,
+          }
+        );
         // The response from the server is the latest truth
         setVoteSummary(parseVoteSummary(res));
         // We can also refresh votes as a secondary measure if needed
@@ -1828,39 +1852,25 @@ const GameDetailsScreen = () => {
 
   const handleClearVote = useCallback(async () => {
     if (!isVoteOpen) return;
-    // Event-only pages (no gameId) only update local state
-    const isEventOnly = !vm?.gameId && vm?.eventId;
+    const currentVoteSummary = _voteSummary;
+    if (!currentVoteSummary?.userVote) return;
 
-    let rollback: VoteSummary | null = null;
-    let hasVoteToClear = false;
-    setVoteSummary(prev => {
-      // Early return if there's no vote to clear
-      if (!prev?.userVote) {
-        return prev;
-      }
-      hasVoteToClear = true;
-      rollback = { ...prev };
-      return applyClearVote(prev);
-    });
+    const rollback: VoteSummary = { ...currentVoteSummary };
+    setVoteSummary(applyClearVote(currentVoteSummary));
 
-    // Early return if there's no vote to clear - prevents unnecessary API calls
-    if (!hasVoteToClear) return;
-
-    // For event-only pages, just update local state and don't call API
-    if (isEventOnly) {
-      setVoteBusy(false);
-      return;
-    }
-
-    if (!vm?.gameId) return; // Safety check
+    const voteId = vm?.gameId ?? vm?.eventId;
+    if (!voteId) return;
 
     setVoteBusy(true);
     try {
-      const res: any = await retryWithBackoff(() => Game.clearVote(vm.gameId!), {
-        maxRetries: 2,
-        initialDelayMs: 800,
-        maxDelayMs: 4000,
-      });
+      const res: any = await retryWithBackoff(
+        () => (vm?.gameId ? Game.clearVote(voteId) : Event.clearVote(voteId)),
+        {
+          maxRetries: 2,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
+        }
+      );
       setVoteSummary(parseVoteSummary(res));
     } catch (err: any) {
       if (rollback) setVoteSummary(rollback);
@@ -1873,7 +1883,7 @@ const GameDetailsScreen = () => {
     } finally {
       setVoteBusy(false);
     }
-  }, [isVoteOpen, vm?.eventId, vm?.gameId]);
+  }, [_voteSummary, isVoteOpen, vm?.eventId, vm?.gameId]);
 
   const renderStoriesCarousel = () => {
     const mediaItems = (vm?.media ?? []).map(m => ({
@@ -2011,7 +2021,7 @@ const GameDetailsScreen = () => {
             )}
           </Animated.View>
 
-          <View style={styles.voteTouchLayer} pointerEvents={pressDisabled ? 'none' : 'auto'}>
+          <View style={[styles.voteTouchLayer, { pointerEvents: pressDisabled ? 'none' : 'auto' }]}>
             <Pressable
               style={styles.voteTouchHalf}
               disabled={pressDisabled}
@@ -2161,13 +2171,12 @@ const GameDetailsScreen = () => {
         />
         {/* Shade the banner less when this is a hero image so logos are visible */}
         <LinearGradient
-          pointerEvents="none"
           colors={
             isHero
               ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)']
               : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']
           }
-          style={styles.bannerShade}
+          style={[styles.bannerShade, { pointerEvents: 'none' }]}
         />
 
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
@@ -2583,11 +2592,11 @@ const GameDetailsScreen = () => {
       <Stack.Screen options={{ headerShown: false }} />
 
       <Animated.View
-        pointerEvents="box-none"
         style={[
           styles.headerWrap,
           {
             top: insets.top,
+            pointerEvents: 'box-none',
             transform: [{ translateY: headerTranslateY }],
             opacity: headerOpacity,
           },
@@ -2612,7 +2621,7 @@ const GameDetailsScreen = () => {
           />
         }
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: feedY } } }], {
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
           listener: handleScroll,
         })}
         scrollEventThrottle={16}
@@ -2769,8 +2778,8 @@ const GameDetailsScreen = () => {
                   <Pressable
                     style={styles.addPostButton}
                     onPress={() => {
-                      const targetGameId = vm?.gameId || vm?.eventId;
-                      if (!targetGameId) {
+                      const targetId = vm?.gameId || vm?.eventId;
+                      if (!targetId) {
                         Alert.alert('Create Post', 'Reload this event before creating a post.');
                         return;
                       }
@@ -2785,11 +2794,18 @@ const GameDetailsScreen = () => {
                         );
                         return;
                       }
-                      // Game detail highlights must create highlight posts so they
-                      // show up in the game highlight surfaces and filters.
+                      // The Posts action creates a normal event post. Stories
+                      // are created only through Add Story above, so a single
+                      // upload never intentionally writes to both destinations.
                       void router.push({
                         pathname: '/create-post',
-                        params: { gameId: String(targetGameId), type: 'highlight' },
+                        params: vm?.gameId
+                          ? {
+                              gameId: String(vm.gameId),
+                              ...(vm.eventId ? { eventId: String(vm.eventId) } : {}),
+                              type: 'post',
+                            }
+                          : { eventId: String(vm?.eventId), type: 'post' },
                       } as any);
                     }}
                   >
@@ -2903,7 +2919,7 @@ const GameDetailsScreen = () => {
                 ) : (
                   <View>
                     <Text style={[styles.muted, styles.sectionHelper]}>
-                      Be the first to share a highlight for this game.
+                      Be the first to post about this game.
                     </Text>
                     <View style={styles.postsMasonryGrid}>
                       <View style={styles.masonryColumn}>

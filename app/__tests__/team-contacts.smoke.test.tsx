@@ -4,7 +4,7 @@
  * mounts (raw cache + select mapping) and the members tab renders a roster
  * row after the InteractionManager deferral.
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 beforeAll(() => jest.useFakeTimers());
 afterAll(() => jest.useRealTimers());
@@ -30,6 +30,28 @@ jest.mock('expo-document-picker', () => ({
 }));
 jest.mock('expo-media-library', () => ({
   requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+}));
+jest.mock('expo-audio', () => ({
+  AudioModule: {
+    AudioRecorder: jest.fn().mockImplementation(() => ({
+      prepareToRecordAsync: jest.fn().mockResolvedValue(undefined),
+      record: jest.fn(),
+      stop: jest.fn().mockResolvedValue(undefined),
+      getStatus: jest.fn(() => ({ durationMillis: 1000 })),
+      uri: 'file:///voice.m4a',
+      isRecording: false,
+    })),
+  },
+  createAudioPlayer: jest.fn(() => ({
+    play: jest.fn(),
+    pause: jest.fn(),
+    seekTo: jest.fn().mockResolvedValue(undefined),
+    remove: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  })),
+  requestRecordingPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+  RecordingPresets: { HIGH_QUALITY: {} },
+  setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
 }));
 // Heavy media children pull in expo-video, which can't load under jest.
 jest.mock('@/components/VideoPlayer', () =>
@@ -59,6 +81,7 @@ const sampleMember = {
   user: {
     id: 'user1',
     display_name: 'Casey Coach',
+    username: 'caseyc',
     email: 'casey@example.com',
     avatar_url: null,
   },
@@ -76,10 +99,12 @@ describe('TeamChatScreen (react-query render smoke)', () => {
       </QueryWrapper>
     );
     // The members query is gated behind InteractionManager.runAfterInteractions.
-    jest.runOnlyPendingTimers();
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
     await waitFor(() => expect(mockMembers).toHaveBeenCalledWith('t1'));
     // Roster lives on the Members tab.
     fireEvent.press(await screen.findByText(/Members/));
-    expect(await screen.findByText('Casey Coach')).toBeTruthy();
+    expect(await screen.findByText('caseyc')).toBeTruthy();
   });
 });

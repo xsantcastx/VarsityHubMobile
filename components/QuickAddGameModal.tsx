@@ -33,7 +33,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
-import { getApiBaseUrl } from '../api/http';
+import { getApiBaseUrl } from '../apiclient/http';
 import MatchBanner from '../app/components/MatchBanner';
 import { AppearancePreset } from './AppearancePicker';
 import ImageEditor from './ImageEditor';
@@ -339,7 +339,7 @@ export default function QuickAddGameModal({
   );
   const renderLockedSection = (content: ReactNode) =>
     isLiveEventEdit ? (
-      <View pointerEvents="none" style={styles.lockedSection} testID="live-edit-locked">
+      <View style={[styles.lockedSection, { pointerEvents: 'none' }]} testID="live-edit-locked">
         {content}
       </View>
     ) : (

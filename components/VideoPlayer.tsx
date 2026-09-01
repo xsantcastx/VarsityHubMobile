@@ -204,14 +204,15 @@ export function VideoPlayer({
       {/* Poster sits above the video surface only while it buffers, then
           unmounts so it can never cover playback. */}
       {poster && uri && isLoading && !errorMessage ? (
-        <Image
-          source={{ uri: poster }}
-          style={styles.videoSurface}
-          contentFit={contentFit === 'contain' ? 'contain' : 'cover'}
-          transition={0}
-          cachePolicy="memory-disk"
-          pointerEvents="none"
-        />
+        <View style={[styles.videoSurface, { pointerEvents: 'none' }]}>
+          <Image
+            source={{ uri: poster }}
+            style={StyleSheet.absoluteFill}
+            contentFit={contentFit === 'contain' ? 'contain' : 'cover'}
+            transition={0}
+            cachePolicy="memory-disk"
+          />
+        </View>
       ) : null}
       {!uri ? (
         <View style={styles.overlay}>

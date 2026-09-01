@@ -79,8 +79,12 @@ describe('Post-mapper Consistency Rule (live mappers)', () => {
     expect(src).toContain('id: String(item.author.id ?? item.author.user_id ?? id)');
   });
 
-  it.each(sources)('$name builds the author.username with the display_name fallback', ({ src }) => {
-    expect(src).toContain('username: item.author.username ?? item.author.display_name ?? null');
+  // Owner rule (note 5): identity is username-only. The mappers must NOT fall
+  // back to display_name for the username field (that leaked real names as
+  // @handles in PostCard). All three must map username with no display_name fallback.
+  it.each(sources)('$name maps author.username WITHOUT a display_name fallback', ({ src }) => {
+    expect(src).toContain('username: item.author.username ?? null');
+    expect(src).not.toContain('item.author.username ?? item.author.display_name');
   });
 
   it.each(sources)('$name builds the author.avatar_url with the avatarUrl fallback', ({ src }) => {

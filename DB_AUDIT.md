@@ -1,7 +1,10 @@
-# Database Audit
+# Retired Database Audit Stub
 
-No open findings remain from this audit pass.
+This root-level database audit stub is retained only as a pointer.
 
-Retired as stale:
+Current database and migration guidance belongs in:
 
-- The prior `/events/pending` pagination finding no longer reproduces in current code. [`server/src/routes/events.ts`](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/src/routes/events.ts:589) and [`server/src/routes/events.ts`](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/src/routes/events.ts:627) already apply `take: 100`.
+- `docs/CONSOLIDATED_VERIFIED_FINDINGS.md`
+- `docs/AUDIT_CLAIM_VERIFICATION.md`
+- `docs/ARCHITECTURE.md`
+- `AGENTS.md`

@@ -158,7 +158,7 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
     author: item?.author
       ? {
           id: String(item.author.id ?? item.author.user_id ?? id),
-          username: item.author.username ?? item.author.display_name ?? null,
+          username: item.author.username ?? null,
           avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
         }
       : null,
@@ -524,8 +524,10 @@ const FeedCard = memo(
         </Pressable>
 
         <View
-          pointerEvents="box-none"
-          style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
+          style={[
+            styles.captionOverlay,
+            { paddingBottom: Math.max(insets.bottom + 12, 36), pointerEvents: 'box-none' },
+          ]}
         >
           <Pressable
             onPress={post.author?.id ? onOpenAuthorProfile : undefined}
@@ -554,8 +556,10 @@ const FeedCard = memo(
             onOpenAuthorProfile handler). Icons/labels were shrunk and the rail
             was dropped toward the bottom edge for the same reason. */}
         <View
-          pointerEvents="box-none"
-          style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
+          style={[
+            styles.rail,
+            { paddingBottom: Math.max(insets.bottom + 12, 36), pointerEvents: 'box-none' },
+          ]}
         >
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
             <Ionicons
@@ -1303,6 +1307,7 @@ function GameVerticalFeedScreen({
       try {
         const localUri = await getCachedShareableVideoUri(post);
         await Share.share({ url: localUri });
+        void Post.share(post.id).catch(() => {});
         return;
       } catch (error) {
         if (__DEV__) {
@@ -1314,7 +1319,11 @@ function GameVerticalFeedScreen({
       }
     }
     const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
-    Share.share(buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl)).catch(() => {});
+    Share.share(buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl))
+      .then(() => {
+        void Post.share(post.id).catch(() => {});
+      })
+      .catch(() => {});
   }, []);
 
   const handleCopyLink = useCallback(async (post: FeedPost) => {
@@ -1550,8 +1559,10 @@ function GameVerticalFeedScreen({
 
   return (
     <View
-      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
-      pointerEvents="box-none"
+      style={[
+        styles.container,
+        { backgroundColor: Colors[colorScheme].background, pointerEvents: 'box-none' },
+      ]}
       onLayout={onViewportLayout}
     >
       <LinearGradient
@@ -1560,8 +1571,7 @@ function GameVerticalFeedScreen({
             ? ['#0b1120', '#020617']
             : [Colors[colorScheme].surface, Colors[colorScheme].background]
         }
-        style={styles.backdrop}
-        pointerEvents="none"
+        style={[styles.backdrop, { pointerEvents: 'none' }]}
       />
       <FlatList
         ref={flatListRef as any}
@@ -1615,7 +1625,7 @@ function GameVerticalFeedScreen({
                 style={[styles.emptyStateCaption, { color: Colors[colorScheme].tabIconDefault }]}
               >
                 {gameId
-                  ? 'Be the first to share a highlight for this game.'
+                  ? 'Be the first to post about this game.'
                   : 'Be the first to create a post for this game.'}
               </Text>
             </View>
@@ -1625,8 +1635,7 @@ function GameVerticalFeedScreen({
 
       {showHeader && !usingInitial ? (
         <View
-          pointerEvents="box-none"
-          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12, pointerEvents: 'box-none' }]}
         >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -1640,8 +1649,7 @@ function GameVerticalFeedScreen({
         </View>
       ) : usingInitial ? (
         <View
-          pointerEvents="box-none"
-          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12, pointerEvents: 'box-none' }]}
         >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -1669,9 +1677,9 @@ function GameVerticalFeedScreen({
               {
                 maxHeight: viewport.height * 0.75,
                 backgroundColor: Colors[colorScheme].background,
+                pointerEvents: 'box-none',
               },
             ]}
-            pointerEvents="box-none"
           >
             <View style={[styles.commentHeader, { backgroundColor: Colors[colorScheme].surface }]}>
               <Text style={[styles.commentTitle, { color: Colors[colorScheme].text }]}>

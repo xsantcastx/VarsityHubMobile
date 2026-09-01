@@ -5,9 +5,9 @@ import { API_BASE_URL, createAuthRequest, registerTestUser } from './helpers/api
  * RBAC / Gatekeeping E2E Tests
  *
  * These tests follow the current server contract:
+ * - coach fixtures must pass the real fan -> verified fan -> coach upgrade path
  * - verification and onboarding gates run before most coach tooling
- * - verification remains the first gate on these onboarding mutation routes
- * - that means fan and coach accounts can still be stopped before role/onboarding checks
+ * - fans cannot bypass role checks with onboarding flags
  * - non-admin users cannot access admin-only routes
  */
 
@@ -25,13 +25,16 @@ async function createTestUser(request: APIRequestContext, role: 'fan' | 'coach' 
 test.describe('RBAC Permissions', () => {
   test('Onboarding bypass does not let fan accounts create teams', async ({ request }) => {
     const fan = await createTestUser(request, 'fan');
-    const response = await createAuthRequest(request, fan.token).post(`${API_BASE_URL}/teams/create`, {
-      data: {
-        name: `Fan Team ${Date.now()}`,
-        organization_name: `Fan Org ${Date.now()}`,
-        onboarding: true,
-      },
-    });
+    const response = await createAuthRequest(request, fan.token).post(
+      `${API_BASE_URL}/teams/create`,
+      {
+        data: {
+          name: `Fan Team ${Date.now()}`,
+          organization_name: `Fan Org ${Date.now()}`,
+          onboarding: true,
+        },
+      }
+    );
 
     expect(response.status()).toBe(403);
     const body = await response.json();
@@ -42,14 +45,17 @@ test.describe('RBAC Permissions', () => {
 
   test('Onboarding bypass does not let fan accounts create organizations', async ({ request }) => {
     const fan = await createTestUser(request, 'fan');
-    const response = await createAuthRequest(request, fan.token).post(`${API_BASE_URL}/organizations`, {
-      data: {
-        name: `Fan Organization ${Date.now()}`,
-        supporting_document_url: 'https://example.com/supporting-document.pdf',
-        zip_code: '12345',
-        onboarding: true,
-      },
-    });
+    const response = await createAuthRequest(request, fan.token).post(
+      `${API_BASE_URL}/organizations`,
+      {
+        data: {
+          name: `Fan Organization ${Date.now()}`,
+          supporting_document_url: 'https://example.com/supporting-document.pdf',
+          zip_code: '12345',
+          onboarding: true,
+        },
+      }
+    );
 
     expect(response.status()).toBe(403);
     const body = await response.json();
@@ -58,23 +64,26 @@ test.describe('RBAC Permissions', () => {
     );
   });
 
-  test('Coach onboarding organization creation still respects the verification-first contract', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    const response = await createAuthRequest(request, coach.token).post(`${API_BASE_URL}/organizations`, {
-      data: {
-        name: `Coach Onboarding Org ${Date.now()}`,
-        supporting_document_url: 'https://example.com/supporting-document.pdf',
-        zip_code: '12345',
-        onboarding: true,
-      },
-    });
+  test('Unverified fan cannot enter the coach upgrade flow', async ({ request }) => {
+    const fan = await createTestUser(request, 'fan');
+    const response = await createAuthRequest(request, fan.token).post(
+      `${API_BASE_URL}/auth/upgrade-to-coach`,
+      {
+        data: {
+          plan: 'rookie',
+          dob: '1990-01-15',
+        },
+      }
+    );
 
     expect(response.status()).toBe(403);
     const body = await response.json();
     expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(/email verification required/i);
   });
 
-  test('Coach game creation is still blocked before onboarding is complete', async ({ request }) => {
+  test('Coach game creation is still blocked before onboarding is complete', async ({
+    request,
+  }) => {
     const coach = await createTestUser(request, 'coach');
     const response = await createAuthRequest(request, coach.token).post(`${API_BASE_URL}/games`, {
       data: {
@@ -86,26 +95,37 @@ test.describe('RBAC Permissions', () => {
 
     expect(response.status()).toBe(403);
     const body = await response.json();
-    expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(/verification|onboarding|approval|required/i);
+    expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(
+      /verification|onboarding|approval|required/i
+    );
   });
 
-  test('Unverified coach team creation returns verification required on the regular route', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    const response = await createAuthRequest(request, coach.token).post(`${API_BASE_URL}/teams/create`, {
-      data: {
-        name: `Blocked Team ${Date.now()}`,
-        organization_name: `Blocked Org ${Date.now()}`,
-      },
-    });
+  test('Unverified fan team creation returns verification or role required on the regular route', async ({
+    request,
+  }) => {
+    const fan = await createTestUser(request, 'fan');
+    const response = await createAuthRequest(request, fan.token).post(
+      `${API_BASE_URL}/teams/create`,
+      {
+        data: {
+          name: `Blocked Team ${Date.now()}`,
+          organization_name: `Blocked Org ${Date.now()}`,
+        },
+      }
+    );
 
     expect(response.status()).toBe(403);
     const body = await response.json();
-    expect(`${body.error ?? ''}`).toMatch(/email verification required/i);
+    expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(
+      /email verification required|coach_role_required|only coach accounts/i
+    );
   });
 
   test('Non-admin users cannot access admin-only routes', async ({ request }) => {
     const coach = await createTestUser(request, 'coach');
-    const response = await createAuthRequest(request, coach.token).get(`${API_BASE_URL}/admin/dashboard`);
+    const response = await createAuthRequest(request, coach.token).get(
+      `${API_BASE_URL}/admin/dashboard`
+    );
 
     expect([403, 404]).toContain(response.status());
   });

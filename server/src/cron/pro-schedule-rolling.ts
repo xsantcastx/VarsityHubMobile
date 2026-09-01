@@ -8,8 +8,9 @@
  * calendar advances. Offseason leagues simply return no games.
  *
  * Accuracy is per-game and enforced downstream in resolveFixture: a game
- * publishes only if both teams map to seeded refs AND its venue resolves to a
- * coordinate. Anything else is quarantined and reported, never published wrong.
+ * publishes only if both teams resolve to known provider refs AND its venue
+ * resolves to a coordinate. Anything else is quarantined and reported, never
+ * published wrong.
  *
  * Railway cron suggestion: daily (`0 8 * * *`) keeps the configured window fresh.
  * DRY RUN by default; pass --apply (or ROLLING_APPLY=1) to write.

@@ -4,7 +4,14 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { searchLimiter } from '../middleware/rateLimiters.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { getExcludedPrivateAuthorIds, getExcludedPrivateTeamIds } from '../lib/privacyUtils.js';
+import {
+  buildPrivateTeamEventVisibilityWhere,
+  buildPrivateTeamGameVisibilityWhere,
+  buildPrivateTeamPostVisibilityWhere,
+  getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
+  mergeAndWhere,
+} from '../lib/privacyUtils.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { captureMessage } from '../lib/sentry.js';
 import { highlightPostSelect } from '../lib/highlightPostSelect.js';
@@ -118,6 +125,64 @@ searchRouter.get(
     // by name/location across all dates (past, present, upcoming) — see the
     // per-model where clauses below.
     const dateWindow = parseDateQuery(q);
+    const privateTeamPostWhere = buildPrivateTeamPostVisibilityWhere(privateTeamExcludeIds);
+    const privateTeamGameWhere = buildPrivateTeamGameVisibilityWhere(privateTeamExcludeIds);
+    const privateTeamEventWhere = buildPrivateTeamEventVisibilityWhere(privateTeamExcludeIds);
+    const gameWhere: any = {
+      approval_status: 'approved',
+      // Opponent-approval workflow: exclude games still awaiting/declined
+      // opponent consent from public search results.
+      opponent_approval_status: { in: ['not_required', 'approved'] },
+      ...(dateWindow
+        ? { date: { gte: dateWindow.start, lt: dateWindow.end } }
+        : {
+            // Name/text search spans past, present, and upcoming (owner
+            // decision 2026-08-03) so finished pages — e.g. Fanatics Fest
+            // recaps — stay reviewable by title. Date-range queries keep
+            // the explicit window above.
+            OR: [
+              { title: { contains: q, mode: 'insensitive' } },
+              { location: { contains: q, mode: 'insensitive' } },
+              { home_team: { contains: q, mode: 'insensitive' } },
+              { away_team: { contains: q, mode: 'insensitive' } },
+              { away_team_name: { contains: q, mode: 'insensitive' } },
+            ],
+          }),
+    };
+    mergeAndWhere(gameWhere, privateTeamGameWhere);
+    const eventWhere: any = {
+      approval_status: 'approved',
+      status: 'approved',
+      ...(dateWindow ? { date: { gte: dateWindow.start, lt: dateWindow.end } } : {}),
+      AND: [
+        ...(dateWindow
+          ? []
+          : [
+              {
+                OR: [
+                  { title: { contains: q, mode: 'insensitive' as const } },
+                  { location: { contains: q, mode: 'insensitive' as const } },
+                  { description: { contains: q, mode: 'insensitive' as const } },
+                  { event_type: { contains: q, mode: 'insensitive' as const } },
+                ],
+              },
+            ]),
+        // Game-backed events inherit the game's opponent-consent gate: an
+        // upcoming fixture whose opponent is pending/declined stays private.
+        {
+          OR: [
+            { game_id: null },
+            {
+              game: {
+                is: { opponent_approval_status: { notIn: ['pending', 'declined'] } },
+              },
+            },
+            { game: { is: { date: { lt: new Date() } } } },
+          ],
+        },
+      ],
+    };
+    mergeAndWhere(eventWhere, privateTeamEventWhere);
 
     const [users, teams, organizations, games, events, posts] = await Promise.all([
       prisma.user.findMany({
@@ -206,27 +271,7 @@ searchRouter.get(
         },
       }),
       prisma.game.findMany({
-        where: {
-          approval_status: 'approved',
-          // Opponent-approval workflow: exclude games still awaiting/declined
-          // opponent consent from public search results.
-          opponent_approval_status: { in: ['not_required', 'approved'] },
-          ...(dateWindow
-            ? { date: { gte: dateWindow.start, lt: dateWindow.end } }
-            : {
-                // Name/text search spans past, present, and upcoming (owner
-                // decision 2026-08-03) so finished pages — e.g. Fanatics Fest
-                // recaps — stay reviewable by title. Date-range queries keep
-                // the explicit window above.
-                OR: [
-                  { title: { contains: q, mode: 'insensitive' } },
-                  { location: { contains: q, mode: 'insensitive' } },
-                  { home_team: { contains: q, mode: 'insensitive' } },
-                  { away_team: { contains: q, mode: 'insensitive' } },
-                  { away_team_name: { contains: q, mode: 'insensitive' } },
-                ],
-              }),
-        },
+        where: gameWhere,
         take: limit,
         // Most recent / upcoming first now that past fixtures are in scope.
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
@@ -244,38 +289,7 @@ searchRouter.get(
         },
       }),
       prisma.event.findMany({
-        where: {
-          approval_status: 'approved',
-          status: 'approved',
-          ...(dateWindow ? { date: { gte: dateWindow.start, lt: dateWindow.end } } : {}),
-          AND: [
-            ...(dateWindow
-              ? []
-              : [
-                  {
-                    OR: [
-                      { title: { contains: q, mode: 'insensitive' as const } },
-                      { location: { contains: q, mode: 'insensitive' as const } },
-                      { description: { contains: q, mode: 'insensitive' as const } },
-                      { event_type: { contains: q, mode: 'insensitive' as const } },
-                    ],
-                  },
-                ]),
-            // Game-backed events inherit the game's opponent-consent gate: an
-            // upcoming fixture whose opponent is pending/declined stays private.
-            {
-              OR: [
-                { game_id: null },
-                {
-                  game: {
-                    is: { opponent_approval_status: { notIn: ['pending', 'declined'] } },
-                  },
-                },
-                { game: { is: { date: { lt: new Date() } } } },
-              ],
-            },
-          ],
-        },
+        where: eventWhere,
         take: limit,
         // Most recent / upcoming first now that past events are in scope.
         orderBy: [{ date: 'desc' }, { created_at: 'desc' }],
@@ -296,6 +310,7 @@ searchRouter.get(
           deleted_at: null,
           media_url: { not: null },
           ...(userExcludeIds.length > 0 ? { author_id: { notIn: userExcludeIds } } : {}),
+          ...(privateTeamPostWhere ? { AND: [privateTeamPostWhere] } : {}),
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
             { content: { contains: q, mode: 'insensitive' } },

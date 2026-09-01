@@ -96,11 +96,7 @@ describe('Game approval — token-path self-review + creator-side edit authority
   });
 
   it('PUT and PATCH /games/:id authorize on the creator side only, not both teams', () => {
-    const putEdit = sliceFunction(
-      games,
-      'Only the CREATOR side may edit a shared game',
-      600
-    );
+    const putEdit = sliceFunction(games, 'Only the CREATOR side may edit a shared game', 600);
     const patchEdit = sliceFunction(games, 'Creator-side only', 600);
     expect(putEdit).toMatch(/creatorSideTeamIds\(/);
     expect(patchEdit).toMatch(/creatorSideTeamIds\(/);

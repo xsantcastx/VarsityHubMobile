@@ -12,6 +12,7 @@
  * in data-export-worker-and-cron.test.ts.
  */
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { prisma } from '../lib/prisma.js';
@@ -27,10 +28,6 @@ const { app } = await import('../testApp.js');
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
 
 describeDb('GDPR data export — HTTP endpoints', () => {
   let userAId: string;

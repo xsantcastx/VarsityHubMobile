@@ -3,7 +3,7 @@ import { SPORT_EMOJI, SPORT_OPTIONS } from '@/constants/sports';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text } from 'react-native';
 
 type Props = {
   /** Canonical sport slugs present on the map right now. */

@@ -7,11 +7,7 @@
  */
 
 import { describe, expect, it } from '@jest/globals';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
+import { describeDb } from './helpers/dbTestSuite.js';
 
 describe('parentalConsent helpers (pure)', () => {
   it('generates a 64-char hex token and a distinct 64-char hex hash', async () => {

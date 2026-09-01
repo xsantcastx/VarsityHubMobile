@@ -622,6 +622,56 @@ describeDb('Posts API Endpoints', () => {
       }
     });
 
+    it('should create and return media posts attached only by event_id', async () => {
+      const event = await prisma.event.create({
+        data: {
+          title: `Standalone media event ${Date.now()}`,
+          date: new Date(Date.now() + 60 * 60 * 1000),
+          location: 'VarsityHub Arena',
+          latitude: 40.7128,
+          longitude: -74.006,
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: testUser.id,
+          creator_role: 'coach',
+        },
+      });
+
+      try {
+        const createRes = await request(app)
+          .post('/posts')
+          .set('Authorization', `Bearer ${testUserToken}`)
+          .send({
+            content: 'Posting uploaded media to a standalone event page',
+            type: 'highlight',
+            media_url: 'https://varsityhub.app/uploads/test-event-media.jpg',
+            event_id: event.id,
+            location: {
+              lat: 40.7128,
+              lng: -74.006,
+              source: 'device',
+            },
+          });
+
+        expect(createRes.statusCode).toBe(201);
+        expect(createRes.body.event_id).toBe(event.id);
+        expect(createRes.body.game_id ?? null).toBeNull();
+
+        const eventFeedRes = await request(app)
+          .get('/posts')
+          .query({ event_id: event.id })
+          .set('Authorization', `Bearer ${testUserToken}`);
+
+        expect(eventFeedRes.statusCode).toBe(200);
+        const items = eventFeedRes.body.items || eventFeedRes.body.posts || [];
+        expect(items.some((post: any) => post.id === createRes.body.id)).toBe(true);
+
+        await prisma.post.delete({ where: { id: createRes.body.id } }).catch(() => {});
+      } finally {
+        await prisma.event.delete({ where: { id: event.id } }).catch(() => {});
+      }
+    });
+
     it('should reject game-linked event posts when venue coordinates are missing', async () => {
       const game = await prisma.game.create({
         data: {

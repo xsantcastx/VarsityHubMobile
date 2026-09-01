@@ -173,7 +173,7 @@ export function MentionInput({
                 </View>
                 <View style={styles.userInfo}>
                   <Text style={[styles.displayName, { color: theme.text }]}>
-                    @{item.username || item.display_name || 'user'}
+                    @{item.username || 'user'}
                   </Text>
                 </View>
               </Pressable>

@@ -5,7 +5,7 @@ const generateTestEmail = () => `onboarding-flow-${Date.now()}@varsityhub-test.a
 async function enableEmailSignUp(
   termsCheckbox: Locator,
   ageCheckbox: Locator,
-  emailSignupButton: Locator,
+  emailSignupButton: Locator
 ) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (await emailSignupButton.isEnabled()) {
@@ -27,7 +27,10 @@ async function enableEmailSignUp(
 }
 
 test.describe('Onboarding Flow', () => {
-  test('User can enter onboarding through the current account creation flow', async ({ page, baseURL }) => {
+  test('User can enter onboarding through the current account creation flow', async ({
+    page,
+    baseURL,
+  }) => {
     const email = generateTestEmail();
     const password = 'TestPassword123!';
 
@@ -49,7 +52,7 @@ test.describe('Onboarding Flow', () => {
     await emailSignupButton.click();
 
     await page.getByLabel('Email').fill(email);
-    await page.getByLabel('Password').fill(password);
+    await page.getByRole('textbox', { name: 'Password', exact: true }).fill(password);
     await page.getByLabel('Create account').click();
 
     await expect(page.getByText('Check Your Email')).toBeVisible();

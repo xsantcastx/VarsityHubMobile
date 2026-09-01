@@ -38,7 +38,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>57</string>
+    <string>59</string>
     <key>GMSApiKey</key>
     <string>$(GOOGLE_MAPS_API_KEY)</string>
     <key>ITSAppUsesNonExemptEncryption</key>
@@ -59,7 +59,7 @@
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Allow VarsityHub to use your location to show nearby events on the map.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Allow VarsityHub to access the microphone for recording videos.</string>
+    <string>VarsityHub uses your microphone to capture audio when recording game-day videos and highlight clips.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Allow VarsityHub to save photos.</string>
     <key>NSPhotoLibraryUsageDescription</key>

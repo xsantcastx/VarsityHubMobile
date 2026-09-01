@@ -5,14 +5,19 @@
  * - The geofence is strict for a user's FIRST upload to an event page: they
  *   must be within 3km of the venue with device-origin coordinates. That first
  *   pass writes an EventPostingUnlock row; for the next 7 days they may keep
- *   uploading (stories AND posts) to that same event page without re-passing
- *   the geofence.
- * - Story Posts: window opens on game day (UTC) and stays open until +48h.
- * - Regular Posts: the geofenced live window opens 1 hour before event start
- *   and closes `live_window_hours_after_start` hours after start (default 3;
- *   the Fanatics Fest day events set 18 so fans can post geofenced all day).
+ *   uploading regular posts to that same event page without re-passing the
+ *   geofence. Stories still require the live window + geofence unless the user
+ *   also has an active designated-poster unlock for that event.
+ * - Regular Posts + Story Posts: the geofenced live window has NO early cutoff
+ *   (owner rule 2026-08-28) — posting is open any time up to the live cutoff, so
+ *   a fan who shows up early is never blocked. It closes
+ *   `live_window_hours_after_start` hours after start (default 3; the Fanatics
+ *   Fest day events set 18 so fans can post geofenced all day). Presence is
+ *   enforced by the 3km geofence, not by a start-time gate.
  *   After the live window, a 7-day grace window remains open only for
  *   unlocked users (posting recaps from anywhere); then it closes for everyone.
+ * - A manual designated-poster marker must be paired with an active
+ *   EventPostingUnlock row, so one-off grants remain capped at the same 7 days.
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  *
  * This maintains authenticity and prevents users from different states from trolling games.
@@ -22,11 +27,13 @@ import { prisma } from './prisma.js';
 
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
-// Owner rule (2026-07-15): live post window is -1h → +3h around event start by
-// default. Events may lengthen the after-start bound via the
-// live_window_hours_after_start column (Fanatics Fest day events: 18h) so
-// all-day festivals keep geofenced first posts working the whole day.
-const REGULAR_POST_OPEN_BEFORE_MS = 60 * 60 * 1000;
+// Owner rule (2026-08-28): posting has NO early cutoff. There is no "opens N
+// hours before start" bound anymore — a fan who shows up early is never blocked.
+// Posting is open from any time up to the live cutoff (event start + the
+// after-start window), and the 3km venue geofence is the ONLY presence check.
+// The old before-start gate ("before_open") blocked early arrivals and has been
+// removed entirely. Events may still lengthen the after-start bound via the
+// live_window_hours_after_start column (Fanatics Fest day events: 18h).
 export const DEFAULT_LIVE_WINDOW_HOURS_AFTER_START = 3;
 // Product rule (2026-07-14, owner decision, verbatim): "When a user posts to
 // an event while they are there, they can continue to post to the event for
@@ -62,7 +69,8 @@ export type PostingPermissionResult = {
   distance?: number;
 };
 
-export type PostPostingWindowState = 'before_open' | 'live' | 'grace' | 'closed';
+// No 'before_open' — posting has no early cutoff (owner rule 2026-08-28).
+export type PostPostingWindowState = 'live' | 'grace' | 'closed';
 
 const postingEventSelect = {
   id: true,
@@ -141,10 +149,10 @@ export function isWithinGeofence(
  *    LOCATION", "USERS CANT UPLOAD TO STORIES AFTER THEY HAVE LEFT THE GAME",
  *   "STORY POST, do not get the same 7 days after the fact".
  *
- * So a story uses exactly the same live window as a regular post — opening 1h
- * before start and closing `liveWindowHoursAfterStart` after (per-event
- * override; the fest day events run 18h) — and never the 'grace' state that
- * keeps regular posting open for a week.
+ * So a story uses exactly the same live window as a regular post — no early
+ * cutoff (open any time up to the cutoff) and closing `liveWindowHoursAfterStart`
+ * after start (per-event override; the fest day events run 18h) — and never the
+ * 'grace' state that keeps regular posting open for a week.
  *
  * This previously opened at UTC midnight on the event's day and ran for 48h
  * after start, which both let people post before the event and kept stories
@@ -160,8 +168,8 @@ export function isStoryPostingWindowOpen(
 
 /**
  * Check if posting window is open for regular posts
- * Posts: the live window opens 1 hour before event start and closes
- * `liveWindowHoursAfterStart` hours after (default 3; per-event override).
+ * Posts: the live window has no early cutoff (open any time up to the cutoff) and
+ * closes `liveWindowHoursAfterStart` hours after start (default 3; per-event override).
  * After that, posting remains open for a 7-day grace window only for users
  * holding a posting unlock.
  */
@@ -171,7 +179,7 @@ export function isPostPostingWindowOpen(
 ): boolean {
   const now = new Date();
   const state = getPostPostingWindowState(eventDate, now, liveWindowHoursAfterStart);
-  return state !== 'before_open' && state !== 'closed';
+  return state !== 'closed';
 }
 
 export function getPostPostingWindowBounds(
@@ -179,7 +187,6 @@ export function getPostPostingWindowBounds(
   liveWindowHoursAfterStart?: number | null
 ) {
   const eventTime = new Date(eventDate);
-  const windowStart = new Date(eventTime.getTime() - REGULAR_POST_OPEN_BEFORE_MS);
   const afterStartHours =
     typeof liveWindowHoursAfterStart === 'number' && liveWindowHoursAfterStart > 0
       ? liveWindowHoursAfterStart
@@ -188,7 +195,6 @@ export function getPostPostingWindowBounds(
 
   return {
     eventTime,
-    windowStart,
     liveCutoff,
   };
 }
@@ -198,11 +204,11 @@ export function getPostPostingWindowState(
   now: Date = new Date(),
   liveWindowHoursAfterStart?: number | null
 ): PostPostingWindowState {
-  const { windowStart, liveCutoff } = getPostPostingWindowBounds(
-    eventDate,
-    liveWindowHoursAfterStart
-  );
-  if (now < windowStart) return 'before_open';
+  const { liveCutoff } = getPostPostingWindowBounds(eventDate, liveWindowHoursAfterStart);
+  // Owner rule (2026-08-28): posting has NO early cutoff. A fan can post any time
+  // up to the live cutoff — there is no 'before_open' state, so early arrivals
+  // are never blocked. Presence is enforced by the 3km geofence, not by start
+  // time.
   // 'live' = geofenced posting allowed: anyone at the venue can post (and earn
   // their 7-day unlock); unlocked users can post from anywhere.
   if (now <= liveCutoff) return 'live';
@@ -230,7 +236,11 @@ export function getPostPostingWindowState(
 export type SerializedLiveWindow = {
   /** Authoritative event start — a linked game row's own `date` can disagree. */
   starts_at: string | null;
-  /** Geofenced posting opens (start − 1h). */
+  /**
+   * Always null: posting has no early cutoff (owner rule 2026-08-28). Kept on the
+   * payload for backward compatibility; clients treat a null `live_from` as "no
+   * lower bound" and gate posting on `live_until` (and the geofence) only.
+   */
   live_from: string | null;
   /** Geofenced posting closes (start + the per-event window, default 3h). */
   live_until: string | null;
@@ -249,13 +259,10 @@ export function serializeLiveWindow(
   if (!eventDate) return EMPTY_LIVE_WINDOW;
   const parsed = eventDate instanceof Date ? eventDate : new Date(eventDate);
   if (Number.isNaN(parsed.getTime())) return EMPTY_LIVE_WINDOW;
-  const { eventTime, windowStart, liveCutoff } = getPostPostingWindowBounds(
-    parsed,
-    liveWindowHoursAfterStart
-  );
+  const { eventTime, liveCutoff } = getPostPostingWindowBounds(parsed, liveWindowHoursAfterStart);
   return {
     starts_at: eventTime.toISOString(),
-    live_from: windowStart.toISOString(),
+    live_from: null, // no early cutoff — posting is open up to live_until (owner rule 2026-08-28)
     live_until: liveCutoff.toISOString(),
   };
 }
@@ -408,19 +415,14 @@ async function loadPostingEvent(eventId: string) {
 }
 
 /**
- * Additive designated-poster allowlist (owner rule, 2026-07-19 Fanatics Fest):
- * a user granted here may post AND upload stories to the event page at any
- * time, from anywhere — bypassing the live window and the venue geofence —
- * WITHOUT blocking any other user (normal attendees keep the standard rules).
- * This is the post-event "give a specific person continued access for
- * marketing/continuity" grant. Contrast `exclusive_poster_id`, which is
- * single-user and blocks everyone else. Grant/revoke via
- * `server/scripts/set-event-designated-poster.ts`.
+ * Additive designated-poster marker. By itself this does not grant permanent
+ * upload rights; it must be paired with an active EventPostingUnlock row. That
+ * keeps one-off admin access inside the same 7-day cap as attendee access while
+ * still allowing explicitly designated users to add stories during that grant.
+ * Contrast `exclusive_poster_id`, which is single-user and blocks everyone else.
+ * Grant/revoke via `server/scripts/set-event-designated-poster.ts`.
  */
-export async function isDesignatedEventPoster(
-  userId: string,
-  eventId: string
-): Promise<boolean> {
+export async function isDesignatedEventPoster(userId: string, eventId: string): Promise<boolean> {
   const row = await prisma.eventDesignatedPoster.findUnique({
     where: { event_id_user_id: { event_id: eventId, user_id: userId } },
     select: { user_id: true },
@@ -513,28 +515,26 @@ export async function verifyStoryPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Additive designated-poster grant also covers stories — this closes the gap
-  // where the allowlist/exclusive mechanism only ever affected regular posts.
-  // Allowlisted users upload stories from anywhere at any time; everyone else
-  // must still re-pass the geofence on every story (owner rule, 2026-07-16).
-  if (await isDesignatedEventPoster(userId, event.id)) {
+  // Explicit designated-poster + active unlock grants temporary story access.
+  if (
+    (await isDesignatedEventPoster(userId, event.id)) &&
+    (await hasActiveEventPostingUnlock(userId, event))
+  ) {
     return { allowed: true };
   }
 
-  // Stories are live-only: the same window regular posts get, never the 7-day
-  // grace (owner rule, 2026-07-16 — see isStoryPostingWindowOpen).
+  // Stories are live-only: open any time up to the live cutoff (no early cutoff
+  // and never the 7-day grace — owner rules 2026-07-16 + 2026-08-28). The only
+  // way to fail this check is now being PAST the cutoff.
   if (!isStoryPostingWindowOpen(event.date, event.live_window_hours_after_start)) {
-    const { windowStart, liveCutoff } = getPostPostingWindowBounds(
+    const { liveCutoff } = getPostPostingWindowBounds(
       event.date,
       event.live_window_hours_after_start
     );
-    const isBeforeOpen = new Date() < windowStart;
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
-      reason: isBeforeOpen
-        ? `Stories open at ${formatWindowDateTime(windowStart)}, an hour before the event starts.`
-        : `Stories could be posted from the venue until ${formatWindowDateTime(liveCutoff)}. That window has closed.`,
+      reason: `Stories could be posted from the venue until ${formatWindowDateTime(liveCutoff)}. That window has closed.`,
     };
   }
 
@@ -600,8 +600,8 @@ export async function verifyStoryPostingPermission(
 
 /**
  * Verify user can post to an event based on location and time
- * Posts: the geofenced live window runs -1h → +Nh around event start (N =
- * live_window_hours_after_start, default 3; fest all-day events use 18). A
+ * Posts: the geofenced live window has no early cutoff and closes at +Nh after
+ * start (N = live_window_hours_after_start, default 3; fest all-day events use 18). A
  * first geofence pass earns a 7-day unlock; unlocked users post without
  * location from anywhere, including through the post-event grace window.
  * After the grace window: closed.
@@ -619,11 +619,13 @@ export async function verifyEventPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Additive designated-poster grant (see isDesignatedEventPoster): allowlisted
-  // users post from anywhere at any time. Checked before the exclusive lock so
-  // a grant always admits, and before the window/geofence so it survives event
-  // close — all without affecting any other user.
-  if (await isDesignatedEventPoster(userId, event.id)) {
+  // Explicit designated-poster + active unlock grants temporary post access.
+  // The plain designated row is only a marker; it does not create a permanent
+  // geofence/window bypass.
+  if (
+    (await isDesignatedEventPoster(userId, event.id)) &&
+    (await hasActiveEventPostingUnlock(userId, event))
+  ) {
     return { allowed: true };
   }
 
@@ -642,32 +644,20 @@ export async function verifyEventPostingPermission(
     };
   }
 
-  const { windowStart } = getPostPostingWindowBounds(
-    event.date,
-    event.live_window_hours_after_start
-  );
   const postingWindowState = getPostPostingWindowState(
     event.date,
     new Date(),
     event.live_window_hours_after_start
   );
 
-  if (postingWindowState === 'before_open') {
-    return {
-      allowed: false,
-      code: 'POSTING_WINDOW_CLOSED',
-      reason: `Posting opens ${formatWindowDateTime(windowStart)}.`,
-    };
-  }
+  // There is no 'before_open' state anymore (owner rule 2026-08-28): posting is
+  // open up to the live cutoff, so an early arrival is never blocked here — they
+  // fall straight through to the geofence check below.
 
   // The event is over and this user never posted from the venue while it was
   // live, so they never earned an unlock. Owner wording (2026-07-16): they get
   // told plainly that presence at the event was the price of admission — not a
   // "come back later", because there is no later.
-  //
-  // `closed` used to share the `before_open` branch, which told someone opening
-  // a week-old event page "Posting opens <a date in the past>". Same rejection,
-  // opposite meaning.
   if (postingWindowState === 'closed') {
     return {
       allowed: false,

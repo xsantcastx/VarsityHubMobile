@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { compositeAdapter } from './compositeAdapter.js';
 import { espnAdapter } from './espnAdapter.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
+import { PRO_SCHEDULE_LEAGUES } from './types.js';
 import { wweAdapter } from './wweAdapter.js';
 
 /**
@@ -24,7 +25,7 @@ import { wweAdapter } from './wweAdapter.js';
 
 const fixtureSchema = z.object({
   external_ref: z.string().min(1).max(200),
-  league: z.enum(['nfl', 'nba', 'wnba', 'mlb', 'wwe']),
+  league: z.enum(PRO_SCHEDULE_LEAGUES),
   starts_at: z.coerce.date(),
   home_team_ref: z.string().nullable().default(null),
   away_team_ref: z.string().nullable().default(null),
@@ -49,7 +50,7 @@ const fixtureSchema = z.object({
 export function jsonFileAdapter(path: string): ProScheduleAdapter {
   return {
     name: `json:${path}`,
-    leagues: ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const,
+    leagues: PRO_SCHEDULE_LEAGUES,
     async fetchFixtures(league: ProLeague, from: Date, to: Date): Promise<ProFixture[]> {
       const raw = await readFile(path, 'utf8');
       const parsed: unknown = JSON.parse(raw);

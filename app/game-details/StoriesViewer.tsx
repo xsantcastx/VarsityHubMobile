@@ -349,7 +349,7 @@ export default function StoriesViewer({
           );
         })()}
 
-        <View style={styles.storyTouchLayer} pointerEvents="box-none">
+        <View style={[styles.storyTouchLayer, { pointerEvents: 'box-none' }]}>
           <Pressable
             style={styles.storyTouchHalf}
             onPress={onNavLeft}

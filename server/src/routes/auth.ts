@@ -6,6 +6,7 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import { getBearerToken, revokeAccessToken } from '../lib/accessTokenRevocation.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -1191,6 +1192,15 @@ authRouter.post(
 authRouter.post(
   '/logout',
   asyncHandler(async (req, res) => {
+    const bearerToken = getBearerToken(req.header('Authorization'));
+    if (bearerToken) {
+      await revokeAccessToken(bearerToken).catch((err: unknown) => {
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          context: 'logout_access_token_revoke_failed',
+        });
+      });
+    }
+
     const { refresh_token } = req.body || {};
     if (refresh_token && typeof refresh_token === 'string') {
       // Look up the row by whichever index matches the token shape — v2
@@ -3753,14 +3763,18 @@ authRouter.post(
     updateData.preferences = mergeAuthStateIntoPreferences(merged, onboardingAuthPatch);
     Object.assign(updateData, buildAuthStateColumns(onboardingAuthPatch));
 
-    // SECURITY: If completing onboarding as coach, ensure approval_status is PENDING
-    // This prevents a fan from completing onboarding with role='coach' and retaining APPROVED status
-    // v1.0.2: Also guard against overwriting an already-APPROVED status from a stale client call
-    if (
-      finalRole === 'coach' &&
-      currentAuthState.role !== 'coach' &&
-      current?.approval_status !== 'APPROVED'
-    ) {
+    const hasReviewedCoachContext =
+      current?.approval_status === 'APPROVED' &&
+      currentAuthState.onboarding_completed === true &&
+      Boolean(currentAuthState.organization_id);
+
+    // SECURITY: Any fresh fan-to-coach onboarding transition must enter review.
+    // New fan rows default to APPROVED for normal app access, so that default
+    // cannot be trusted as coach approval. However, some legacy/retry rows have
+    // split role state while already carrying an explicit APPROVED, completed,
+    // org-bound coach context; onboarding replay must preserve that reviewed
+    // status instead of demoting.
+    if (finalRole === 'coach' && currentAuthState.role !== 'coach' && !hasReviewedCoachContext) {
       updateData.approval_status = 'PENDING';
     }
 

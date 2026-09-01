@@ -115,9 +115,9 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
                   backgroundColor:
                     (filters.find(f => f.id === filter) as any)?.overlay || 'transparent',
                   height: CANVAS_HEIGHT,
+                  pointerEvents: 'none',
                 },
               ]}
-              pointerEvents="none"
             />
 
             {/* Stickers */}
@@ -257,7 +257,7 @@ function DraggableSticker({
         style={[styles.removeBtn, removeBtnBg && { backgroundColor: removeBtnBg }]}
         onPress={onRemove}
       >
-        <Text style={{ fontSize: 12, color: removeBtnColor || '#000' }}>✕</Text>
+        <Text style={[{ fontSize: 12 }, removeBtnColor && { color: removeBtnColor }]}>✕</Text>
       </Pressable>
     </View>
   );

@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
-import { getApiBaseUrl, httpGet, httpPost } from '../api/http';
+import { getApiBaseUrl, httpGet, httpPost } from '../apiclient/http';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { isSessionExpiryError } from '@/utils/sessionExpiryError';
