@@ -162,7 +162,7 @@ function GameMapScreen() {
         )}
 
         {!loading && !error && calendarOpen && (
-          <View style={[styles.dateStripPanel, { backgroundColor: Colors[colorScheme].card }]}>
+          <View style={styles.dateStripPanel} pointerEvents="box-none">
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -175,7 +175,7 @@ function GameMapScreen() {
                     key={day.dateString}
                     onPress={() => setSelectedDate(selected ? '' : day.dateString)}
                     style={[
-                      styles.datePill,
+                      styles.dateChip,
                       {
                         backgroundColor: selected
                           ? Colors[colorScheme].tint
@@ -190,24 +190,16 @@ function GameMapScreen() {
                   >
                     <Text
                       style={[
-                        styles.datePillDay,
-                        { color: selected ? '#FFFFFF' : Colors[colorScheme].mutedText },
-                      ]}
-                    >
-                      {day.day}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.datePillDate,
+                        styles.dateChipText,
                         { color: selected ? '#FFFFFF' : Colors[colorScheme].text },
                       ]}
                     >
-                      {day.label}
+                      {day.day} {day.label}
                     </Text>
                     {day.count > 0 ? (
                       <View
                         style={[
-                          styles.datePillDot,
+                          styles.dateChipDot,
                           { backgroundColor: selected ? '#FFFFFF' : Colors[colorScheme].tint },
                         ]}
                       />
@@ -218,7 +210,9 @@ function GameMapScreen() {
             </ScrollView>
             {calendarOpen ? (
               selectedDate ? (
-                <ScrollView style={styles.selectedDateList}>
+                <ScrollView
+                  style={[styles.selectedDateList, { backgroundColor: Colors[colorScheme].card }]}
+                >
                   {selectedDateEvents.slice(0, 10).map(event => (
                     <Pressable
                       key={`${event.type}-${event.id}`}
@@ -319,55 +313,45 @@ const styles = StyleSheet.create({
     height: 34,
     justifyContent: 'center',
   },
+  // Transparent container — the date chips float directly on the map, no card behind them.
   dateStripPanel: {
     position: 'absolute',
-    left: 12,
-    right: 12,
+    left: 0,
+    right: 0,
     top: 116,
-    maxHeight: 230,
-    borderRadius: 8,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
   },
   dateStripContent: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 8,
-  },
-  datePill: {
-    width: 58,
-    height: 64,
-    borderRadius: 8,
-    borderWidth: 1,
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  datePillDay: {
-    width: '100%',
-    textAlign: 'center',
-    fontSize: 11,
+  // Compact rounded chip (the earlier "dates tracker" look), single line "Tue 9/1".
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  dateChipText: {
+    fontSize: 13,
     fontWeight: '700',
   },
-  datePillDate: {
-    width: '100%',
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  datePillDot: {
+  dateChipDot: {
     width: 5,
     height: 5,
     borderRadius: 3,
-    marginTop: 2,
   },
+  // Only the selected-day event list gets a card background (for legibility over the map).
   selectedDateList: {
+    marginTop: 8,
+    marginHorizontal: 12,
     maxHeight: 140,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   selectedDateRow: {
     paddingHorizontal: 12,
