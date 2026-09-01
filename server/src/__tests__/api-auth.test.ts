@@ -80,13 +80,8 @@ describe('API Authentication Endpoints', () => {
       accessToken = response.body.access_token;
       userId = response.body.user.id;
 
-      // In dev/test, verification code might be included as plaintext
-      if (response.body.dev_verification_code) {
-        verificationCode = response.body.dev_verification_code;
-      }
-      // NOTE: Cannot read plaintext code from DB — auth.ts now hashes before storage.
-      // If dev_verification_code is not in the response, the verify test will be skipped.
-      // Set ENABLE_DEV_CODES=1 in test env to enable.
+      expect(response.body.dev_verification_code).toMatch(/^\d{6}$/);
+      verificationCode = response.body.dev_verification_code;
     });
 
     it('should reject duplicate email registration', async () => {
@@ -851,12 +846,6 @@ describe('API Authentication Endpoints', () => {
 
   describe('POST /auth/verify/confirm', () => {
     it('should verify email with correct code', async () => {
-      if (!verificationCode) {
-        // DB stores a hash — cannot recover plaintext. Need ENABLE_DEV_CODES=1.
-        console.warn('Skipping verify test — no plaintext code available (set ENABLE_DEV_CODES=1)');
-        return;
-      }
-
       const response = await request(app)
         .post('/auth/verify/confirm')
         .set('Authorization', `Bearer ${accessToken}`)
