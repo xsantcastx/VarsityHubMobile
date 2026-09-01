@@ -28,6 +28,8 @@ import {
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
+import SportFilterBar from '@/components/SportFilterBar';
+import { normalizeSportSlug } from '@/constants/sports';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
@@ -85,6 +87,7 @@ type GameItem = {
   pro_home_color?: string | null;
   pro_away_color?: string | null;
   pro_league?: string | null;
+  sport?: string | null;
   starts_at?: string | null;
   live_from?: string | null;
   live_until?: string | null;
@@ -165,6 +168,7 @@ const normalizeFeedEvents = (
       pro_home_color: event.pro_home_color ?? null,
       pro_away_color: event.pro_away_color ?? null,
       pro_league: event.pro_league ?? fallbackLeague ?? null,
+      sport: normalizeSportSlug(event.sport),
       starts_at: event.starts_at ?? null,
       live_from: event.live_from ?? null,
       live_until: event.live_until ?? null,
@@ -198,6 +202,20 @@ function dedupeFeedEntities(items: GameItem[]): GameItem[] {
     if (nextScore > existingScore) byKey.set(key, item);
   }
   return Array.from(byKey.values());
+}
+
+function getFeedItemSport(item: GameItem): string | null {
+  const direct = normalizeSportSlug(item.sport);
+  if (direct) return direct;
+
+  const record = item as any;
+  return (
+    normalizeSportSlug(record.homeTeam?.sport) ??
+    normalizeSportSlug(record.awayTeam?.sport) ??
+    normalizeSportSlug(record.home_team?.sport) ??
+    normalizeSportSlug(record.away_team?.sport) ??
+    null
+  );
 }
 
 function parseMatchupSides(title?: string | null): [string, string] | null {
@@ -622,6 +640,7 @@ export default function FeedScreen() {
   const [gamesCursor, setGamesCursor] = useState<string | null>(null);
   const [hasMoreGames, setHasMoreGames] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [selectedFeedSport, setSelectedFeedSport] = useState<string | null>(null);
   const [query] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<any>(null);
@@ -1476,16 +1495,28 @@ export default function FeedScreen() {
   );
 
   const filtered = useMemo(() => {
-    if (!query) return games;
+    const sportFiltered = selectedFeedSport
+      ? games.filter(game => getFeedItemSport(game) === selectedFeedSport)
+      : games;
+    if (!query) return sportFiltered;
     const q = query.toLowerCase().trim();
     const zip = q.match(/\b\d{5}\b/);
     if (zip) {
-      return games.filter(g => (g.location || '').toLowerCase().includes(zip[0]));
+      return sportFiltered.filter(g => (g.location || '').toLowerCase().includes(zip[0]));
     }
-    return games.filter(
+    return sportFiltered.filter(
       g => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q)
     );
-  }, [games, query]);
+  }, [games, query, selectedFeedSport]);
+
+  const feedSports = useMemo(() => {
+    const seen = new Set<string>();
+    for (const game of games) {
+      const sport = getFeedItemSport(game);
+      if (sport) seen.add(sport);
+    }
+    return Array.from(seen);
+  }, [games]);
 
   // Separate upcoming/live and past events
   // Events within the 2-hour live window stay in "upcoming" so they appear prominently
@@ -2638,14 +2669,24 @@ export default function FeedScreen() {
           router.push('/game-map');
         }}
         accessibilityRole="button"
-        accessibilityLabel="Open events map"
+        accessibilityLabel="View games nearby"
         accessibilityHint="Double tap to open map"
         accessible
       >
         <MaterialIcons name="map" size={24} color="#FFFFFF" />
-        <Text style={styles.mapsButtonText}>View Events Map</Text>
+        <Text style={styles.mapsButtonText}>View Games Nearby</Text>
         <MaterialIcons name="chevron-right" size={20} color="#FFFFFF" />
       </View>
+
+      {feedSports.length > 1 ? (
+        <View style={styles.feedSportFilter}>
+          <SportFilterBar
+            sports={feedSports}
+            selected={selectedFeedSport}
+            onSelect={setSelectedFeedSport}
+          />
+        </View>
+      ) : null}
 
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
         Showing upcoming and recent games in your area.
@@ -3116,6 +3157,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     flex: 1,
+  },
+  feedSportFilter: {
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
   gridRow: { gap: 6, paddingHorizontal: 4, marginBottom: 6 },
   masonryContainer: {
