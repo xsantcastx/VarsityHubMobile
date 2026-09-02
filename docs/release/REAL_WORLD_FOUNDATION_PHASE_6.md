@@ -76,9 +76,10 @@ Direct Sentry API evidence:
 
 Open Sentry work:
 
-- Confirm source-map upload for current EAS updates/builds. Sentry events show
-  bundle/source-map names, but `origFilename` values are unresolved and the
-  release-files endpoint returned `[]`.
+- Confirm source-map upload for current EAS updates/builds after the next
+  source-map-aware OTA publish. Sentry events show bundle/source-map names, but
+  `origFilename` values are unresolved and the release-files endpoint returned
+  `[]` for the latest observed native release.
 - Triage or resolve recent unresolved issues before broad rollout. Fresh sampled
   issues included `VARSITYHUB-3V` (`Admin only`), `VARSITYHUB-3A`
   (`Token already used`), `VARSITYHUB-3T` (native iOS fatal),
@@ -301,6 +302,11 @@ Changes:
   overrides to `6.16.0`.
 - Install `npm@11.19.1` in both server Docker stages so Snyk container scans do
   not inherit vulnerable npm CLI dependencies from the base image.
+- Make production OTA publishing source-map-aware:
+  `npm run update:production` now runs through `eas env:exec production`, so
+  the sensitive EAS `SENTRY_AUTH_TOKEN` is present for the Sentry Expo upload
+  script, and the GitHub OTA workflows now fail if `EXPO_TOKEN` or
+  `SENTRY_AUTH_TOKEN` is missing instead of reporting a green skipped publish.
 
 ## Client OTA Rollout
 
@@ -324,6 +330,13 @@ Results:
 - Both updates reference commit `462c99725e4588ce067a9a92bdb7a7a7fcaa8f4f`.
 - These OTAs carry the client Sentry-noise reduction and map coordinate crash
   mitigation to installed apps on both active runtime lines.
+- Follow-up investigation found the GitHub OTA workflow was succeeding while
+  skipping the publish because `EXPO_TOKEN` was not configured in the GitHub
+  Actions secrets visible to `emilmancero-dev/VarsityHubMobile`. That is now a
+  hard workflow failure.
+- EAS production env contains `SENTRY_AUTH_TOKEN` as a sensitive variable, and
+  `eas env:exec production 'test -n "$SENTRY_AUTH_TOKEN"' --non-interactive`
+  proved it is available to commands executed through EAS env.
 
 Verification:
 
@@ -436,3 +449,12 @@ Before clearing dependency/security readiness:
    upgrade can be planned and tested.
 2. Plan a Node/Jest-compatible path before upgrading `sanitize-html` to
    `2.17.7+`.
+
+Before clearing Sentry/OTA observability readiness:
+
+1. Add `EXPO_TOKEN` and `SENTRY_AUTH_TOKEN` to the GitHub Actions secrets for
+   the maintained production repo/branch.
+2. Publish the next production OTA with `npm run update:production` or the
+   GitHub workflow after those secrets exist.
+3. Re-run `npm run verify:sentry-readiness` and confirm Sentry has source maps
+   or debug-id artifacts for the newly published update/build.

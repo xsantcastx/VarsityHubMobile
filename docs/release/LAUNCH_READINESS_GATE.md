@@ -126,6 +126,12 @@ Agent evidence snapshot, 2026-09-02:
 - Production OTA published for both active runtime lines: `1.0.5` update group
   `e48da7af-229a-498c-838b-61727ff4a543` and `1.0.4` update group
   `d34628be-aef0-4c76-8a25-eeb61ea6db8c`.
+- Production OTA automation drift found: GitHub's OTA workflow was green while
+  skipping publish because `EXPO_TOKEN` was not configured in GitHub Actions.
+  The workflows now fail if either `EXPO_TOKEN` or `SENTRY_AUTH_TOKEN` is
+  missing, and local `npm run update:production` now runs through
+  `eas env:exec production` so Sentry source-map upload gets the sensitive EAS
+  token.
 - Data export storage is not configured in production health diagnostics;
   `POST /me/data-export` will return `503` until `DATA_EXPORT_S3_*` vars point
   at private export storage.
