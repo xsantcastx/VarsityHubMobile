@@ -139,6 +139,25 @@ describe('resolveFixture', () => {
       // home venue is not a valid fallback for any of its fields.
       if (r.ok) expect(r.value.location).toBeNull();
     });
+
+    it('rejects provider coordinates outside real latitude and longitude ranges', () => {
+      const r = resolveFixture(fixture({ venue_lat: 151.503, venue_lng: -200.0032 }), teams);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe('NO_VENUE_COORDS');
+    });
+
+    it('rejects invalid home venue fallback coordinates', () => {
+      const badHome = { ...lakers, venue_lat: Number.NaN, venue_lng: -118.2673 };
+      const r = resolveFixture(
+        fixture(),
+        new Map([
+          [badHome.external_ref, badHome],
+          [celtics.external_ref, celtics],
+        ])
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.error.code).toBe('NO_VENUE_COORDS');
+    });
   });
 
   describe('touring promotions (WWE)', () => {

@@ -58,6 +58,19 @@ function joinLocation(name: string | null, address: string | null): string | nul
   return name ?? address ?? null;
 }
 
+function isValidVenueCoordinate(latitude: number | null, longitude: number | null): boolean {
+  return (
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
 export function resolveFixture(
   fixture: ProFixture,
   teamsByRef: ReadonlyMap<string, ProTeamVenue>
@@ -114,7 +127,7 @@ export function resolveFixture(
   // Without coordinates the geofence can never pass, so the event page would be
   // permanently unpostable. Better to skip and report than to publish a page
   // that silently rejects everyone who shows up.
-  if (latitude === null || longitude === null) {
+  if (!isValidVenueCoordinate(latitude, longitude)) {
     return { ok: false, error: { code: 'NO_VENUE_COORDS' } };
   }
 
