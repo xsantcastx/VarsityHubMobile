@@ -126,9 +126,12 @@ Agent evidence snapshot, 2026-09-02:
   at private export storage.
 - `HEALTH_CHECK_SECRET` was rotated after the Phase 6 redaction patch. The
   follow-up direct Railway deployment
-  `f25b1cf3-1bb3-4e32-bcde-afb3c2b6c71c` succeeded, protected runtime
-  verification passed, `HEAD /health` returned `200`, and new logs show the
-  health-check header value as `[redacted]`.
+  `f25b1cf3-1bb3-4e32-bcde-afb3c2b6c71c` succeeded. The latest direct Railway
+  deployment, `09cea309-e80a-4c3c-839f-ce11d2c3d17d`, also succeeded after
+  readiness-output redaction was tightened. Protected runtime verification
+  passed, `HEAD /health` returned `200`, and new logs show the health-check
+  header value as `[redacted]`. One transient `502` health response was observed
+  during deployment activation.
 - Railway GitHub autodeploy remains source-drifted: env changes triggered a
   failed stale-source deployment from `xsantcastx/VarsityHubMobile` `main`,
   while current tested commits are on `fork/main`. Fix by restoring push access

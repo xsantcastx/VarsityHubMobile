@@ -41,7 +41,7 @@ Result:
 
 - Passed.
 - Re-run passed after direct Railway deployment
-  `f25b1cf3-1bb3-4e32-bcde-afb3c2b6c71c`.
+  `09cea309-e80a-4c3c-839f-ce11d2c3d17d`.
 - Production health passed.
 - Email catalog/env audit passed.
 - Email runtime config passed.
@@ -212,8 +212,13 @@ Post-rotation verification:
 - A direct Railway CLI deployment of current source succeeded:
   `f25b1cf3-1bb3-4e32-bcde-afb3c2b6c71c`.
 - Protected runtime verification passed against the successful deployment.
+- A second direct Railway CLI deployment also succeeded after readiness-output
+  redaction was tightened: `09cea309-e80a-4c3c-839f-ce11d2c3d17d`.
+- Runtime verification passed against this latest deployment.
 - `HEAD /health` returns `200`.
 - New production logs show the health-check header value as `[redacted]`.
+- One transient `502` health response was observed during deployment activation;
+  repeated post-activation health and runtime checks passed.
 
 Open Railway source-control work:
 
