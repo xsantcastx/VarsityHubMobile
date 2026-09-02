@@ -99,4 +99,13 @@ describe('profile/settings note contracts', () => {
     expect(settingsScreen).toContain('{!!error && (');
     expect(settingsScreen).toContain('{error}');
   });
+
+  it('settings surfaces push delivery diagnostics from the backend', () => {
+    expect(settingsScreen).toContain("import { httpGet } from '@/api/http';");
+    expect(settingsScreen).toContain('const loadPushDiagnostics = useCallback(async () => {');
+    expect(settingsScreen).toContain("httpGet('/notifications/push-diagnostics')");
+    expect(settingsScreen).toContain('Push Delivery Ready');
+    expect(settingsScreen).toContain('Device Token Missing');
+    expect(settingsScreen).toContain('Refresh push delivery status');
+  });
 });
