@@ -137,6 +137,11 @@ Agent evidence snapshot, 2026-09-02:
   update group `bce5581a-20d4-4bb0-97ca-cacb51232584`. Explicit Sentry
   `expo-upload-sourcemaps dist` succeeded and uploaded debug-id artifact
   bundles for Android, iOS, and web.
+- Vercel env drift guard added. Production Vercel env was cleaned from 88 to 28
+  entries by removing clearly server-only Railway secrets, adding required
+  public web build keys, and verifying `npm run verify:vercel-env-drift`
+  passes. GitHub web deploy now pulls Vercel production env before `expo export`
+  instead of baking only the Sentry DSN into the static bundle.
 - Data export storage is not configured in production health diagnostics;
   `POST /me/data-export` will return `503` until `DATA_EXPORT_S3_*` vars point
   at private export storage.

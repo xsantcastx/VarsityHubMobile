@@ -49,6 +49,7 @@
     "verify:railway-env-drift": "node scripts/verify-railway-env-drift.js",
     "verify:release": "bash scripts/verify-release-readiness.sh",
     "verify:sentry-readiness": "node scripts/verify-sentry-readiness.js",
+    "verify:vercel-env-drift": "node scripts/verify-vercel-env-drift.js",
     "verify:async-handlers": "node scripts/check-async-handler-usage.js",
     "verify:error-envelope": "node scripts/check-error-envelope-usage.js",
     "verify:eas-env-drift": "node scripts/verify-eas-env-drift.js",

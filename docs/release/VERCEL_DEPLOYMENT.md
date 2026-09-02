@@ -42,6 +42,15 @@ To pull the values from Railway in one shot:
 railway variables --kv | grep '^EXPO_PUBLIC_'
 ```
 
+To verify the Vercel project without printing values:
+
+```bash
+npm run verify:vercel-env-drift
+```
+
+This fails if required public web build keys are missing or if server-only
+Railway secrets are present in the Vercel project.
+
 ### 3. Wire DNS
 
 In your DNS provider, add:
@@ -106,6 +115,9 @@ Then a real-browser smoke test: visit `https://www.varsityhub.app/`, confirm the
 - `cleanUrls: true` lets `https://www.varsityhub.app/posts/123` find `dist/posts/123.html` automatically (Expo Router for Web exports static HTML per route).
 - Static asset folders (`/_expo/static/*`, `/assets/*`) get a 1-year immutable cache because they're content-hashed at build.
 - Security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`) apply globally.
+- GitHub Actions pulls the cleaned Vercel production env into `.env.local`
+  before `expo export`, so all required `EXPO_PUBLIC_*` values are available at
+  build time.
 
 ## What stays on Railway (not Vercel)
 
