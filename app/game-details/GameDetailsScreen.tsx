@@ -21,7 +21,7 @@ import {
   getEventPresentationPhase,
   isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
-import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
+import { recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { buildEventScrapbookPlan, eventScrapbookSeed } from '@/utils/eventPostGrid';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { isPostingWindowOpen, type LiveWindowFields } from '@/utils/liveWindow';
@@ -1131,18 +1131,10 @@ const GameDetailsScreen = () => {
     // them regardless of distance.
     const vmDescription = typeof vm.description === 'string' ? vm.description : '';
     const isDemoMatchup = vmDescription.includes(DEMO_MATCHUP_TAG);
-    // First-post-unlocks-7-days (owner rule 2026-07-15): a user who already
-    // posted/storied to this event page may keep uploading without re-passing
-    // the geofence — skip the client preflight blocks and let the server
-    // (which holds the authoritative unlock ledger) decide.
-    const hasPostingUnlock = await hasLocalEventPostingUnlock([vm.gameId, vm.eventId]);
-    if (
-      !isDemoMatchup &&
-      !isAdminUser &&
-      !hasPostingUnlock &&
-      location?.latitude &&
-      location?.longitude
-    ) {
+    // Local unlock proves prior attendance for regular posts only. Stories are
+    // live-window media and must re-pass geofence each time, matching the
+    // server's story permission contract.
+    if (!isDemoMatchup && !isAdminUser && location?.latitude && location?.longitude) {
       const venueLat = vm.venueLat;
       const venueLng = vm.venueLng;
       if (typeof venueLat === 'number' && typeof venueLng === 'number') {
@@ -1185,11 +1177,10 @@ const GameDetailsScreen = () => {
     if (!permissionGranted || (Platform.OS === 'android' && needsPreciseAccuracy)) {
       const granted = await requestPermission();
       if (!granted) {
-        // If the game has a linked event and it's not a demo, location is REQUIRED
-        // by the server for a FIRST story. Block early to avoid wasting a
-        // Cloudinary upload — unless the user already holds a posting unlock,
-        // in which case the server accepts stories without location.
-        if (hasEvent && !isDemoMatchup && !isAdminUser && !hasPostingUnlock) {
+        // If the game has a linked event and it's not a demo, location is
+        // required by the server for stories. Block early to avoid wasting a
+        // direct upload that the server will reject.
+        if (hasEvent && !isDemoMatchup && !isAdminUser) {
           Alert.alert(
             'Location Required',
             'Location access is required to post stories at live events. Enable it in Settings to continue.',
@@ -1231,7 +1222,6 @@ const GameDetailsScreen = () => {
       hasEvent &&
       !isDemoMatchup &&
       !isAdminUser &&
-      !hasPostingUnlock &&
       (typeof location?.latitude !== 'number' || typeof location?.longitude !== 'number')
     ) {
       const granted = permissionGranted ? true : await requestPermission();
@@ -1371,7 +1361,10 @@ const GameDetailsScreen = () => {
           logTag: 'story.upload.photo',
         });
       } else if (code === 'POSTING_WINDOW_CLOSED') {
-        Alert.alert('Not Yet', serverMsg || 'The story posting window is not open for this event.');
+        Alert.alert(
+          'Story Posting Closed',
+          serverMsg || 'The story posting window is not open for this event.'
+        );
       } else if (code === 'TOO_FAR_FROM_VENUE') {
         const dist = err?.data?.distance;
         Alert.alert(
@@ -1519,7 +1512,10 @@ const GameDetailsScreen = () => {
           logTag: 'story.upload.video',
         });
       } else if (code === 'POSTING_WINDOW_CLOSED') {
-        Alert.alert('Not Yet', serverMsg || 'The story posting window is not open for this event.');
+        Alert.alert(
+          'Story Posting Closed',
+          serverMsg || 'The story posting window is not open for this event.'
+        );
       } else if (code === 'TOO_FAR_FROM_VENUE') {
         const dist = err?.data?.distance;
         Alert.alert(

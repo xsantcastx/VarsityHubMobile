@@ -449,6 +449,14 @@ describe('event discovery contract', () => {
 
     expect(result.items.map(item => item.id)).toEqual(['public-game']);
     expect(result.meta.filtered.private_team_items).toBe(2);
+    expect(db.team.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: { in: ['private-team', 'public-team'] },
+        }),
+        take: 2,
+      })
+    );
   });
 
   it('allows a private-team fixture when the viewer follows that team', async () => {
@@ -491,6 +499,50 @@ describe('event discovery contract', () => {
     });
 
     expect(result.items.map(item => item.id)).toEqual(['private-game']);
+  });
+
+  it('does not scan private teams when the current discovery window has no team candidates', async () => {
+    const now = new Date('2026-08-31T12:00:00.000Z');
+    const db: any = {
+      game: { findMany: jest.fn(async () => []) },
+      event: {
+        findMany: jest.fn(async () => [
+          {
+            id: 'pro-event',
+            title: 'Pro Fixture',
+            date: new Date('2026-09-02T20:00:00.000Z'),
+            location: 'Arena',
+            latitude: 42,
+            longitude: -75,
+            team_id: null,
+            banner_url: null,
+            status: 'published',
+            game_id: null,
+            exclusive_poster_id: null,
+            live_window_hours_after_start: 4,
+            team: null,
+            proHomeTeam: { league: 'ncaamb', primary_color: '#123456' },
+            proAwayTeam: null,
+          },
+        ]),
+      },
+      team: {
+        findMany: jest.fn(async () => {
+          throw new Error('team privacy scan should not run without candidate ids');
+        }),
+      },
+      eventDesignatedPoster: { findMany: jest.fn(async () => []) },
+      eventPostingUnlock: { findMany: jest.fn(async () => []) },
+    };
+
+    const result = await listEventDiscoveryItems(db, {
+      surface: 'map',
+      now,
+      viewerId: null,
+    });
+
+    expect(result.items.map(item => item.id)).toEqual(['pro-event']);
+    expect(db.team.findMany).not.toHaveBeenCalled();
   });
 
   it('is mounted in both production and test app route bundles', () => {

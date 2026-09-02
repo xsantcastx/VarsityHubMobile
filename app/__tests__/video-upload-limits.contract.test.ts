@@ -77,4 +77,26 @@ describe('video upload size limit parity', () => {
     // Positive control: allowed_formats IS a real signed Cloudinary param.
     expect(signedParams).toMatch(/allowed_formats/);
   });
+
+  it('client-accepted video formats are accepted by direct upload providers', () => {
+    const createPostSrc = fs.readFileSync(
+      path.join(ROOT, 'app', '(tabs)', 'create-post.tsx'),
+      'utf8'
+    );
+    const uploadsSrc = fs.readFileSync(
+      path.join(ROOT, 'server', 'src', 'routes', 'uploads.ts'),
+      'utf8'
+    );
+    const r2Src = fs.readFileSync(path.join(ROOT, 'server', 'src', 'lib', 'r2.ts'), 'utf8');
+    const uploadClientSrc = fs.readFileSync(path.join(ROOT, 'apiclient', 'upload.ts'), 'utf8');
+
+    for (const mime of ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v']) {
+      expect(createPostSrc).toContain(`'${mime}'`);
+      expect(uploadsSrc).toContain(`'${mime}'`);
+      expect(r2Src).toContain(`'${mime}'`);
+    }
+    expect(uploadsSrc).toContain('mp4,mov,webm,m4v');
+    expect(uploadClientSrc).toContain("webm: 'video/webm'");
+    expect(uploadClientSrc).toContain("m4v: 'video/x-m4v'");
+  });
 });

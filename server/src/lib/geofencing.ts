@@ -318,7 +318,7 @@ export async function viewerHasPostedOnEntity({
 /**
  * First-post-unlocks-7-days ledger (owner rule, 2026-07-15 Fanatics Fest punch
  * list): a user's first geofence-passing upload to an event page grants them 7
- * days of geofence-free uploads (stories AND posts) to that same page.
+ * days of geofence-free regular post uploads to that same page.
  *
  * The anchor lives in EventPostingUnlock, written when the strict geofence
  * passes. For contributions made before the ledger existed we fall back to the

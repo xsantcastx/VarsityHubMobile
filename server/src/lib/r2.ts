@@ -85,6 +85,8 @@ const MIME_EXTENSION: Record<string, string> = {
   'image/heif': 'heif',
   'video/mp4': 'mp4',
   'video/quicktime': 'mov',
+  'video/webm': 'webm',
+  'video/x-m4v': 'm4v',
 };
 
 const ALLOWED_MIME = new Set(Object.keys(MIME_EXTENSION));

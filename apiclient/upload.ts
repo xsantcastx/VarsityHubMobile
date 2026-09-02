@@ -74,6 +74,8 @@ const MIME_MAP: Record<string, string> = {
   heif: 'image/heif',
   mp4: 'video/mp4',
   mov: 'video/quicktime',
+  webm: 'video/webm',
+  m4v: 'video/x-m4v',
   avi: 'video/x-msvideo',
   mkv: 'video/x-matroska',
 };
@@ -82,7 +84,7 @@ function inferMimeFromPath(pathLike?: string): string | null {
   if (!pathLike) return null;
   const match = pathLike
     .toLowerCase()
-    .match(/\.(jpg|jpeg|png|gif|webp|heic|heif|mp4|mov|avi|mkv)(?:[?#].*)?$/);
+    .match(/\.(jpg|jpeg|png|gif|webp|heic|heif|mp4|mov|webm|m4v|avi|mkv)(?:[?#].*)?$/);
   const ext = match?.[1];
   return (ext && MIME_MAP[ext]) || null;
 }

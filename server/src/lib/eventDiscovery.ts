@@ -94,14 +94,18 @@ async function loadViewerState(
 
 async function loadExcludedPrivateTeamIds(
   db: any,
-  viewerId: string | null | undefined
+  viewerId: string | null | undefined,
+  candidateTeamIds: string[]
 ): Promise<Set<string>> {
   if (!db.team?.findMany) return new Set();
+  const uniqueCandidateTeamIds = [...new Set(candidateTeamIds.filter(Boolean))];
+  if (uniqueCandidateTeamIds.length === 0) return new Set();
+
   const privateTeams: Array<{ id: string; organization_id: string | null }> =
     await db.team.findMany({
-      where: { is_private: true, status: 'active' },
+      where: { id: { in: uniqueCandidateTeamIds }, is_private: true, status: 'active' },
       select: { id: true, organization_id: true },
-      take: 50000,
+      take: uniqueCandidateTeamIds.length,
     });
   if (privateTeams.length === 0) return new Set();
   const privateTeamIds = privateTeams.map(team => team.id);
@@ -290,7 +294,15 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
       },
     } as any),
   ]);
-  const excludedPrivateTeamIds = await loadExcludedPrivateTeamIds(db, params.viewerId);
+  const candidateTeamIds = [
+    ...games.flatMap((game: any) => [game.home_team_id, game.away_team_id]),
+    ...events.map((event: any) => event.team_id),
+  ].filter((teamId): teamId is string => typeof teamId === 'string' && teamId.length > 0);
+  const excludedPrivateTeamIds = await loadExcludedPrivateTeamIds(
+    db,
+    params.viewerId,
+    candidateTeamIds
+  );
   const teamIsHidden = (teamId: string | null | undefined) =>
     !!teamId && excludedPrivateTeamIds.has(teamId);
   const visibleGames = games.filter(
