@@ -148,16 +148,16 @@ export function liveWindowFor(league: ProLeague): number {
  * Leagues that tour instead of fielding franchises. Their fixtures have a venue
  * and no matchup.
  */
-export const TOURING_LEAGUES: ReadonlySet<ProLeague> = new Set<ProLeague>(['wwe']);
+export const TOURING_LEAGUES: ReadonlySet<ProLeague> = new Set<ProLeague>(['wwe', 'ufc']);
 
 /**
  * Attaches a touring promotion to its own fixtures.
  *
- * A WWE show has no home or away team, so without this it links to no ProTeam
- * at all — and the WWE page, which queries events by team id, would sit
- * permanently empty while the events existed. Pinning the promotion as the
- * "home" side keeps one query shape for every pro page and makes "every pro
- * event references at least one ProTeam" a real invariant.
+ * A touring show has no home or away team, so without this it links to no
+ * ProTeam at all — and the promotion page, which queries events by team id,
+ * would sit permanently empty while the events existed. Pinning the promotion
+ * as the "home" side keeps one query shape for every pro page and makes "every
+ * pro event references at least one ProTeam" a real invariant.
  *
  * Only applies when the fixture names no teams; a feed that does supply them is
  * left alone.

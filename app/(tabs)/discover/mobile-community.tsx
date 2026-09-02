@@ -286,6 +286,8 @@ function CommunityDiscoverScreen() {
   // fan actions) and keeps the branch fresh when auth state changes, without
   // refetching on every focus.
   const coachAccess = useMemo(() => getCoachAccessState((user ?? me) as any), [user, me]);
+  const viewerId = typeof (user ?? me)?.id === 'string' ? String((user ?? me).id) : null;
+  const isSignedIn = !!viewerId;
   // Role-barrier model: non-coach "authorized users" (team manager /
   // assistant_coach memberships) get exactly one quick action — Approvals
   // (roster + event approve/deny). Probe managed teams only when the coach
@@ -293,7 +295,6 @@ function CommunityDiscoverScreen() {
   const [hasStaffTeams, setHasStaffTeams] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    const isSignedIn = !!(user ?? me);
     if (!isSignedIn || coachAccess.canAccessCoachTools || coachAccess.isApprovedCoach) {
       setHasStaffTeams(false);
       return;
@@ -314,7 +315,7 @@ function CommunityDiscoverScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user, me, coachAccess.canAccessCoachTools, coachAccess.isApprovedCoach]);
+  }, [isSignedIn, coachAccess.canAccessCoachTools, coachAccess.isApprovedCoach]);
   const showPrecisionBanner =
     Platform.OS === 'android' &&
     permissionGranted &&
@@ -394,6 +395,12 @@ function CommunityDiscoverScreen() {
   // change, independent of the data queries below.
   useEffect(() => {
     let mounted = true;
+    if (!user) {
+      setMe(null);
+      return () => {
+        mounted = false;
+      };
+    }
     void (async () => {
       try {
         const snapshot = await getAuthSnapshot(checkAuth, user);
@@ -429,10 +436,10 @@ function CommunityDiscoverScreen() {
     error: gamesError,
     refetch: refetchGames,
   } = useQuery({
-    queryKey: ['discover-games', user?.id ?? 'guest'],
+    queryKey: ['discover-games', viewerId ?? 'guest'],
     enabled: interactionsDone,
     queryFn: async (): Promise<GameItem[]> => {
-      const snapshot: any = await getAuthSnapshot(checkAuth, user).catch(() => null);
+      const snapshot: any = user ? await getAuthSnapshot(checkAuth, user).catch(() => null) : null;
       const nowMs = Date.now();
       const dateFrom = new Date(nowMs - DISCOVER_EVENT_LOOKBACK_MS).toISOString();
       const dateTo = new Date(nowMs + DISCOVER_EVENT_LOOKAHEAD_MS).toISOString();
@@ -498,7 +505,7 @@ function CommunityDiscoverScreen() {
           .map(normalizeMapEvent)
           .filter((event): event is GameItem => Boolean(event));
         if (eventRows.length === 0) return;
-        queryClient.setQueryData(['discover-games', user?.id ?? 'guest'], (old: GameItem[] = []) =>
+        queryClient.setQueryData(['discover-games', viewerId ?? 'guest'], (old: GameItem[] = []) =>
           prioritizeByZip(mergeDiscoverEvents(old, eventRows))
         );
       });
@@ -513,7 +520,7 @@ function CommunityDiscoverScreen() {
     isPending: mapEventsPending,
     refetch: refetchMapEvents,
   } = useQuery({
-    queryKey: ['discover-map-events', user?.id ?? 'guest'],
+    queryKey: ['discover-map-events', viewerId ?? 'guest'],
     enabled: interactionsDone && viewMode === 'map',
     queryFn: async (): Promise<EventMapData[]> => {
       const res: unknown = await httpGet(buildMapDiscoveryPath(300));
@@ -539,8 +546,8 @@ function CommunityDiscoverScreen() {
   // endpoint (future-only, unbounded window). Replaces the former three queries
   // (followed games, followed events, managed-team games/events).
   const { data: followingCalendarData, isPending: followingCalendarPending } = useQuery({
-    queryKey: ['discover-following-calendar', user?.id ?? 'guest'],
-    enabled: interactionsDone,
+    queryKey: ['discover-following-calendar', viewerId ?? 'guest'],
+    enabled: interactionsDone && isSignedIn,
     queryFn: async () => {
       const res: unknown = await httpGet('/event-discovery?scope=following');
       const cards = validateEventCards('/event-discovery?scope=following', res);
@@ -553,7 +560,7 @@ function CommunityDiscoverScreen() {
     [followingCalendarData]
   );
 
-  const personalizationQueryKey = ['discover-personalization', user?.id ?? 'guest'];
+  const personalizationQueryKey = ['discover-personalization', viewerId ?? 'guest'];
   const {
     data: personalization,
     isPending: personalizationPending,
@@ -563,7 +570,7 @@ function CommunityDiscoverScreen() {
     queryKey: personalizationQueryKey,
     enabled: interactionsDone,
     queryFn: async () => {
-      const snapshot: any = await getAuthSnapshot(checkAuth, user).catch(() => null);
+      const snapshot: any = user ? await getAuthSnapshot(checkAuth, user).catch(() => null) : null;
 
       // Fetch posts and people in parallel — people used to wait for posts to finish
       const fetchPosts = async (): Promise<any[]> => {
@@ -645,7 +652,7 @@ function CommunityDiscoverScreen() {
   // the derived followingPosts/discoverPosts re-render from the cache.
   const patchDiscoverPosts = useCallback(
     (mapPosts: (posts: any[]) => any[]) => {
-      queryClient.setQueryData(['discover-personalization', user?.id ?? 'guest'], (old: any) =>
+      queryClient.setQueryData(['discover-personalization', viewerId ?? 'guest'], (old: any) =>
         old
           ? {
               ...old,
@@ -655,17 +662,17 @@ function CommunityDiscoverScreen() {
           : old
       );
     },
-    [queryClient, user?.id]
+    [queryClient, viewerId]
   );
 
   // Suggested users load non-blocking, mirroring the old fire-and-forget .then()
   const suggestedQueryKey = useMemo(
-    () => ['discover-suggested-people', user?.id ?? 'guest'],
-    [user?.id]
+    () => ['discover-suggested-people', viewerId ?? 'guest'],
+    [viewerId]
   );
   const { data: suggestedData, refetch: refetchSuggested } = useQuery({
     queryKey: suggestedQueryKey,
-    enabled: interactionsDone,
+    enabled: interactionsDone && isSignedIn,
     queryFn: async () => {
       const res: any = await User.suggested(10);
       const items = Array.isArray(res?.items) ? res.items : [];
@@ -692,10 +699,17 @@ function CommunityDiscoverScreen() {
     await Promise.all([
       refetchGames(),
       refetchPersonalization(),
-      refetchSuggested(),
+      ...(isSignedIn ? [refetchSuggested()] : []),
       ...(viewMode === 'map' ? [refetchMapEvents()] : []),
     ]);
-  }, [refetchGames, refetchPersonalization, refetchSuggested, refetchMapEvents, viewMode]);
+  }, [
+    isSignedIn,
+    refetchGames,
+    refetchPersonalization,
+    refetchSuggested,
+    refetchMapEvents,
+    viewMode,
+  ]);
 
   // Debounced unified search (users, teams, organizations, games, events)
   useEffect(() => {

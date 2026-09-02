@@ -94,6 +94,10 @@ describe('EventMap', () => {
     expect(markers.length).toBe(1);
   });
 
+  it('resolves an MMA marker color for UFC events', () => {
+    expect(resolveMarkerColor({ sport: 'mma' }, '#000000')).toBe('#B91C1C');
+  });
+
   it('does not render native markers for invalid coordinates', async () => {
     const events = [
       mockEvents[0],
@@ -182,7 +186,7 @@ describe('EventMap', () => {
 
   it('renders empty state when no events', async () => {
     const { findByText } = render(<EventMap {...baseProps({ events: [] })} />);
-    const empty = await findByText(/no games with locations yet/i);
+    const empty = await findByText(/no games or events with locations yet/i);
     expect(empty).toBeTruthy();
   });
 

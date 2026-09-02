@@ -30,6 +30,13 @@ const USA_WIDE_REGION = {
   longitudeDelta: 50,
 };
 
+function toLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function GameMapScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
@@ -126,16 +133,14 @@ function GameMapScreen() {
   }, []);
 
   // Date chips are the last 7 days. Each day fetches its own map markers because
-  // past days sit outside the default public map window; the server only returns
-  // past event pages that carry a media post.
+  // past days sit outside the default public map window; explicit date loads keep
+  // approved past event pages available for reopening.
   const selectMapDate = useCallback(async (picked: Date) => {
-    const start = new Date(
-      Date.UTC(picked.getFullYear(), picked.getMonth(), picked.getDate(), 0, 0, 0, 0)
-    );
-    const end = new Date(
-      Date.UTC(picked.getFullYear(), picked.getMonth(), picked.getDate(), 23, 59, 59, 999)
-    );
-    setSelectedDate(start.toISOString().split('T')[0]);
+    const start = new Date(picked);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(picked);
+    end.setHours(23, 59, 59, 999);
+    setSelectedDate(toLocalDateKey(start));
     setPastLoading(true);
     try {
       const path = `/event-discovery?surface=map&from=${encodeURIComponent(
@@ -166,9 +171,7 @@ function GameMapScreen() {
     if (pastDayMarkers !== null) {
       base = pastDayMarkers;
     } else if (selectedDate) {
-      base = events.filter(
-        e => e.date && new Date(e.date).toISOString().split('T')[0] === selectedDate
-      );
+      base = events.filter(e => e.date && toLocalDateKey(new Date(e.date)) === selectedDate);
     } else {
       base = events;
     }
@@ -282,8 +285,8 @@ function GameMapScreen() {
                 );
               })}
 
-              {/* Trailing calendar button — pick any earlier day (past event pages
-                  that carry a media post). Sits at the end of the same row. */}
+              {/* Trailing calendar button — pick any earlier day. Sits at the end
+                  of the same row. */}
               <Pressable
                 onPress={() => setShowPicker(true)}
                 style={[

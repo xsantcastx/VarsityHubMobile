@@ -220,13 +220,15 @@ describe('toMapEvents', () => {
 describe('buildRecentDateButtons', () => {
   const now = new Date('2026-09-01T12:00:00.000Z');
 
-  // Mirror the production key derivation so assertions are timezone-independent
-  // (the helper keys off local midnight, then ISO-date — same as here).
+  // Mirror the production key derivation so assertions are timezone-independent.
   const keyForOffset = (days: number): string => {
     const d = new Date(now);
     d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() + days);
-    return d.toISOString().split('T')[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   it('ends today and shows the last 7 days', () => {

@@ -1,15 +1,24 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { PRO_SCHEDULE_LEAGUES } from '../lib/proSchedule/types.js';
 
 const schema = readFileSync(path.join(process.cwd(), 'prisma/schema.prisma'), 'utf8');
+const migrationsDir = path.join(process.cwd(), 'prisma/migrations');
 const migration = readFileSync(
-  path.join(
-    process.cwd(),
-    'prisma/migrations/20260901190000_add_sports_league_metadata/migration.sql'
-  ),
+  path.join(migrationsDir, '20260901190000_add_sports_league_metadata/migration.sql'),
   'utf8'
 );
+const allMigrations = readdirSync(migrationsDir)
+  .filter(name => name.endsWith('.sql') || !name.includes('.'))
+  .map(name => {
+    const migrationPath = path.join(migrationsDir, name, 'migration.sql');
+    try {
+      return readFileSync(migrationPath, 'utf8');
+    } catch {
+      return '';
+    }
+  })
+  .join('\n');
 
 function modelBlock(name: string): string {
   const match = schema.match(new RegExp(`^model ${name} \\{([\\s\\S]*?)^\\}`, 'm'));
@@ -38,7 +47,7 @@ describe('sports league metadata schema', () => {
 
   it('seeds every currently supported schedule league in the migration', () => {
     for (const league of PRO_SCHEDULE_LEAGUES) {
-      expect(migration).toContain(`'${league}'`);
+      expect(allMigrations).toContain(`'${league}'`);
     }
   });
 

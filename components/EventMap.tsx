@@ -39,6 +39,7 @@ const SPORT_MARKER_COLORS: Record<string, string> = {
   ice_hockey: '#0891B2',
   field_hockey: '#0D9488',
   lacrosse: '#7C3AED',
+  mma: '#B91C1C',
   volleyball: '#DB2777',
   wrestling: '#B45309',
   tennis: '#65A30D',
@@ -421,7 +422,7 @@ export default function EventMap({
 
         {/* Dates-tracker Button — replaces the middle "center on user" button on
             the events map. Opens the parent's date picker so users can browse
-            upcoming days' games/events. */}
+            games/events by date. */}
         {onCalendarPress && (
           <TouchableOpacity
             style={[
@@ -434,7 +435,7 @@ export default function EventMap({
             ]}
             onPress={onCalendarPress}
             accessibilityRole="button"
-            accessibilityLabel="Pick a date to view upcoming games"
+            accessibilityLabel="Pick a date to view games and events"
           >
             <Ionicons
               name="calendar-outline"
@@ -529,7 +530,7 @@ export default function EventMap({
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: Colors[colorScheme].tint }]} />
             <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>
-              Multiple — tap to zoom
+              Multiple — tap to choose
             </Text>
           </View>
         </View>
@@ -545,17 +546,16 @@ export default function EventMap({
           >
             <Ionicons name="map-outline" size={48} color={Colors[colorScheme].tint} />
             <Text style={[styles.noEventsTitle, { color: Colors[colorScheme].text }]}>
-              No Games with Locations Yet
+              No Games or Events with Locations Yet
             </Text>
             <Text style={[styles.noEventsDescription, { color: Colors[colorScheme].mutedText }]}>
-              Games will appear on the map once they have location data added. Teams can add
-              locations when creating games.
+              Games and events appear on the map once location data has been added.
             </Text>
             <View style={styles.emptyStateHints}>
               <View style={styles.hint}>
                 <Ionicons name="information-circle" size={16} color={Colors[colorScheme].tint} />
                 <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>
-                  Create games with locations to see them on the map
+                  Add locations to see games and events on the map
                 </Text>
               </View>
             </View>

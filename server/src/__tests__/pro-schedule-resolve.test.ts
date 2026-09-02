@@ -43,10 +43,23 @@ const wwe: ProTeamVenue = {
   timezone: null,
 };
 
+const ufc: ProTeamVenue = {
+  id: 'pt_ufc',
+  external_ref: 'ufc:ufc',
+  name: 'UFC',
+  short_name: 'UFC',
+  venue_name: null,
+  venue_address: null,
+  venue_lat: null,
+  venue_lng: null,
+  timezone: null,
+};
+
 const teams = new Map<string, ProTeamVenue>([
   [lakers.external_ref, lakers],
   [celtics.external_ref, celtics],
   [wwe.external_ref, wwe],
+  [ufc.external_ref, ufc],
 ]);
 
 function fixture(over: Partial<ProFixture> = {}): ProFixture {
@@ -173,6 +186,34 @@ describe('resolveFixture', () => {
     });
   });
 
+  describe('touring promotions (UFC)', () => {
+    it('accepts a UFC fixture with its own venue and no matchup teams', () => {
+      const r = resolveFixture(
+        {
+          external_ref: 'ufc:329',
+          league: 'ufc',
+          starts_at: new Date('2026-11-15T03:00:00.000Z'),
+          home_team_ref: null,
+          away_team_ref: null,
+          title: 'UFC 329',
+          venue_name: 'Madison Square Garden',
+          venue_lat: 40.7505,
+          venue_lng: -73.9934,
+          timezone: 'America/New_York',
+          status: 'scheduled',
+        },
+        teams
+      );
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.value.title).toBe('UFC 329');
+        expect(r.value.pro_home_team_id).toBeNull();
+        expect(r.value.pro_away_team_id).toBeNull();
+        expect(r.value.latitude).toBe(40.7505);
+      }
+    });
+  });
+
   describe('stale seed detection', () => {
     it('fails loudly on an unknown home team rather than inventing one', () => {
       const r = resolveFixture(fixture({ home_team_ref: 'nba:seattle-supersonics' }), teams);
@@ -218,6 +259,7 @@ describe('resolveFixture', () => {
       ['nfl', 5],
       ['mlb', 4],
       ['wwe', 4],
+      ['ufc', 6],
       ['nba', 3],
       ['wnba', 3],
     ] as const)('sets %s to +%ih after start', (league, hours) => {
@@ -231,9 +273,12 @@ describe('resolveFixture', () => {
   });
 
   describe('touring promotions are pinned to their own page', () => {
-    // Without this the WWE page queries events by team id, matches nothing,
-    // and renders empty forever while the shows exist in the DB.
-    const promotionRefs = new Map([['wwe' as const, wwe.external_ref]]);
+    // Without this the promotion page queries events by team id, matches
+    // nothing, and renders empty forever while the shows exist in the DB.
+    const promotionRefs = new Map([
+      ['wwe' as const, wwe.external_ref],
+      ['ufc' as const, ufc.external_ref],
+    ]);
 
     it('attaches the promotion as the home side when a show names no teams', () => {
       const show = {
@@ -258,8 +303,8 @@ describe('resolveFixture', () => {
       expect(attachTouringPromotion(game, new Map()).home_team_ref).toBeNull();
     });
 
-    it('treats only WWE as touring', () => {
-      expect([...TOURING_LEAGUES]).toEqual(['wwe']);
+    it('treats touring promotions as the only teamless scheduled leagues', () => {
+      expect([...TOURING_LEAGUES]).toEqual(['wwe', 'ufc']);
     });
 
     it('resolves to the promotion id once attached, so the page query matches', () => {

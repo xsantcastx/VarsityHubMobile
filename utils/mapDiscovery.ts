@@ -40,7 +40,10 @@ export function buildMapDiscoveryPath(limit: number = DEFAULT_MAP_LIMIT): string
 }
 
 function toDateKey(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -50,8 +53,7 @@ function toDateKey(date: Date): string {
  * already resolved (game id for games, event id for standalone events). Items
  * without coordinates are dropped for map pins. Default map loads are still
  * future-windowed client-side as a defensive guard; selected-date loads pass
- * `includePast` because the server already scoped that explicit day and applies
- * the media-post rule for older event pages.
+ * `includePast` because the server already scoped that explicit day.
  */
 export function toMapEvents(
   items: EventCard[] | null | undefined,

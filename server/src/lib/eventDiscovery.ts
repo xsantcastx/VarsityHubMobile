@@ -157,6 +157,7 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
   const surface = params.surface ?? 'all';
   const scope = params.scope ?? 'public';
   const limit = Math.max(1, Math.min(params.limit ?? DEFAULT_LIMIT, MAX_LIMIT));
+  const explicitWindow = params.from != null || params.to != null;
 
   let from: Date;
   let to: Date;
@@ -264,10 +265,11 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
         game_id: null,
         date: dateWhere,
         ...(scope === 'following' ? { team_id: { in: followingTeamIdList } } : {}),
-        // Map surface: a PAST event page only earns a map pin if it has at least one
-        // media post (photo/video) — a past event with nothing to show is noise.
-        // Upcoming/today events are always shown. (Feed/all surfaces unaffected.)
-        ...(surface === 'map'
+        // Default map load: a past event page only earns a map pin if it has
+        // media; otherwise old event-only pages are noise. Explicit date-picker
+        // loads are different: users with event upload access need the past
+        // event to surface before the first media post exists.
+        ...(surface === 'map' && !explicitWindow
           ? {
               OR: [
                 { date: { gte: now } },

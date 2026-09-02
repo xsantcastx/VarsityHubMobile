@@ -13,6 +13,7 @@ export const PRO_LEAGUE_SPORT: Record<ProLeague, string> = {
   wnba: 'basketball',
   mlb: 'baseball',
   wwe: 'wrestling',
+  ufc: 'mma',
   ncaaf: 'football',
   ncaamb: 'basketball',
   ncaawb: 'basketball',

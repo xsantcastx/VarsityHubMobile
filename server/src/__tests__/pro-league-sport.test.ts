@@ -7,6 +7,7 @@ describe('proLeagueToSport', () => {
     expect(proLeagueToSport('wnba')).toBe('basketball');
     expect(proLeagueToSport('mlb')).toBe('baseball');
     expect(proLeagueToSport('wwe')).toBe('wrestling');
+    expect(proLeagueToSport('ufc')).toBe('mma');
   });
 
   it('returns null for absent input', () => {

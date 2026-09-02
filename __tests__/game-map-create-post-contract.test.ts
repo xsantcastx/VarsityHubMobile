@@ -6,6 +6,7 @@ const eventMapTypesSource = readFileSync(
   join(process.cwd(), 'components', 'EventMap.types.ts'),
   'utf8'
 );
+const eventMapSource = readFileSync(join(process.cwd(), 'components', 'EventMap.tsx'), 'utf8');
 
 describe('game map create-post contract', () => {
   it('keeps event/game upload target ids on map markers', () => {
@@ -20,5 +21,24 @@ describe('game map create-post contract', () => {
     expect(gameMapSource).toContain('...(gameId ? { gameId } : {})');
     expect(gameMapSource).toContain('...(eventId ? { eventId } : {})');
     expect(gameMapSource).toContain('onCreatePostPress={handleCreatePostPress}');
+  });
+
+  it('loads picked calendar dates as the user local day and keeps past event pages visible', () => {
+    expect(gameMapSource).toContain('function toLocalDateKey(date: Date): string');
+    expect(gameMapSource).toContain('start.setHours(0, 0, 0, 0)');
+    expect(gameMapSource).toContain('end.setHours(23, 59, 59, 999)');
+    expect(gameMapSource).toContain('setSelectedDate(toLocalDateKey(start))');
+    expect(gameMapSource).toContain('toMapEvents(items, new Date(), { includePast: true })');
+    expect(gameMapSource).toContain('maximumDate={new Date()}');
+    expect(gameMapSource).not.toContain('Date.UTC(picked.getFullYear()');
+  });
+
+  it('keeps the map search as a visible-marker title filter, not a global event-page search', () => {
+    expect(eventMapSource).toContain('Search box — filters the visible pins/clusters by title');
+    expect(eventMapSource).toContain("const [searchQuery, setSearchQuery] = useState('')");
+    expect(eventMapSource).toContain(
+      "events.filter(event => (event.title || '').toLowerCase().includes(query))"
+    );
+    expect(eventMapSource).not.toContain('/event-discovery?surface=map&q=');
   });
 });

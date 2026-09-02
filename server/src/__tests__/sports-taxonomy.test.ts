@@ -13,6 +13,7 @@ describe('sports taxonomy', () => {
       'football',
       'soccer',
       'baseball',
+      'mma',
       'tennis',
       'volleyball',
       'swimming',
@@ -39,6 +40,7 @@ describe('sports taxonomy', () => {
     expect(normalizeSportToSlug('Swim & Dive')).toBe('swimming');
     expect(normalizeSportToSlug('XC')).toBe('cross_country');
     expect(normalizeSportToSlug('Hockey')).toBe('ice_hockey');
+    expect(normalizeSportToSlug('Mixed Martial Arts')).toBe('mma');
     expect(normalizeSportToSlug('underwater basket weaving')).toBe(null);
     expect(normalizeSportToSlug(null)).toBe(null);
     expect(normalizeSportToSlug('')).toBe(null);

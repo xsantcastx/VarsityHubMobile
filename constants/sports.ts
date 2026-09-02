@@ -31,6 +31,7 @@ export const SPORT_EMOJI: Record<string, string> = {
   gymnastics: '🤸',
   ice_hockey: '🏒',
   lacrosse: '🥍',
+  mma: '🥊',
   soccer: '⚽',
   softball: '🥎',
   swimming: '🏊',

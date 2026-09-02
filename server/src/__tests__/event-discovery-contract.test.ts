@@ -181,7 +181,7 @@ describe('event discovery contract', () => {
     );
   });
 
-  it('map surface requires a media post for past event pages only', async () => {
+  it('default map surface requires media before surfacing past event-only pages', async () => {
     const now = new Date('2026-08-31T12:00:00.000Z');
     const db: any = {
       game: { findMany: jest.fn(async () => []) },
@@ -193,12 +193,10 @@ describe('event discovery contract', () => {
     await listEventDiscoveryItems(db, {
       surface: 'map',
       now,
-      from: new Date('2026-08-01T00:00:00.000Z'),
-      to: new Date('2026-08-02T00:00:00.000Z'),
     });
 
-    // Past events (date < now) are only pinned when they carry a live media post;
-    // upcoming events (date >= now) are always shown.
+    // Default map loads avoid stale empty event-only pins. Upcoming/today events
+    // are always shown; past event-only pages need media.
     expect(db.event.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -209,6 +207,62 @@ describe('event discovery contract', () => {
         }),
       })
     );
+  });
+
+  it('explicit past-date map surface can return event-only pages before media exists', async () => {
+    const now = new Date('2026-09-02T19:30:00.000Z');
+    const eventDate = new Date('2026-08-29T17:05:00.000Z');
+    const db: any = {
+      game: { findMany: jest.fn(async () => []) },
+      event: {
+        findMany: jest.fn(async () => [
+          {
+            id: 'yankees-event',
+            title: 'Red Sox at Yankees',
+            date: eventDate,
+            location: 'Yankee Stadium, Bronx, New York',
+            latitude: 40.8296,
+            longitude: -73.9262,
+            banner_url: null,
+            status: 'approved',
+            game_id: null,
+            exclusive_poster_id: null,
+            live_window_hours_after_start: 4,
+            team_id: null,
+            team: null,
+            proHomeTeam: { league: 'mlb', primary_color: '#0c2340' },
+            proAwayTeam: null,
+          },
+        ]),
+      },
+      eventDesignatedPoster: { findMany: jest.fn(async () => []) },
+      eventPostingUnlock: { findMany: jest.fn(async () => []) },
+    };
+
+    const result = await listEventDiscoveryItems(db, {
+      surface: 'map',
+      now,
+      from: new Date('2026-08-29T00:00:00.000Z'),
+      to: new Date('2026-08-29T23:59:59.999Z'),
+    });
+
+    expect(db.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.not.objectContaining({
+          OR: [
+            { date: { gte: now } },
+            { posts: { some: { media_url: { not: null }, deleted_at: null } } },
+          ],
+        }),
+      })
+    );
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        id: 'yankees-event',
+        title: 'Red Sox at Yankees',
+        map_visibility: expect.objectContaining({ visible: true }),
+      }),
+    ]);
   });
 
   it('does not report designated-poster upload access after the 7-day unlock expires', async () => {

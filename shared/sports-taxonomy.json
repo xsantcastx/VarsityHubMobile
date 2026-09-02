@@ -13,6 +13,7 @@
     { "slug": "gymnastics", "label": "Gymnastics" },
     { "slug": "ice_hockey", "label": "Ice Hockey" },
     { "slug": "lacrosse", "label": "Lacrosse" },
+    { "slug": "mma", "label": "Mixed Martial Arts" },
     { "slug": "soccer", "label": "Soccer" },
     { "slug": "softball", "label": "Softball" },
     { "slug": "swimming", "label": "Swimming & Diving" },

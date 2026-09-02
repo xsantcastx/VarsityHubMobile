@@ -90,8 +90,9 @@ export function resolveConfiguredAdapter(env = process.env): ProScheduleAdapter 
   const file = env.PRO_SCHEDULE_JSON_PATH;
   if (file) return jsonFileAdapter(file);
 
-  // Live rolling source: ESPN for the four league sports + TheSportsDB for
-  // touring WWE, behind one composite so the cron covers all five leagues.
+  // Live rolling source: ESPN for the scoreboard-backed leagues + TheSportsDB
+  // for touring WWE. UFC is in the canonical fixture model and can be loaded via
+  // PRO_SCHEDULE_JSON_PATH until a verified live provider is wired.
   if (env.PRO_SCHEDULE_PROVIDER === 'espn') {
     return compositeAdapter([espnAdapter(), wweAdapter()]);
   }

@@ -10,6 +10,7 @@ describe('pro schedule league list parity', () => {
       'wnba',
       'mlb',
       'wwe',
+      'ufc',
       'ncaaf',
       'ncaamb',
       'ncaawb',
