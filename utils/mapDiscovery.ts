@@ -73,6 +73,8 @@ export function toMapEvents(
     if (!includePast && !shouldShowEventOnMap(item.date ?? undefined, now)) continue;
     out.push({
       id: String(item.id),
+      event_id: item.event_id ?? (item.source_type === 'event' ? String(item.id) : null),
+      game_id: item.game_id ?? (item.source_type === 'game' ? String(item.id) : null),
       title: item.title || (item.source_type === 'game' ? 'Game' : 'Event'),
       date: item.date || now.toISOString(),
       location: item.location ?? undefined,
@@ -82,6 +84,7 @@ export function toMapEvents(
       sport: normalizeSportSlug(item.sport),
       pro_home_color: item.pro_home_color ?? null,
       pro_away_color: item.pro_away_color ?? null,
+      upload_access: item.upload_access ?? null,
     });
   }
   return out;

@@ -41,6 +41,11 @@ describe('toMapEvents', () => {
       latitude: 40,
       longitude: -73,
       sport: 'football',
+      upload_access: {
+        can_upload_post: true,
+        can_upload_story: false,
+        needs_live_geofence_check: false,
+      },
     },
     {
       id: 'event-only',
@@ -72,11 +77,18 @@ describe('toMapEvents', () => {
     const events = toMapEvents(items, now);
     expect(events[0]).toMatchObject({
       id: 'game-1',
+      event_id: 'ev-1',
+      game_id: 'game-1',
       title: 'Varsity Final',
       latitude: 40,
       longitude: -73,
       type: 'game',
       sport: 'football',
+      upload_access: {
+        can_upload_post: true,
+        can_upload_story: false,
+        needs_live_geofence_check: false,
+      },
     });
     const eventOnly = events.find(e => e.id === 'event-only');
     expect(eventOnly?.type).toBe('event');

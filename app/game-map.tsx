@@ -95,6 +95,24 @@ function GameMapScreen() {
     }
   };
 
+  const handleCreatePostPress = useCallback(
+    (event: EventMapData) => {
+      const gameId = event.game_id || (event.type === 'game' ? event.id : null);
+      const eventId = event.event_id || (event.type === 'event' ? event.id : null);
+      if (!gameId && !eventId) return;
+
+      router.push({
+        pathname: '/create-post',
+        params: {
+          ...(gameId ? { gameId } : {}),
+          ...(eventId ? { eventId } : {}),
+          type: 'post',
+        },
+      });
+    },
+    [router]
+  );
+
   // Sports actually present on the map right now — the filter only offers what
   // exists (no 🏒 chip when there's no hockey nearby).
   const presentSports = useMemo(
@@ -193,6 +211,7 @@ function GameMapScreen() {
           preventAutoCenterOnUser
           hideCenterOnUser
           autoFitPins={Boolean(selectedDate)}
+          onCreatePostPress={handleCreatePostPress}
           onCalendarPress={() => setCalendarOpen(open => !open)}
           calendarActive={calendarOpen || Boolean(selectedDate)}
           onRefresh={!loading && !error ? loadGames : undefined}

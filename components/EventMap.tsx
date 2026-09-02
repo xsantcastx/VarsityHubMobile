@@ -100,6 +100,7 @@ export default function EventMap({
   dataLoaded = true,
   preventAutoCenterOnUser = false,
   onRefresh,
+  onCreatePostPress,
   hideCenterOnUser = false,
   onCalendarPress,
   calendarActive = false,
@@ -552,12 +553,7 @@ export default function EventMap({
 
       {selectedMarker ? (
         <View style={styles.markerPreviewWrap} pointerEvents="box-none">
-          <TouchableOpacity
-            testID="map-marker-preview"
-            activeOpacity={0.92}
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${selectedMarker.title || 'event'} details`}
-            onPress={() => openEventFromMarker(selectedMarker.id, selectedMarker.type)}
+          <View
             style={[
               styles.markerPreview,
               {
@@ -585,8 +581,31 @@ export default function EventMap({
                   .join(' · ')}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-          </TouchableOpacity>
+            <View style={styles.previewActions}>
+              {onCreatePostPress && (selectedMarker.game_id || selectedMarker.event_id) ? (
+                <TouchableOpacity
+                  testID="map-marker-create-post"
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Create a post for ${selectedMarker.title || 'event'}`}
+                  onPress={() => onCreatePostPress(selectedMarker)}
+                  style={[styles.previewIconButton, { backgroundColor: Colors[colorScheme].tint }]}
+                >
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                testID="map-marker-preview"
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${selectedMarker.title || 'event'} details`}
+                onPress={() => openEventFromMarker(selectedMarker.id, selectedMarker.type)}
+                style={styles.previewIconButton}
+              >
+                <Ionicons name="chevron-forward" size={22} color={Colors[colorScheme].mutedText} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       ) : null}
 
@@ -841,6 +860,19 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  previewActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 10,
+  },
+  previewIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   previewTitle: {
     fontSize: 15,

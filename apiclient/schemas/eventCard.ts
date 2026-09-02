@@ -37,6 +37,14 @@ const venuePhotoSchema = z
   .nullable()
   .optional();
 
+const uploadAccessSchema = z
+  .object({
+    can_upload_post: z.boolean().optional(),
+    can_upload_story: z.boolean().optional(),
+    needs_live_geofence_check: z.boolean().optional(),
+  })
+  .passthrough();
+
 export const eventCardSchema = z
   .object({
     // Identity
@@ -64,6 +72,7 @@ export const eventCardSchema = z
     // Capabilities — kept opaque so capability drift never fails the parse.
     live_window: z.unknown().optional(),
     posting_capabilities: z.unknown().optional(),
+    upload_access: uploadAccessSchema.nullable().optional(),
   })
   .passthrough();
 

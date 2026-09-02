@@ -107,6 +107,32 @@ describe('EventMap', () => {
     expect(onEventPress).toHaveBeenCalledWith('1', undefined);
   });
 
+  it('surfaces a create-post action from marker previews with upload targets', async () => {
+    const onEventPress = jest.fn();
+    const onCreatePostPress = jest.fn();
+    const eventWithTarget = {
+      ...mockEvents[0],
+      event_id: 'event-1',
+      game_id: 'game-1',
+      type: 'game' as const,
+    };
+    const { findByTestId } = render(
+      <EventMap
+        {...baseProps({
+          events: [eventWithTarget],
+          onEventPress,
+          onCreatePostPress,
+        })}
+      />
+    );
+
+    fireEvent.press(await findByTestId('Marker'));
+    fireEvent.press(await findByTestId('map-marker-create-post'));
+
+    expect(onCreatePostPress).toHaveBeenCalledWith(eventWithTarget);
+    expect(onEventPress).not.toHaveBeenCalled();
+  });
+
   it('dedupes preview press + native callout press so one tap cannot open two pages', async () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(1100);
     const onEventPress = jest.fn();

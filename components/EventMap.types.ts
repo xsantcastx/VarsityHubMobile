@@ -2,6 +2,10 @@ import type { Region } from 'react-native-maps';
 
 export interface EventMapData {
   id: string;
+  /** Canonical standalone event page id, when the marker represents or links to one. */
+  event_id?: string | null;
+  /** Canonical game id, when the marker represents a game-backed event page. */
+  game_id?: string | null;
   title: string;
   date: string;
   location?: string;
@@ -14,6 +18,11 @@ export interface EventMapData {
   pro_home_color?: string | null;
   pro_away_color?: string | null;
   marker_color?: string | null;
+  upload_access?: {
+    can_upload_post?: boolean;
+    can_upload_story?: boolean;
+    needs_live_geofence_check?: boolean;
+  } | null;
 }
 
 export interface EventMapProps {
@@ -27,6 +36,8 @@ export interface EventMapProps {
   preventAutoCenterOnUser?: boolean;
   /** When provided, renders a refresh control button that re-runs the parent's data load (e.g. so games added mid-event appear without leaving the map). */
   onRefresh?: () => void;
+  /** When provided, renders a composer shortcut from the selected marker preview. */
+  onCreatePostPress?: (event: EventMapData) => void;
   /** Hide the "center on user" (navigate) control button. Owner note 8: the map's
    *  middle button is replaced by the dates tracker on the Nearby Games page. */
   hideCenterOnUser?: boolean;
