@@ -137,7 +137,7 @@ Agent evidence snapshot, 2026-09-02:
   update group `bce5581a-20d4-4bb0-97ca-cacb51232584`. Explicit Sentry
   `expo-upload-sourcemaps dist` succeeded and uploaded debug-id artifact
   bundles for Android, iOS, and web.
-- Vercel env drift guard added. Production Vercel env was cleaned from 88 to 28
+- Vercel env drift guard added. Production Vercel env was cleaned from 88 to 27
   entries by removing clearly server-only Railway secrets, adding required
   public web build keys, and verifying `npm run verify:vercel-env-drift`
   passes. GitHub web deploy now pulls Vercel production env before `expo export`

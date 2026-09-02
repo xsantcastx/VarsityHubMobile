@@ -477,10 +477,14 @@ Before clearing Sentry/OTA observability readiness:
 
 Before clearing web/Vercel readiness:
 
-1. `npm run verify:vercel-env-drift` now passes after removing server-only
-   production env keys from Vercel and adding the missing public web build keys.
+1. `npm run verify:vercel-env-drift` now passes after removing `63`
+   server-only/stale production env keys from Vercel and adding the missing
+   public web build keys.
 2. GitHub web deploy now pulls the cleaned Vercel production env into
    `.env.local` before `expo export`, so Maps, Stripe, Sentry, PostHog, and API
    public config are available to the static bundle.
-3. Re-run the GitHub web deploy after this workflow lands and confirm
+3. Vercel production env now has `27` entries. The only non-pullable value left
+   in `vercel env pull` is `NODE_VERSION`, which is not an `EXPO_PUBLIC_*` build
+   value.
+4. Re-run the GitHub web deploy after this workflow lands and confirm
    `https://www.varsityhub.app` serves the new deployment.

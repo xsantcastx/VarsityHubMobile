@@ -74,6 +74,14 @@ function main() {
     if (!counts.has(key)) failures.push(`missing required Vercel env key: ${key}`);
   }
 
+  for (const variable of variables) {
+    if (REQUIRED_PUBLIC_KEYS.includes(variable.key) && variable.type === 'sensitive') {
+      failures.push(
+        `public web key must be Vercel config/encrypted so env pull can read it: ${variable.key}`
+      );
+    }
+  }
+
   for (const key of [...counts.keys()].sort()) {
     if (FORBIDDEN_PATTERNS.some(pattern => pattern.test(key))) {
       failures.push(`server-only key must not be present in Vercel: ${key}`);

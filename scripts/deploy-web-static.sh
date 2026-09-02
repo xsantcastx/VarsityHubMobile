@@ -84,7 +84,11 @@ fs.writeFileSync(process.argv[2], JSON.stringify(cfg, null, 2) + "\n");
 cd "$DEPLOY_DIR"
 
 echo "Deploying static bundle to Vercel..."
-DEPLOY_OUTPUT="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"
+if [[ ${#VERCEL_ARGS[@]} -gt 0 ]]; then
+  DEPLOY_OUTPUT="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"
+else
+  DEPLOY_OUTPUT="$(npx vercel --prod --yes)"
+fi
 echo "$DEPLOY_OUTPUT"
 DEPLOY_URL="$(DEPLOY_OUTPUT="$DEPLOY_OUTPUT" node -e '
 const output = process.env.DEPLOY_OUTPUT || "";
@@ -103,5 +107,9 @@ echo "Deployed: $DEPLOY_URL"
 # Without this step, the site silently keeps serving the old build forever.
 for domain in "${CUSTOM_DOMAINS[@]}"; do
   echo "Aliasing $domain -> $DEPLOY_URL"
-  npx vercel alias set "$DEPLOY_URL" "$domain" "${VERCEL_ARGS[@]}"
+  if [[ ${#VERCEL_ARGS[@]} -gt 0 ]]; then
+    npx vercel alias set "$DEPLOY_URL" "$domain" "${VERCEL_ARGS[@]}"
+  else
+    npx vercel alias set "$DEPLOY_URL" "$domain"
+  fi
 done
