@@ -132,6 +132,11 @@ Agent evidence snapshot, 2026-09-02:
   missing, and local `npm run update:production` now runs through
   `eas env:exec production` so Sentry source-map upload gets the sensitive EAS
   token.
+- Follow-up OTA published from commit `fc2192ed` for both active runtime lines:
+  `1.0.5` update group `ae5fe04f-2ddf-4b98-8328-09c7ce366ecc` and `1.0.4`
+  update group `bce5581a-20d4-4bb0-97ca-cacb51232584`. Explicit Sentry
+  `expo-upload-sourcemaps dist` succeeded and uploaded debug-id artifact
+  bundles for Android, iOS, and web.
 - Data export storage is not configured in production health diagnostics;
   `POST /me/data-export` will return `503` until `DATA_EXPORT_S3_*` vars point
   at private export storage.

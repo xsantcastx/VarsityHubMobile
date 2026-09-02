@@ -170,7 +170,9 @@ async function main() {
       `/organizations/${ORG}/releases/${encodeURIComponent(latestRelease.version)}/files/`
     );
     if (releaseFiles.length === 0) {
-      warnings.push(`latest release has no uploaded files/source maps: ${latestRelease.version}`);
+      warnings.push(
+        `latest release has no legacy release-file uploads: ${latestRelease.version}; EAS Update source maps should upload as debug-id artifact bundles`
+      );
     }
     if (!latestRelease.lastEvent) {
       warnings.push(`latest release has no recorded events: ${latestRelease.version}`);

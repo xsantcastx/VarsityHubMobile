@@ -76,10 +76,10 @@ Direct Sentry API evidence:
 
 Open Sentry work:
 
-- Confirm source-map upload for current EAS updates/builds after the next
-  source-map-aware OTA publish. Sentry events show bundle/source-map names, but
-  `origFilename` values are unresolved and the release-files endpoint returned
-  `[]` for the latest observed native release.
+- Confirm symbolication on a fresh post-OTA event from an installed app. The
+  current OTA source maps now upload successfully as Sentry debug-id artifact
+  bundles; the Sentry release-files endpoint can still return `[]` because
+  these uploads are not legacy release-file artifacts.
 - Triage or resolve recent unresolved issues before broad rollout. Fresh sampled
   issues included `VARSITYHUB-3V` (`Admin only`), `VARSITYHUB-3A`
   (`Token already used`), `VARSITYHUB-3T` (native iOS fatal),
@@ -337,6 +337,21 @@ Results:
 - EAS production env contains `SENTRY_AUTH_TOKEN` as a sensitive variable, and
   `eas env:exec production 'test -n "$SENTRY_AUTH_TOKEN"' --non-interactive`
   proved it is available to commands executed through EAS env.
+- Source-map-aware OTA follow-up published from commit
+  `fc2192edd1b008db815752c975e36480ed7e28fe`:
+  - Runtime `1.0.5` update group:
+    `ae5fe04f-2ddf-4b98-8328-09c7ce366ecc`.
+  - Runtime `1.0.4` update group:
+    `bce5581a-20d4-4bb0-97ca-cacb51232584`.
+- Manual explicit Sentry upload against the generated `dist` directory
+  succeeded:
+  - Android Hermes bundle debug id:
+    `dae724e9-70cc-4ce1-b672-41a4043d7310`.
+  - iOS Hermes bundle debug id:
+    `f2118663-ae8c-4020-8365-6378620511b5`.
+  - Web bundle debug ids:
+    `f606f1c3-fe40-4113-bc52-43b545862b6f` and
+    `77356b6d-f35c-40d5-ad0b-baf0a15fdce0`.
 
 Verification:
 
@@ -454,7 +469,8 @@ Before clearing Sentry/OTA observability readiness:
 
 1. Add `EXPO_TOKEN` and `SENTRY_AUTH_TOKEN` to the GitHub Actions secrets for
    the maintained production repo/branch.
-2. Publish the next production OTA with `npm run update:production` or the
-   GitHub workflow after those secrets exist.
-3. Re-run `npm run verify:sentry-readiness` and confirm Sentry has source maps
-   or debug-id artifacts for the newly published update/build.
+2. Re-run the GitHub OTA workflow after those secrets exist and confirm the
+   explicit `expo-upload-sourcemaps dist` step succeeds in Actions.
+3. Generate or observe a fresh production event on an installed app after the
+   `fc2192ed` OTA applies, then confirm Sentry symbolicates it using the
+   uploaded debug-id artifact bundle.

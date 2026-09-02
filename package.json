@@ -67,7 +67,7 @@
     "verify:version": "bash scripts/verify-latest-version.sh",
     "submit:ios": "eas submit --platform ios --profile production",
     "submit:android": "eas submit --platform android --profile production",
-    "update:production": "node scripts/guard-ota-clean-tree.js && eas env:exec production 'SENTRY_DISABLE_AUTO_UPLOAD= eas update --branch production --non-interactive' --non-interactive",
+    "update:production": "node scripts/guard-ota-clean-tree.js && eas env:exec production 'SENTRY_DISABLE_AUTO_UPLOAD= eas update --branch production --non-interactive && node node_modules/@sentry/react-native/scripts/expo-upload-sourcemaps dist' --non-interactive",
     "server:install": "cd server && npm install",
     "server:dev": "cd server && npm run dev",
     "server:db:migrate": "cd server && npx prisma migrate dev --name init",

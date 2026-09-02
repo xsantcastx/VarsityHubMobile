@@ -69,3 +69,8 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: eas update --branch production --non-interactive --message "${{ github.event.inputs.message || format('Auto-publish from {0}', github.sha) }}"
+
+      - name: Upload Sentry source maps
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: node node_modules/@sentry/react-native/scripts/expo-upload-sourcemaps dist

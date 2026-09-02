@@ -64,3 +64,8 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           RUNTIME_VERSION_OVERRIDE: '1.0.4'
         run: eas update --branch production --non-interactive --message "Deliver accumulated JS fixes to the 1.0.4 App Store binary"
+
+      - name: Upload Sentry source maps
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: node node_modules/@sentry/react-native/scripts/expo-upload-sourcemaps dist
