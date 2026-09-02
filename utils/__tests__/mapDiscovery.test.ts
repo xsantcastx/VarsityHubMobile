@@ -153,6 +153,37 @@ describe('toMapEvents', () => {
     });
   });
 
+  it('preserves league metadata for map search and display', () => {
+    const events = toMapEvents(
+      [
+        {
+          id: 'tennis-1',
+          source_type: 'event',
+          event_id: 'tennis-1',
+          game_id: null,
+          title: 'Player One vs Player Two - US Open',
+          date: '2026-09-03T22:00:00.000Z',
+          location: 'USTA Billie Jean King National Tennis Center',
+          latitude: 40.7499,
+          longitude: -73.8476,
+          sport: 'tennis',
+          league_slug: 'wta',
+          league_name: 'WTA Tour',
+          league_level: 'major',
+          league_gender: 'women',
+        },
+      ],
+      now
+    );
+
+    expect(events[0]).toMatchObject({
+      league_slug: 'wta',
+      league_name: 'WTA Tour',
+      league_level: 'major',
+      league_gender: 'women',
+    });
+  });
+
   it('drops items without coordinates', () => {
     const events = toMapEvents(items, now);
     expect(events.some(e => e.id === 'no-coords')).toBe(false);

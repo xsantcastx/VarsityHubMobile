@@ -196,6 +196,44 @@ describe('EventMap', () => {
     expect(empty).toBeTruthy();
   });
 
+  it('searches loaded map event pins by venue, sport, and league metadata', async () => {
+    const events = [
+      {
+        id: 'tennis-1',
+        title: 'Player One vs Player Two - US Open',
+        location: 'USTA Billie Jean King National Tennis Center',
+        latitude: 40.7499,
+        longitude: -73.8476,
+        date: new Date().toISOString(),
+        sport: 'tennis',
+        league_slug: 'wta',
+        league_name: 'WTA Tour',
+      },
+      {
+        id: 'baseball-1',
+        title: 'Rays at Yankees',
+        location: 'Yankee Stadium',
+        latitude: 40.8296,
+        longitude: -73.9262,
+        date: new Date().toISOString(),
+        sport: 'baseball',
+        league_slug: 'mlb',
+        league_name: 'MLB',
+      },
+    ];
+    const { findAllByTestId, getByPlaceholderText } = render(
+      <EventMap {...baseProps({ events })} />
+    );
+
+    expect(await findAllByTestId('Marker')).toHaveLength(2);
+
+    fireEvent.changeText(getByPlaceholderText('Search games or events...'), 'USTA');
+    expect(await findAllByTestId('Marker')).toHaveLength(1);
+
+    fireEvent.changeText(getByPlaceholderText('Search games or events...'), 'mlb');
+    expect(await findAllByTestId('Marker')).toHaveLength(1);
+  });
+
   it('prefers marker/team colors, then sport colors, then type colors', () => {
     expect(resolveMarkerColor({ marker_color: '#111111' }, '#000000')).toBe('#111111');
     expect(resolveMarkerColor({ pro_home_color: '#222222' }, '#000000')).toBe('#222222');

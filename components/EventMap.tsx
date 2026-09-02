@@ -126,7 +126,8 @@ export default function EventMap({
   const [selectedCluster, setSelectedCluster] = useState<EventMapData[] | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<EventMapData | null>(null);
   const isUserInteractionRef = useRef(false);
-  // Search box — filters the visible pins/clusters by title substring (case-insensitive).
+  // Search box — filters the loaded map event/game pins only. It deliberately
+  // does not call global user/team/post search.
   const [searchQuery, setSearchQuery] = useState('');
 
   // Use initialRegion if provided, otherwise default to USA-wide view
@@ -223,10 +224,26 @@ export default function EventMap({
 
   // Search filter — applied before the coordinate filter so it also thins out
   // the cluster groups (a search match inside a cluster surfaces on its own).
+  // Match the event page's visible identity: matchup/title, venue/location,
+  // sport, and league metadata.
   const searchFilteredEvents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return events;
-    return events.filter(event => (event.title || '').toLowerCase().includes(query));
+    return events.filter(event =>
+      [
+        event.title,
+        event.location,
+        event.sport,
+        event.league_slug,
+        event.league_name,
+        event.league_level,
+        event.league_gender,
+      ].some(value =>
+        String(value ?? '')
+          .toLowerCase()
+          .includes(query)
+      )
+    );
   }, [events, searchQuery]);
 
   // Filter events that have coordinates (use != null so lat/lng of 0 are accepted).
@@ -477,7 +494,7 @@ export default function EventMap({
         )}
       </View>
 
-      {/* Search Box — filters visible pins/clusters by title substring */}
+      {/* Search Box — filters the loaded event/game pins by title, venue, sport, or league */}
       <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background }]}>
         <Ionicons name="search" size={18} color={Colors[colorScheme].mutedText} />
         <TextInput

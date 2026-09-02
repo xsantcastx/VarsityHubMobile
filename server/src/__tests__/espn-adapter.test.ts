@@ -373,6 +373,42 @@ describe('espnAdapter tennis parser', () => {
     expect(parsed[0].external_ref).toBe('wta:189-2026:184608');
     expect(parsed[0].title).toBe('Iga Swiatek vs Coco Gauff - US Open');
   });
+
+  it('does not create generic round events when ESPN omits tennis competitors', () => {
+    const genericRound = {
+      events: [
+        {
+          id: '189-2026',
+          date: '2026-09-03T04:00Z',
+          name: 'US Open',
+          shortName: 'US Open',
+          groupings: [
+            {
+              grouping: { slug: 'mens-singles', displayName: "Men's Singles" },
+              competitions: [
+                {
+                  id: 'round-container',
+                  startDate: '2026-09-03T04:00Z',
+                  type: { text: "Men's Singles", slug: 'mens-singles' },
+                  round: { displayName: 'Round 2' },
+                  competitors: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const parsed = adapter.__parseScoreboard!(
+      'atp',
+      genericRound,
+      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-09-04T00:00:00.000Z')
+    );
+
+    expect(parsed).toEqual([]);
+  });
 });
 
 describe('resolveProTeamRef', () => {

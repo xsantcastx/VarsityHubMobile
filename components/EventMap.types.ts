@@ -14,6 +14,11 @@ export interface EventMapData {
   type?: 'game' | 'event' | 'post';
   /** Canonical sport slug (see constants/sports.ts) — drives the map sport filter. */
   sport?: string | null;
+  /** League metadata for map search/filter display. */
+  league_slug?: string | null;
+  league_name?: string | null;
+  league_level?: string | null;
+  league_gender?: string | null;
   /** Optional accent colors from linked teams/leagues, used before generic type colors. */
   pro_home_color?: string | null;
   pro_away_color?: string | null;

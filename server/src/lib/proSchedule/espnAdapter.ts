@@ -195,9 +195,7 @@ function tennisTitle(event: EspnEvent, competition: EspnTennisCompetition): stri
   if (home && away && home !== 'TBD' && away !== 'TBD') {
     return tournament ? `${away} vs ${home} - ${tournament}` : `${away} vs ${home}`;
   }
-  const draw = varchar(competition.type?.text, 60);
-  const round = varchar(competition.round?.displayName, 60);
-  return [tournament, draw, round].filter(Boolean).join(' ') || null;
+  return null;
 }
 
 function parseTennisScoreboard(
