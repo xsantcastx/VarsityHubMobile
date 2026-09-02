@@ -64,8 +64,7 @@ Direct Sentry API evidence:
 
 - Project exists: `lime-productions/varsityhub`.
 - Project platform: `javascript-react`.
-- The old Sentry alert-rule API now returns `410 Gone`; alert-rule existence
-  needs dashboard evidence or a newer provider API surface.
+- Production alert rules are visible to the readiness verifier: `7`.
 - Recent releases are visible.
 - Latest observed Android release: `com.varsityhub.varsityhub@1.0.5+59`.
 - Latest observed Android release had events, but no uploaded release files were
@@ -80,8 +79,6 @@ Open Sentry work:
 - Confirm source-map upload for current EAS updates/builds. Sentry events show
   bundle/source-map names, but `origFilename` values are unresolved and the
   release-files endpoint returned `[]`.
-- Confirm production alert rules in the Sentry dashboard because the previous
-  alert-rule API endpoint now returns `410 Gone`.
 - Triage or resolve recent unresolved issues before broad rollout. Fresh sampled
   issues included `VARSITYHUB-3V` (`Admin only`), `VARSITYHUB-3A`
   (`Token already used`), `VARSITYHUB-3T` (native iOS fatal),
@@ -291,6 +288,31 @@ Changes:
   defense-in-depth.
 - Add a direct `HEAD /health` response so uptime probes do not perform a
   database health query.
+- Redact partial `SENDGRID_API_KEY` and `DATABASE_URL` previews from release
+  readiness output.
+
+## Client OTA Rollout
+
+Commands:
+
+```bash
+eas update --branch production --message "readiness fixes 462c9972"
+
+RUNTIME_VERSION_OVERRIDE=1.0.4 \
+eas update --branch production \
+  --message "readiness fixes 462c9972 runtime 1.0.4"
+```
+
+Results:
+
+- Runtime `1.0.5` production update group:
+  `e48da7af-229a-498c-838b-61727ff4a543`.
+- Runtime `1.0.4` production update group:
+  `d34628be-aef0-4c76-8a25-eeb61ea6db8c`.
+- Both updates published for Android and iOS.
+- Both updates reference commit `462c99725e4588ce067a9a92bdb7a7a7fcaa8f4f`.
+- These OTAs carry the client Sentry-noise reduction and map coordinate crash
+  mitigation to installed apps on both active runtime lines.
 
 Verification:
 

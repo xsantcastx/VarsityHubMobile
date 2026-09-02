@@ -86,8 +86,8 @@ Agent evidence snapshot, 2026-09-02:
 - Client TypeScript and server TypeScript passed.
 - Focused readiness regression tests passed for event-map previews/autofit,
   guest create-entry routing, and share fallback behavior.
-- Sentry setup verifier passed locally; provider alert links/test issues still
-  need operator evidence.
+- Sentry setup verifier passed locally; provider test issues still need operator
+  evidence.
 - Cloudinary credential verifier passed.
 - Rate-limit verifier passed: `25/25`.
 - Backup freshness verifier passed with provider database URLs: `57` tables
@@ -116,11 +116,15 @@ Agent evidence snapshot, 2026-09-02:
   changed from readable/public to sensitive. Duplicate Google `EXPO_PUBLIC_*`
   env names remain as warnings because this EAS CLI cannot safely delete a
   duplicate by id.
-- Sentry readiness guard added and passing. Project and production alert rules
-  are visible, but source-map/release-file and unresolved-issue warnings remain.
+- Sentry readiness guard added and passing. Project and `7` production alert
+  rules are visible, but source-map/release-file and unresolved-issue warnings
+  remain.
 - Client observability noise reduced: handled 4xx HTTP outcomes no longer emit
   transport exceptions, and expected auth/reset/verification UX errors are
   dropped before Sentry or analytics exception capture. Focused tests passed.
+- Production OTA published for both active runtime lines: `1.0.5` update group
+  `e48da7af-229a-498c-838b-61727ff4a543` and `1.0.4` update group
+  `d34628be-aef0-4c76-8a25-eeb61ea6db8c`.
 - Data export storage is not configured in production health diagnostics;
   `POST /me/data-export` will return `503` until `DATA_EXPORT_S3_*` vars point
   at private export storage.
