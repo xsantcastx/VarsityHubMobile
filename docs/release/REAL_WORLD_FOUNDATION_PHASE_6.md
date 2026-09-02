@@ -390,6 +390,15 @@ Result:
   successfully after push.
 - GitHub Snyk passed on commit `f3f13111`: Snyk Code & Dependency Scan,
   Container Security Scan, and Security Summary all completed successfully.
+- A normal follow-up push at commit `d72e9ac3` passed the full CI workflow after
+  the previous force-push-only bad-base SHA guard failures: Route Guardrails,
+  Cache Invalidation Guard, Format Check, Dependency Audit, client/server tests,
+  client/server TypeScript, Server Invariants, Lint, Web Export Warning Guard,
+  Repo Health, and All Checks Passed.
+- Production Railway direct deployment `ace4245c-9a39-473e-9185-cadd53a86969`
+  is online.
+- Protected runtime verification passed against deployment
+  `ace4245c-9a39-473e-9185-cadd53a86969`.
 
 ## New Required Operator Actions
 
