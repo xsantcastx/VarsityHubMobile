@@ -17,6 +17,14 @@ export interface CalendarDay {
   count: number;
 }
 
+export interface DiscoverMarkedDate {
+  marked?: boolean;
+  dotColor?: string;
+  selected?: boolean;
+  selectedColor?: string;
+  selectedTextColor?: string;
+}
+
 function toRow(card: EventCard): CalendarRow {
   return {
     id: String(card.id),
@@ -53,6 +61,33 @@ function dateKey(value: string | null): string | null {
   if (!value) return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().split('T')[0];
+}
+
+export function buildDiscoverMarkedDates(
+  games: CalendarRow[],
+  events: CalendarRow[],
+  selectedDate = '',
+  tintColor = '#2563EB'
+): Record<string, DiscoverMarkedDate> {
+  const marked: Record<string, DiscoverMarkedDate> = {};
+  for (const row of [...games, ...events]) {
+    const key = dateKey(row.date);
+    if (!key) continue;
+    marked[key] = {
+      ...marked[key],
+      marked: true,
+      dotColor: tintColor,
+    };
+  }
+  if (selectedDate) {
+    marked[selectedDate] = {
+      ...marked[selectedDate],
+      selected: true,
+      selectedColor: tintColor,
+      selectedTextColor: '#FFFFFF',
+    };
+  }
+  return marked;
 }
 
 export function buildUpcomingCalendarDays(

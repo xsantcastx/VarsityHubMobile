@@ -10,6 +10,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Calendar, DateData } from 'react-native-calendars';
 import {
   ActivityIndicator,
   Alert,
@@ -29,7 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Event, Game, Organization, Post, Search, Team, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { validateEventCards } from '@/api/schemas/eventCard';
-import { buildUpcomingCalendarDays, splitCalendarCards } from '@/utils/discoverCalendar';
+import { buildDiscoverMarkedDates, splitCalendarCards } from '@/utils/discoverCalendar';
 import { buildMapDiscoveryPath, toMapEvents } from '@/utils/mapDiscovery';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
@@ -90,7 +91,6 @@ const ZIP_REGEX = /\b\d{5}\b/g;
 const DISCOVER_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
 const DISCOVER_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 const DISCOVER_EVENT_LOOKAHEAD_MS = 14 * 24 * 60 * 60 * 1000;
-const DISCOVER_CALENDAR_DAYS = 7;
 const USA_WIDE_REGION = {
   latitude: 39.8,
   longitude: -98.5,
@@ -1118,14 +1118,20 @@ function CommunityDiscoverScreen() {
     setViewMode(newMode);
   }, [viewMode, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
 
-  const calendarDays = useMemo(() => {
-    return buildUpcomingCalendarDays(
-      calendarGames,
-      calendarEvents,
-      new Date(),
-      DISCOVER_CALENDAR_DAYS
-    );
-  }, [calendarEvents, calendarGames]);
+  const markedCalendarDates = useMemo(
+    () =>
+      buildDiscoverMarkedDates(
+        calendarGames,
+        calendarEvents,
+        selectedDate,
+        Colors[colorScheme].tint
+      ),
+    [calendarEvents, calendarGames, colorScheme, selectedDate]
+  );
+
+  const onCalendarDayPress = useCallback((day: DateData) => {
+    setSelectedDate(current => (current === day.dateString ? '' : day.dateString));
+  }, []);
 
   const getSelectedDateGames = useCallback(() => {
     if (!selectedDate) return [];
@@ -1155,55 +1161,33 @@ function CommunityDiscoverScreen() {
         },
       ]}
     >
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.calendarStrip}
-      >
-        {calendarDays.map(day => {
-          const active = selectedDate === day.dateString;
-          return (
-            <Pressable
-              key={day.dateString}
-              onPress={() => setSelectedDate(active ? '' : day.dateString)}
-              style={[
-                styles.calendarDay,
-                {
-                  backgroundColor: active ? Colors[colorScheme].tint : Colors[colorScheme].surface,
-                  borderColor: active ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={`${day.day} ${day.label}, ${day.count} events from followed or managed teams`}
-            >
-              <Text
-                style={[
-                  styles.calendarDayName,
-                  { color: active ? '#FFFFFF' : Colors[colorScheme].mutedText },
-                ]}
-              >
-                {day.day}
-              </Text>
-              <Text
-                style={[
-                  styles.calendarDayDate,
-                  { color: active ? '#FFFFFF' : Colors[colorScheme].text },
-                ]}
-              >
-                {day.label}
-              </Text>
-              {day.count > 0 ? (
-                <View
-                  style={[
-                    styles.calendarDayDot,
-                    { backgroundColor: active ? '#FFFFFF' : Colors[colorScheme].tint },
-                  ]}
-                />
-              ) : null}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <Calendar
+        onDayPress={onCalendarDayPress}
+        markedDates={markedCalendarDates}
+        enableSwipeMonths
+        theme={
+          {
+            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+            calendarBackground:
+              colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+            textSectionTitleColor: Colors[colorScheme].mutedText,
+            selectedDayBackgroundColor: Colors[colorScheme].tint,
+            selectedDayTextColor: '#FFFFFF',
+            todayTextColor: Colors[colorScheme].tint,
+            dayTextColor: Colors[colorScheme].text,
+            textDisabledColor: colorScheme === 'light' ? '#9CA3AF' : Colors[colorScheme].mutedText,
+            monthTextColor: Colors[colorScheme].text,
+            textMonthFontWeight: '700',
+            arrowColor: Colors[colorScheme].text,
+            textDayFontFamily: 'system',
+            textMonthFontFamily: 'system',
+            textDayHeaderFontFamily: 'system',
+            textDayFontSize: 14,
+            textMonthFontSize: 16,
+            textDayHeaderFontSize: 13,
+          } as any
+        }
+      />
     </View>
   );
 
@@ -2938,35 +2922,8 @@ const styles = StyleSheet.create({
   calendarSection: {
     marginBottom: 12,
     borderRadius: 8,
-    paddingVertical: 8,
     borderWidth: 1,
-  },
-  calendarStrip: {
-    paddingHorizontal: 8,
-    gap: 8,
-  },
-  calendarDay: {
-    width: 58,
-    height: 64,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  calendarDayName: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  calendarDayDate: {
-    marginTop: 2,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  calendarDayDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    marginTop: 4,
+    overflow: 'hidden',
   },
   searchBox: {
     flexDirection: 'row',

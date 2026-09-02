@@ -1,4 +1,8 @@
-import { buildUpcomingCalendarDays, splitCalendarCards } from '../discoverCalendar';
+import {
+  buildDiscoverMarkedDates,
+  buildUpcomingCalendarDays,
+  splitCalendarCards,
+} from '../discoverCalendar';
 import type { EventCard } from '@/api/schemas/eventCard';
 
 const cards: EventCard[] = [
@@ -50,5 +54,33 @@ describe('buildUpcomingCalendarDays', () => {
 
     expect(days.map(day => day.dateString)).toEqual(['2026-09-10', '2026-09-11', '2026-09-12']);
     expect(days.map(day => day.count)).toEqual([1, 1, 0]);
+  });
+});
+
+describe('buildDiscoverMarkedDates', () => {
+  it('marks all followed calendar dates and highlights the selected date', () => {
+    const { games, events } = splitCalendarCards(cards);
+    const marked = buildDiscoverMarkedDates(games, events, '2026-09-11', '#0B7A75');
+
+    expect(marked['2026-09-10']).toMatchObject({
+      marked: true,
+      dotColor: '#0B7A75',
+    });
+    expect(marked['2026-09-11']).toMatchObject({
+      marked: true,
+      dotColor: '#0B7A75',
+      selected: true,
+      selectedColor: '#0B7A75',
+      selectedTextColor: '#FFFFFF',
+    });
+  });
+
+  it('can select an empty calendar date', () => {
+    const marked = buildDiscoverMarkedDates([], [], '2026-09-12', '#0B7A75');
+
+    expect(marked['2026-09-12']).toMatchObject({
+      selected: true,
+      selectedColor: '#0B7A75',
+    });
   });
 });
