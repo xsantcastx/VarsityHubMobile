@@ -29,6 +29,15 @@ describe('events sports league query contract', () => {
     }
   });
 
+  it('exposes a bounded public sports league catalog endpoint', () => {
+    expect(eventsRoute).toContain("'/sports-leagues'");
+    expect(eventsRoute).toContain('prisma.sportsLeague.findMany');
+    expect(eventsRoute).toContain('active: true');
+    expect(eventsRoute).toContain('Math.min(limitRaw, 300)');
+    expect(clientEntities).toContain('sportsLeagues:');
+    expect(clientEntities).toContain("httpGet('/events/sports-leagues'");
+  });
+
   it('keeps pro_league compatible with both ProTeam and SportsLeague rows', () => {
     expect(eventsRoute).toMatch(/proHomeTeam: \{ is: \{ league: proLeague \} \}/);
     expect(eventsRoute).toMatch(/proAwayTeam: \{ is: \{ league: proLeague \} \}/);

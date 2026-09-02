@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { PRO_SCHEDULE_LEAGUES } from '../lib/proSchedule/types.js';
+import { SPORTS_LEAGUE_CATALOG } from '../lib/sportsLeagueCatalog.js';
 
 const schema = readFileSync(path.join(process.cwd(), 'prisma/schema.prisma'), 'utf8');
 const migrationsDir = path.join(process.cwd(), 'prisma/migrations');
@@ -46,8 +46,8 @@ describe('sports league metadata schema', () => {
   });
 
   it('seeds every currently supported schedule league in the migration', () => {
-    for (const league of PRO_SCHEDULE_LEAGUES) {
-      expect(allMigrations).toContain(`'${league}'`);
+    for (const league of SPORTS_LEAGUE_CATALOG) {
+      expect(allMigrations).toContain(`'${league.slug}'`);
     }
   });
 

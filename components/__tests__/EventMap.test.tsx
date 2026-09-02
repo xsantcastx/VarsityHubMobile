@@ -98,6 +98,12 @@ describe('EventMap', () => {
     expect(resolveMarkerColor({ sport: 'mma' }, '#000000')).toBe('#B91C1C');
   });
 
+  it('resolves marker colors for expanded league sports', () => {
+    expect(resolveMarkerColor({ sport: 'water_polo' }, '#000000')).toBe('#2563EB');
+    expect(resolveMarkerColor({ sport: 'auto_racing' }, '#000000')).toBe('#111827');
+    expect(resolveMarkerColor({ sport: 'beach_volleyball' }, '#000000')).toBe('#0EA5E9');
+  });
+
   it('does not render native markers for invalid coordinates', async () => {
     const events = [
       mockEvents[0],

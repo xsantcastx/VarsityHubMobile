@@ -36,6 +36,7 @@ import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { mustSucceed } from '../lib/sideEffect.js';
 import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
+import { SPORTS_LEAGUE_CATALOG } from '../lib/sportsLeagueCatalog.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
@@ -461,6 +462,71 @@ const serializeEvent = (
   }
   return base;
 };
+
+eventsRouter.get(
+  '/sports-leagues',
+  asyncHandler(async (req, res) => {
+    const slugPattern = /^[a-z0-9_-]{1,120}$/;
+    const sportSlug =
+      typeof req.query.sport === 'string' ? req.query.sport.trim().toLowerCase() : '';
+    const leagueLevel =
+      typeof req.query.level === 'string' ? req.query.level.trim().toLowerCase() : '';
+    const leagueGender =
+      typeof req.query.gender === 'string' ? req.query.gender.trim().toLowerCase() : '';
+    const searchRaw = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (searchRaw.length > 80) return sendError(res, 400, 'Invalid search');
+    const search = searchRaw;
+    for (const [label, value] of [
+      ['sport', sportSlug],
+      ['level', leagueLevel],
+      ['gender', leagueGender],
+    ] as const) {
+      if (value && !slugPattern.test(value)) return sendError(res, 400, `Invalid ${label}`);
+    }
+    const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
+    const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 300) : 300;
+
+    const rows = await prisma.sportsLeague.findMany({
+      where: {
+        active: true,
+        ...(sportSlug ? { sport_slug: sportSlug } : {}),
+        ...(leagueLevel ? { level: leagueLevel } : {}),
+        ...(leagueGender ? { gender: leagueGender } : {}),
+        ...(search
+          ? {
+              OR: [
+                { slug: { contains: search, mode: 'insensitive' } },
+                { name: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ level: 'asc' }, { sport_slug: 'asc' }, { name: 'asc' }],
+      take,
+    });
+
+    const catalogOrder = new Map(SPORTS_LEAGUE_CATALOG.map((entry, index) => [entry.slug, index]));
+    const sorted = [...rows].sort((a, b) => {
+      const ai = catalogOrder.get(a.slug) ?? Number.MAX_SAFE_INTEGER;
+      const bi = catalogOrder.get(b.slug) ?? Number.MAX_SAFE_INTEGER;
+      return ai - bi || a.name.localeCompare(b.name);
+    });
+
+    return res.json({
+      items: sorted.map(row => ({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        sport_slug: row.sport_slug,
+        level: row.level,
+        gender: row.gender,
+        country_code: row.country_code,
+        provider: row.provider,
+        provider_league_id: row.provider_league_id,
+      })),
+    });
+  })
+);
 
 eventsRouter.get(
   '/',

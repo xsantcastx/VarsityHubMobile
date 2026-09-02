@@ -518,6 +518,17 @@ export const Post = {
 
 export const Event = {
   create: (data: CreateEventPayload) => httpPost('/events', data),
+  sportsLeagues: (
+    where: { sport?: string; level?: string; gender?: string; q?: string; limit?: number } = {}
+  ) => {
+    const q: string[] = [];
+    if (where.sport) q.push('sport=' + encodeURIComponent(where.sport));
+    if (where.level) q.push('level=' + encodeURIComponent(where.level));
+    if (where.gender) q.push('gender=' + encodeURIComponent(where.gender));
+    if (where.q) q.push('q=' + encodeURIComponent(where.q));
+    if (typeof where.limit === 'number') q.push('limit=' + String(where.limit));
+    return httpGet('/events/sports-leagues' + (q.length ? '?' + q.join('&') : ''));
+  },
   mine: () =>
     httpGet('/events/my-events').then(data => validateEventSummaryArray('events.mine', data)),
   pending: () =>
