@@ -5,6 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCustomColorScheme, useThemePreference } from '@/hooks/useCustomColorScheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -213,8 +214,8 @@ export default function SettingsScreen() {
     []
   );
 
-  const [_loading, setLoading] = useState(true);
-  const [_error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [_email, setEmail] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Preferences>({
     notifications: {
@@ -554,6 +555,36 @@ export default function SettingsScreen() {
         style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
         edges={['bottom']}
       >
+        {loading && (
+          <View style={styles.statusRow} accessibilityRole="progressbar">
+            <ActivityIndicator size="small" color={Colors[colorScheme ?? 'light'].tint} />
+            <Text style={[styles.statusText, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              Loading settings...
+            </Text>
+          </View>
+        )}
+
+        {!!error && (
+          <View
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: Colors[colorScheme ?? 'light'].surface,
+                borderColor: Colors[colorScheme ?? 'light'].destructive,
+              },
+            ]}
+          >
+            <Ionicons
+              name="alert-circle"
+              size={18}
+              color={Colors[colorScheme ?? 'light'].destructive}
+            />
+            <Text style={[styles.errorBannerText, { color: Colors[colorScheme ?? 'light'].text }]}>
+              {error}
+            </Text>
+          </View>
+        )}
+
         <ScrollView>
           {/* Account */}
           <SectionCard title="Account" initiallyOpen>
@@ -1363,6 +1394,33 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
   error: { marginHorizontal: 16, marginBottom: 8 },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   card: { marginHorizontal: 16, marginBottom: 6, borderRadius: 12, borderWidth: 1 },
   cardHeader: {
     flexDirection: 'row',

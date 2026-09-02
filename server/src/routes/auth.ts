@@ -85,6 +85,7 @@ import {
   authLimiter,
   oauthLimiter,
   passwordResetLimiter,
+  profileUpdateLimiter,
   refreshTokenLimiter,
   verificationConfirmLimiter,
 } from '../middleware/rateLimiters.js';
@@ -3007,6 +3008,7 @@ async function handleUpdateMe(req: AuthedRequest, res: Response) {
 
 authRouter.put(
   '/me',
+  profileUpdateLimiter,
   requireAuth as any,
   requireVerified as any,
   asyncHandler((req: AuthedRequest, res) => handleUpdateMe(req, res))
@@ -3016,6 +3018,7 @@ authRouter.put(
 // ensuring @mention rewrites are applied consistently on username changes.
 authRouter.patch(
   '/me',
+  profileUpdateLimiter,
   requireAuth as any,
   requireVerified as any,
   asyncHandler((req: AuthedRequest, res) => handleUpdateMe(req, res))

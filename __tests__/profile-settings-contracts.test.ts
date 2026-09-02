@@ -90,4 +90,13 @@ describe('profile/settings note contracts', () => {
     expect(settingsScreen).toContain('value={!!prefs.profile_private}');
     expect(settingsScreen).toContain('onValueChange={v => patchPrefs({ profile_private: v })}');
   });
+
+  it('settings renders load and error state instead of keeping dead state only', () => {
+    expect(settingsScreen).toContain('const [loading, setLoading] = useState(true);');
+    expect(settingsScreen).toContain('const [error, setError] = useState<string | null>(null);');
+    expect(settingsScreen).toContain('{loading && (');
+    expect(settingsScreen).toContain('Loading settings...');
+    expect(settingsScreen).toContain('{!!error && (');
+    expect(settingsScreen).toContain('{error}');
+  });
 });
