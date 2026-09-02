@@ -103,8 +103,8 @@ Agent evidence snapshot, 2026-09-02:
   findings after the dependency refresh. Moderate advisories remain for
   `sanitize-html` and `query-string`/`decode-uri-component`.
 - Authenticated Snyk runs in GitHub are the source of truth for Snyk because the
-  local CLI is not authenticated. The next pushed commit must show whether the
-  refreshed dependency graph clears the previous Snyk high findings.
+  local CLI is not authenticated. Commit `f3f13111` passed Snyk Code &
+  Dependency Scan and Container Security Scan after the dependency refresh.
 - Physical-device iOS/Android UAT and real push delivery are not proven by
   local/repo automation.
 - Railway production investigation passed the runtime/provider gate and found

@@ -386,8 +386,10 @@ Result:
   with the current server test harness. Keep this as a Node/Jest/runtime upgrade
   task rather than slipping it into a narrow Snyk cleanup.
 - Docker build was not run locally because the Docker daemon was unavailable on
-  this workstation. Railway/GitHub container build must verify the Dockerfile
-  change after push.
+  this workstation. GitHub's Snyk container workflow built and scanned the image
+  successfully after push.
+- GitHub Snyk passed on commit `f3f13111`: Snyk Code & Dependency Scan,
+  Container Security Scan, and Security Summary all completed successfully.
 
 ## New Required Operator Actions
 
@@ -421,8 +423,7 @@ Before data-export launch:
 
 Before clearing dependency/security readiness:
 
-1. Confirm GitHub Snyk SCA and container jobs pass after the dependency refresh.
-2. Keep the Expo/Metro `image-size` acceptance time-boxed until the Expo major
+1. Keep the Expo/Metro `image-size` acceptance time-boxed until the Expo major
    upgrade can be planned and tested.
-3. Plan a Node/Jest-compatible path before upgrading `sanitize-html` to
+2. Plan a Node/Jest-compatible path before upgrading `sanitize-html` to
    `2.17.7+`.
