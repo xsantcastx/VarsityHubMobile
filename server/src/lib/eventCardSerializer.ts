@@ -130,7 +130,10 @@ export function buildCapabilities(
   };
 }
 
-function mapVisibility(coords: { latitude: number | null; longitude: number | null }, ctx: SerializeCtx) {
+function mapVisibility(
+  coords: { latitude: number | null; longitude: number | null },
+  ctx: SerializeCtx
+) {
   const visible = coords.latitude != null && coords.longitude != null;
   return {
     visible,
@@ -190,10 +193,16 @@ export function serializeEventCard(event: any, ctx: SerializeCtx) {
     longitude: coords.longitude,
     sport:
       event.team?.sport ??
+      event.sportsLeague?.sport_slug ??
       proLeagueToSport(event.proHomeTeam?.league ?? event.proAwayTeam?.league) ??
       null,
     status: event.status,
     banner_url: event.banner_url ?? null,
+    sports_league_id: event.sports_league_id ?? event.sportsLeague?.id ?? null,
+    league_slug: event.sportsLeague?.slug ?? null,
+    league_name: event.sportsLeague?.name ?? null,
+    league_level: event.sportsLeague?.level ?? null,
+    league_gender: event.sportsLeague?.gender ?? null,
     pro_home_color: event.proHomeTeam?.primary_color ?? null,
     pro_away_color: event.proAwayTeam?.primary_color ?? null,
     pro_league: event.proHomeTeam?.league ?? event.proAwayTeam?.league ?? null,

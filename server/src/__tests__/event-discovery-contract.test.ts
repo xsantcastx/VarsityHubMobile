@@ -265,6 +265,71 @@ describe('event discovery contract', () => {
     ]);
   });
 
+  it('keeps standalone sports-league events in sport-filtered discovery', async () => {
+    const now = new Date('2026-09-02T20:30:00.000Z');
+    const db: any = {
+      game: { findMany: jest.fn(async () => []) },
+      event: {
+        findMany: jest.fn(async () => [
+          {
+            id: 'atp-event',
+            title: 'Player One - Player Two',
+            date: new Date('2026-09-02T21:00:00.000Z'),
+            location: 'USTA Billie Jean King National Tennis Center',
+            latitude: 40.7499,
+            longitude: -73.8476,
+            banner_url: null,
+            status: 'approved',
+            game_id: null,
+            exclusive_poster_id: null,
+            live_window_hours_after_start: 4,
+            sports_league_id: 'sports_league_atp',
+            team: null,
+            sportsLeague: {
+              id: 'sports_league_atp',
+              slug: 'atp',
+              name: 'ATP Tour',
+              sport_slug: 'tennis',
+              level: 'major',
+              gender: 'men',
+            },
+            proHomeTeam: null,
+            proAwayTeam: null,
+          },
+        ]),
+      },
+      eventDesignatedPoster: { findMany: jest.fn(async () => []) },
+      eventPostingUnlock: { findMany: jest.fn(async () => []) },
+    };
+
+    const result = await listEventDiscoveryItems(db, {
+      surface: 'map',
+      sport: 'tennis',
+      now,
+      viewerId: null,
+    });
+
+    expect(db.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          sportsLeague: expect.objectContaining({
+            select: expect.objectContaining({ sport_slug: true }),
+          }),
+        }),
+      })
+    );
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        id: 'atp-event',
+        sport: 'tennis',
+        sports_league_id: 'sports_league_atp',
+        league_slug: 'atp',
+        league_name: 'ATP Tour',
+        map_visibility: expect.objectContaining({ visible: true }),
+      }),
+    ]);
+  });
+
   it('does not report designated-poster upload access after the 7-day unlock expires', async () => {
     const now = new Date('2026-09-10T12:00:00.000Z');
     const eventDate = new Date('2026-09-01T00:00:00.000Z');

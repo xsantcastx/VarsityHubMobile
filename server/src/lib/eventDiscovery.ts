@@ -282,6 +282,9 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
       take: queryLimit,
       include: {
         team: { select: { sport: true } },
+        sportsLeague: {
+          select: { id: true, slug: true, name: true, sport_slug: true, level: true, gender: true },
+        },
         proHomeTeam: { select: { league: true, primary_color: true } },
         proAwayTeam: { select: { league: true, primary_color: true } },
       },
