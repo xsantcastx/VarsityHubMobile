@@ -13,9 +13,7 @@ const prismaDatasourceUrl = process.env.DATABASE_URL
 (() => {
   const raw = prismaDatasourceUrl;
   if (raw) {
-    const masked = raw.replace(/(postgresql:\/\/[^:]+):[^@]*@/, '$1:***@');
-    const preview = masked.length > 140 ? masked.slice(0, 140) + '…' : masked;
-    debugLog('[env] DATABASE_URL (masked preview):', preview);
+    debugLog('[env] DATABASE_URL is set (value redacted)');
 
     // Parse and log connection pool settings
     try {

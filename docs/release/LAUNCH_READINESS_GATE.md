@@ -124,8 +124,16 @@ Agent evidence snapshot, 2026-09-02:
 - Data export storage is not configured in production health diagnostics;
   `POST /me/data-export` will return `503` until `DATA_EXPORT_S3_*` vars point
   at private export storage.
-- `x-health-check-secret` was visible in existing Railway request logs before
-  the Phase 6 redaction patch. Rotate `HEALTH_CHECK_SECRET` after deploy.
+- `HEALTH_CHECK_SECRET` was rotated after the Phase 6 redaction patch. The
+  follow-up direct Railway deployment
+  `f25b1cf3-1bb3-4e32-bcde-afb3c2b6c71c` succeeded, protected runtime
+  verification passed, `HEAD /health` returned `200`, and new logs show the
+  health-check header value as `[redacted]`.
+- Railway GitHub autodeploy remains source-drifted: env changes triggered a
+  failed stale-source deployment from `xsantcastx/VarsityHubMobile` `main`,
+  while current tested commits are on `fork/main`. Fix by restoring push access
+  to `origin/main`, reconnecting Railway to the maintained branch, or keeping
+  direct CLI deploys as the explicit production path.
 
 ---
 

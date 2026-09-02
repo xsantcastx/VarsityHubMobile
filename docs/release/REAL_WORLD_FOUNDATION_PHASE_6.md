@@ -40,6 +40,8 @@ npm run release:verify:runtime
 Result:
 
 - Passed.
+- Re-run passed after direct Railway deployment
+  `f25b1cf3-1bb3-4e32-bcde-afb3c2b6c71c`.
 - Production health passed.
 - Email catalog/env audit passed.
 - Email runtime config passed.
@@ -47,6 +49,8 @@ Result:
 - Critical templates: `32/32`.
 - Template groups referenced by code: `41`.
 - Template groups satisfied in shell: `41`.
+- Routine readiness output no longer prints partial `SENDGRID_API_KEY` or
+  `DATABASE_URL` previews.
 
 ## Sentry Provider Gate
 
@@ -199,6 +203,29 @@ Result:
 - Remaining warnings are limited to missing `DATA_EXPORT_S3_*` keys.
 - `api` stayed online on the same deployment id after the cleanup.
 
+Post-rotation verification:
+
+- `HEALTH_CHECK_SECRET` was rotated without printing the new value.
+- The first Railway deployment triggered by the env change failed because the
+  GitHub-linked source built stale `origin/main`, whose `server/Dockerfile`
+  still performs an unconditional `npx expo export --platform web`.
+- A direct Railway CLI deployment of current source succeeded:
+  `f25b1cf3-1bb3-4e32-bcde-afb3c2b6c71c`.
+- Protected runtime verification passed against the successful deployment.
+- `HEAD /health` returns `200`.
+- New production logs show the health-check header value as `[redacted]`.
+
+Open Railway source-control work:
+
+- Railway's GitHub source points at `xsantcastx/VarsityHubMobile` `main`, but
+  the active push target for this work is `fork/main`.
+- Pushing current commits to `origin/main` failed with `403` for the local GitHub
+  identity.
+- Until the linked Railway source is reconnected or repo permissions are fixed,
+  production server deploys must use direct Railway CLI deploys from the tested
+  local source. Variable-only changes can otherwise trigger stale-source GitHub
+  deployments.
+
 ## Railway Logs
 
 HTTP log summary from the last 24 hours:
@@ -303,9 +330,11 @@ known drift without printing secret values.
 
 After this patch is deployed:
 
-1. Rotate `HEALTH_CHECK_SECRET` in Railway.
-2. Update any external monitors that send the health secret.
-3. Confirm new Railway logs show `[redacted]` for `x-health-check-secret`.
+1. Update any external monitors that send the health secret.
+2. Reconnect Railway's GitHub source to the current maintained branch or restore
+   push permission to `xsantcastx/VarsityHubMobile`.
+3. Keep using direct Railway CLI deploys until the source-control drift is
+   resolved.
 
 Before data-export launch:
 
