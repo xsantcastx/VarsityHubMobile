@@ -488,3 +488,16 @@ Before clearing web/Vercel readiness:
    value.
 4. Re-run the GitHub web deploy after this workflow lands and confirm
    `https://www.varsityhub.app` serves the new deployment.
+5. Manual Vercel deploy completed for cleaned web env:
+   `dpl_13mx42AGJ477abkx6XFX3hmrQa8W`, production URL
+   `https://varsityhub-6zh0es96o-emilmancero-devs-projects.vercel.app`,
+   aliased to `https://www.varsityhub.app`.
+6. Public verification after deploy:
+   - `https://www.varsityhub.app` returned `200`.
+   - `https://varsityhub.app` returned `308` to `https://www.varsityhub.app/`.
+   - `https://varsityhub.app/.well-known/apple-app-site-association` returned
+     `200` with `application/json`.
+   - `https://varsityhub.app/.well-known/assetlinks.json` returned `200` with
+     `application/json`.
+7. GitHub repo variables `VERCEL_PROJECT_ID` and `VERCEL_ORG_ID` were set from
+   local `.vercel/project.json`; `VERCEL_TOKEN` remains a secret/operator action.

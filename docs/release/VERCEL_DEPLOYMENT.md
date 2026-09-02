@@ -1,6 +1,8 @@
 # Vercel deployment — `www.varsityhub.app`
 
-The web build of this Expo app deploys to Vercel at `https://www.varsityhub.app`. The bare `varsityhub.app` domain stays on Railway (API + Universal-Links + handoff pages); root requests redirect to `www` via `server/src/routes/publicSite.ts`.
+The web build of this Expo app deploys to Vercel at `https://www.varsityhub.app`.
+The bare `varsityhub.app` domain redirects app routes to `www` and must keep
+serving valid `/.well-known` association files for iOS and Android app links.
 
 ## One-time setup (~15 min)
 
@@ -59,7 +61,9 @@ In your DNS provider, add:
 www.varsityhub.app    CNAME    cname.vercel-dns.com
 ```
 
-Then in Vercel → Project Settings → Domains, add `www.varsityhub.app`. Vercel auto-provisions a TLS cert.
+Then in Vercel → Project Settings → Domains, add `www.varsityhub.app` and, if
+Vercel is serving the apex redirect, `varsityhub.app`. Vercel auto-provisions a
+TLS cert.
 
 ### 4. First deploy
 
@@ -121,16 +125,23 @@ Then a real-browser smoke test: visit `https://www.varsityhub.app/`, confirm the
 
 ## What stays on Railway (not Vercel)
 
-The bare `varsityhub.app` domain still serves these from the API server — they must NOT be replicated on Vercel:
+The production API stays on Railway at the configured API base URL. These API
+and server-only routes must not be implemented as Vercel serverless functions:
 
-- `/.well-known/apple-app-site-association` — Universal Links registration
-- `/.well-known/assetlinks.json` — Android App Links registration
-- `/verify`, `/reset-password` — handoff pages (token pre-validation, manual fallback)
-- `/consent/<token>` — parental consent landing
-- `/privacy-policy`, `/support` — public pages
 - All `/auth/*`, `/posts/*`, `/teams/*` etc. API endpoints
+- Payment, email, media, database, Redis, and admin/server-only backends
 
-If you ever move any of these to `www.varsityhub.app`, Universal Links and email handoffs will break. Keep the split.
+The Vercel static export may serve `/.well-known/apple-app-site-association` and
+`/.well-known/assetlinks.json`, but those files must stay byte-aligned with
+`docs/well-known/` and `server/well-known/`.
+
+If `varsityhub.app` is served by Vercel, verify after every web deploy:
+
+```bash
+curl -fsSI https://varsityhub.app/.well-known/apple-app-site-association
+curl -fsSI https://varsityhub.app/.well-known/assetlinks.json
+curl -fsSI https://varsityhub.app/
+```
 
 ## Troubleshooting
 
@@ -147,4 +158,7 @@ Most likely missing `EXPO_PUBLIC_API_URL`. Open browser devtools → Network →
 The API's CORS allowlist must include `https://www.varsityhub.app`. Check `server/src/app.ts` cors config and add the new origin if missing.
 
 **Universal Links break after deploy**
-You probably accidentally moved `/.well-known/apple-app-site-association` to Vercel. Move it back — it must be served by the AASA-registered domain (`varsityhub.app`), not the web app domain.
+Check both the Vercel static file and the server copy. `varsityhub.app` must
+return the AASA file at exactly `/.well-known/apple-app-site-association` with
+`application/json`, regardless of whether the apex redirect is served by Vercel
+or Railway.

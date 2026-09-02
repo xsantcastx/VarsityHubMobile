@@ -142,6 +142,11 @@ Agent evidence snapshot, 2026-09-02:
   public web build keys, and verifying `npm run verify:vercel-env-drift`
   passes. GitHub web deploy now pulls Vercel production env before `expo export`
   instead of baking only the Sentry DSN into the static bundle.
+- Manual Vercel deployment `dpl_13mx42AGJ477abkx6XFX3hmrQa8W` is live:
+  `https://www.varsityhub.app` returns `200`, apex `https://varsityhub.app`
+  redirects to `www`, and both app-link files under `/.well-known` return
+  `200` with JSON content types. GitHub repo variables `VERCEL_PROJECT_ID` and
+  `VERCEL_ORG_ID` are set; `VERCEL_TOKEN` is still missing from Actions secrets.
 - Data export storage is not configured in production health diagnostics;
   `POST /me/data-export` will return `503` until `DATA_EXPORT_S3_*` vars point
   at private export storage.
