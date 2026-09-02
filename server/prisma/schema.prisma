@@ -168,6 +168,8 @@ enum ProLeague {
   mlb
   wwe
   ufc
+  atp
+  wta
   ncaaf
   ncaamb
   ncaawb

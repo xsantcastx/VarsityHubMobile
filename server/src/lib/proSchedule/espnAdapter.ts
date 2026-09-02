@@ -24,6 +24,8 @@ const ESPN_PATH: Partial<Record<ProLeague, string>> = {
   nba: 'basketball/nba',
   wnba: 'basketball/wnba',
   mlb: 'baseball/mlb',
+  atp: 'tennis/atp',
+  wta: 'tennis/wta',
   ncaaf: 'football/college-football',
   ncaamb: 'basketball/mens-college-basketball',
   ncaawb: 'basketball/womens-college-basketball',
@@ -43,14 +45,38 @@ type EspnTeam = {
   color?: string;
 };
 type EspnCompetitor = { homeAway: 'home' | 'away'; team?: EspnTeam };
+type EspnTennisCompetitor = {
+  homeAway?: 'home' | 'away';
+  athlete?: { displayName?: string; shortName?: string };
+  roster?: { displayName?: string; shortDisplayName?: string };
+};
 type EspnEvent = {
   id: string;
   date: string;
+  endDate?: string;
+  name?: string;
+  shortName?: string;
+  venue?: { displayName?: string };
+  groupings?: Array<{
+    grouping?: { slug?: string; displayName?: string };
+    competitions?: EspnTennisCompetition[];
+  }>;
   competitions?: Array<{
     venue?: { fullName?: string; address?: { city?: string; state?: string; country?: string } };
     status?: { type?: { name?: string } };
     competitors?: EspnCompetitor[];
   }>;
+};
+type EspnTennisCompetition = {
+  id: string;
+  date?: string;
+  startDate?: string;
+  timeValid?: boolean;
+  venue?: { fullName?: string; court?: string };
+  status?: { type?: { name?: string } };
+  competitors?: EspnTennisCompetitor[];
+  type?: { text?: string; slug?: string };
+  round?: { displayName?: string };
 };
 
 /** A parsed fixture before geocoding; `_geocodeQuery` is set only for neutral-site games. */
@@ -108,6 +134,118 @@ function providerTeam(league: ProLeague, team?: EspnTeam | null): ProviderTeam |
   };
 }
 
+function tennisCompetitorName(competitor?: EspnTennisCompetitor | null): string | null {
+  return (
+    varchar(
+      competitor?.athlete?.displayName ||
+        competitor?.athlete?.shortName ||
+        competitor?.roster?.displayName ||
+        competitor?.roster?.shortDisplayName,
+      120
+    ) ?? null
+  );
+}
+
+const TENNIS_TOURNAMENT_VENUES: Record<
+  string,
+  {
+    venue_name: string;
+    venue_address: string;
+    venue_lat: number;
+    venue_lng: number;
+    timezone: string;
+  }
+> = {
+  'us open': {
+    venue_name: 'USTA Billie Jean King National Tennis Center',
+    venue_address: 'Flushing Meadows Corona Park, Queens, NY 11368',
+    venue_lat: 40.7499,
+    venue_lng: -73.8476,
+    timezone: 'America/New_York',
+  },
+  'winston-salem open': {
+    venue_name: 'Wake Forest Tennis Complex',
+    venue_address: '100 W 32nd St, Winston-Salem, NC 27105',
+    venue_lat: 36.1302,
+    venue_lng: -80.2548,
+    timezone: 'America/New_York',
+  },
+};
+
+function tennisVenueFor(event: EspnEvent) {
+  const key = (event.name || event.shortName || '').trim().toLowerCase();
+  return TENNIS_TOURNAMENT_VENUES[key] ?? null;
+}
+
+function tennisDrawMatchesLeague(league: ProLeague, drawSlug?: string | null): boolean {
+  const slug = (drawSlug ?? '').toLowerCase();
+  if (league === 'atp') return slug.startsWith('mens-');
+  if (league === 'wta') return slug.startsWith('womens-');
+  return false;
+}
+
+function tennisTitle(event: EspnEvent, competition: EspnTennisCompetition): string | null {
+  const home = tennisCompetitorName(
+    competition.competitors?.find(c => c.homeAway === 'home') ?? null
+  );
+  const away = tennisCompetitorName(
+    competition.competitors?.find(c => c.homeAway === 'away') ?? null
+  );
+  const tournament = varchar(event.shortName || event.name, 80);
+  if (home && away && home !== 'TBD' && away !== 'TBD') {
+    return tournament ? `${away} vs ${home} - ${tournament}` : `${away} vs ${home}`;
+  }
+  const draw = varchar(competition.type?.text, 60);
+  const round = varchar(competition.round?.displayName, 60);
+  return [tournament, draw, round].filter(Boolean).join(' ') || null;
+}
+
+function parseTennisScoreboard(
+  league: ProLeague,
+  raw: unknown,
+  from: Date,
+  to: Date
+): EspnPreGeocode[] {
+  const events = (raw as { events?: EspnEvent[] })?.events;
+  if (!Array.isArray(events)) return [];
+
+  const out: EspnPreGeocode[] = [];
+  for (const event of events) {
+    const venue = tennisVenueFor(event);
+    if (!venue) continue;
+    for (const grouping of event.groupings ?? []) {
+      if (!tennisDrawMatchesLeague(league, grouping.grouping?.slug)) continue;
+      for (const competition of grouping.competitions ?? []) {
+        const startsAt = new Date(competition.startDate || competition.date || event.date);
+        if (Number.isNaN(startsAt.getTime())) continue;
+        if (startsAt < from || startsAt > to) continue;
+        const title = tennisTitle(event, competition);
+        if (!title) continue;
+        const court = varchar(competition.venue?.court, 80);
+        out.push({
+          external_ref: `${league}:${event.id}:${competition.id}`,
+          league,
+          starts_at: startsAt,
+          home_team_ref: null,
+          away_team_ref: null,
+          home_team: null,
+          away_team: null,
+          title,
+          venue_name: venue.venue_name,
+          venue_address: court ? `${court}, ${venue.venue_address}` : venue.venue_address,
+          venue_lat: venue.venue_lat,
+          venue_lng: venue.venue_lng,
+          timezone: venue.timezone,
+          venue_is_neutral: false,
+          status: mapStatus(competition.status?.type?.name),
+          _geocodeQuery: null,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 /** UTC yyyymmdd for ESPN's `dates=START-END` range param. */
 function yyyymmdd(d: Date): string {
   return d.toISOString().slice(0, 10).replace(/-/g, '');
@@ -119,6 +257,8 @@ export function parseScoreboard(
   from: Date,
   to: Date
 ): EspnPreGeocode[] {
+  if (league === 'atp' || league === 'wta') return parseTennisScoreboard(league, raw, from, to);
+
   const events = (raw as { events?: EspnEvent[] })?.events;
   if (!Array.isArray(events)) return [];
 

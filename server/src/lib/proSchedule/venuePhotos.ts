@@ -489,6 +489,38 @@ export const VENUE_PHOTOS: Record<string, VenuePhoto> = {
     url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Fawcett_Stadium.jpg',
     credit: 'Harrier233 at English Wikipedia / Wikimedia Commons, Public domain',
   },
+  'Aviva Stadium': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Dublin_aviva_stadium.jpg',
+    credit: 'Arne Museler / Wikimedia Commons, CC BY-SA 3.0 de',
+  },
+  'Doak Campbell Stadium': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Doak_Campbell_Stadium_-_FSU.JPG',
+    credit: 'Melizabethi123 / Wikimedia Commons, CC BY-SA 3.0',
+  },
+  Fargodome: {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/2009-0518-Fargodome.jpg',
+    credit: "Bobak Ha'Eri / Wikimedia Commons, CC BY 3.0",
+  },
+  'Los Angeles Memorial Coliseum': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/USC_vs_University_of_Oregon_November_2019.png',
+    credit: 'CanonStarGal / Wikimedia Commons, CC BY-SA 4.0',
+  },
+  'Rynearson Stadium': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/WaltDrone4_081524.jpg',
+    credit: 'Eastern sid / Wikimedia Commons, CC BY-SA 4.0',
+  },
+  'Scott Stadium': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Scott_Stadium_UVa.jpg',
+    credit: 'Mak7912 / Wikimedia Commons, CC BY-SA 3.0',
+  },
+  'Stanford Stadium': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Stanford_Stadium_new.jpg',
+    credit: 'BrokenSphere / Wikimedia Commons, CC BY-SA 3.0',
+  },
+  'USTA Billie Jean King National Tennis Center': {
+    url: 'https://commons.wikimedia.org/wiki/Special:FilePath/USTA_Billie_Jean_King_National_Tennis_Center_(48613535076).jpg',
+    credit: 'Ajay Suresh / Wikimedia Commons, CC BY 2.0',
+  },
 };
 
 /** Case-insensitive lookup by venue name (the part before the first comma of an event location). */

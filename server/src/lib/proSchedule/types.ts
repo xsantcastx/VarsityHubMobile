@@ -84,6 +84,8 @@ export const PRO_SCHEDULE_LEAGUES = [
   'mlb',
   'wwe',
   'ufc',
+  'atp',
+  'wta',
   ...NCAA_LEAGUES,
 ] as const satisfies readonly ProLeague[];
 
@@ -118,6 +120,8 @@ export const LIVE_WINDOW_HOURS_BY_LEAGUE: Record<ProLeague, number> = {
   mlb: 4,
   wwe: 4,
   ufc: 6,
+  atp: 4,
+  wta: 4,
   nba: 3,
   wnba: 3,
   ncaaf: 4,

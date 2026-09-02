@@ -234,6 +234,7 @@ describe('resolveFixture neutral-site safety', () => {
 describe('espnAdapter coverage', () => {
   it('serves ESPN league sports including NCAA, not WWE', () => {
     expect(ESPN_LEAGUES.sort()).toEqual([
+      'atp',
       'mlb',
       'nba',
       'ncaabaseball',
@@ -243,6 +244,7 @@ describe('espnAdapter coverage', () => {
       'ncaawb',
       'nfl',
       'wnba',
+      'wta',
     ]);
     expect(ESPN_LEAGUES).not.toContain('wwe');
   });
@@ -276,6 +278,100 @@ describe('espnAdapter coverage', () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].home_team_ref).toBe('nfl:kansas-city-chiefs');
     expect(parsed[0].away_team_ref).toBe('nfl:chicago-bears');
+  });
+});
+
+describe('espnAdapter tennis parser', () => {
+  const tennisSample = {
+    events: [
+      {
+        id: '189-2026',
+        date: '2026-08-24T04:00Z',
+        name: 'US Open',
+        shortName: 'US Open',
+        venue: { displayName: 'New York, USA' },
+        groupings: [
+          {
+            grouping: { slug: 'mens-singles', displayName: "Men's Singles" },
+            competitions: [
+              {
+                id: '184607',
+                startDate: '2026-09-02T16:00Z',
+                venue: { fullName: 'New York, USA', court: 'Arthur Ashe Stadium' },
+                status: { type: { name: 'STATUS_SCHEDULED' } },
+                type: { text: "Men's Singles", slug: 'mens-singles' },
+                round: { displayName: 'Quarterfinal' },
+                competitors: [
+                  {
+                    homeAway: 'home',
+                    athlete: { displayName: 'Carlos Alcaraz', shortName: 'C. Alcaraz' },
+                  },
+                  {
+                    homeAway: 'away',
+                    athlete: { displayName: 'Novak Djokovic', shortName: 'N. Djokovic' },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            grouping: { slug: 'womens-singles', displayName: "Women's Singles" },
+            competitions: [
+              {
+                id: '184608',
+                startDate: '2026-09-02T17:00Z',
+                venue: { fullName: 'New York, USA', court: 'Louis Armstrong Stadium' },
+                status: { type: { name: 'STATUS_SCHEDULED' } },
+                type: { text: "Women's Singles", slug: 'womens-singles' },
+                round: { displayName: 'Quarterfinal' },
+                competitors: [
+                  {
+                    homeAway: 'home',
+                    athlete: { displayName: 'Coco Gauff', shortName: 'C. Gauff' },
+                  },
+                  {
+                    homeAway: 'away',
+                    athlete: { displayName: 'Iga Swiatek', shortName: 'I. Swiatek' },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it('parses ATP tournament matches onto an exact tennis venue', () => {
+    const parsed = adapter.__parseScoreboard!(
+      'atp',
+      tennisSample,
+      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-09-03T00:00:00.000Z')
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]).toMatchObject({
+      external_ref: 'atp:189-2026:184607',
+      league: 'atp',
+      title: 'Novak Djokovic vs Carlos Alcaraz - US Open',
+      venue_name: 'USTA Billie Jean King National Tennis Center',
+      venue_address: 'Arthur Ashe Stadium, Flushing Meadows Corona Park, Queens, NY 11368',
+      venue_lat: 40.7499,
+      venue_lng: -73.8476,
+      timezone: 'America/New_York',
+    });
+  });
+
+  it('parses WTA tournament matches without duplicating ATP draws', () => {
+    const parsed = adapter.__parseScoreboard!(
+      'wta',
+      tennisSample,
+      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-09-03T00:00:00.000Z')
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].external_ref).toBe('wta:189-2026:184608');
+    expect(parsed[0].title).toBe('Iga Swiatek vs Coco Gauff - US Open');
   });
 });
 
