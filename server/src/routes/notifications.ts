@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { Expo } from 'expo-server-sdk';
 import { Router } from 'express';
 import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
@@ -12,6 +13,14 @@ export const notificationsRouter = Router();
 registerIdValidation(notificationsRouter);
 
 const NOTIFICATIONS_QUERY_TIMEOUT_MS = 25000;
+
+const DEFAULT_NOTIFICATION_PREFS = {
+  game_event_reminders: false,
+  team_updates: false,
+  comments_upvotes: false,
+  follows_notifications: true,
+  messages_notifications: true,
+};
 
 const encodeNotificationCursor = (row: { created_at: Date | string; id: string }) => {
   const createdAt =
@@ -103,6 +112,52 @@ const summarize = (n: any) => {
       return 'did something';
   }
 };
+
+const previewPushToken = (token: string | null) => {
+  if (!token) return null;
+  if (token.length <= 16) return `${token.slice(0, 4)}...`;
+  return `${token.slice(0, 14)}...${token.slice(-6)}`;
+};
+
+// GET /notifications/push-diagnostics
+notificationsRouter.get(
+  '/push-diagnostics',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { preferences: true },
+    });
+    if (!user) {
+      return sendError(res, 404, 'NOT_FOUND', {
+        message: 'User not found.',
+      });
+    }
+
+    const prefs = ((user.preferences as any) || {}) as Record<string, any>;
+    const rawToken = typeof prefs.push_token === 'string' ? prefs.push_token : null;
+    const notifications = {
+      ...DEFAULT_NOTIFICATION_PREFS,
+      ...(prefs.notifications && typeof prefs.notifications === 'object'
+        ? prefs.notifications
+        : {}),
+    };
+
+    return res.json({
+      push_token: {
+        present: !!rawToken,
+        valid_format: rawToken ? Expo.isExpoPushToken(rawToken) : false,
+        preview: previewPushToken(rawToken),
+      },
+      preferences: {
+        notifications_enabled: prefs.notifications_enabled !== false,
+        notifications,
+      },
+      delivery_ready:
+        !!rawToken && Expo.isExpoPushToken(rawToken) && prefs.notifications_enabled !== false,
+    });
+  })
+);
 
 // GET /notifications?cursor=...&limit=...&unread=1
 notificationsRouter.get(
