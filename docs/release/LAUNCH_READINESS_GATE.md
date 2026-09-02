@@ -96,14 +96,15 @@ Agent evidence snapshot, 2026-09-02:
   `13` passed, `0` failed, `0` warnings.
 - `npm ls minimatch --all` passed after bumping React Native's nested
   `minimatch` lockfile entry to `3.1.5`.
-- Root `npm audit --omit=dev --audit-level=high` still fails on Expo/Metro
-  build-tooling advisories; npm's available fix is Expo `57.0.19`, a major
-  native dependency upgrade.
+- Root dependency audit still reports the time-boxed Expo/Metro `image-size`
+  high advisory chain. CI allowlists only that no-compatible-fix build-tooling
+  chain; all other high/critical frontend dependency findings must fail.
 - Server `npm audit --omit=dev --audit-level=high` has no high-severity
-  findings; moderate advisories remain until Node 22 and upstream dependency
-  movement.
-- Authenticated Snyk scan is blocked by `401 Unauthorized`; Snyk must be
-  reauthenticated or explicitly replaced by a temporary dependency-risk policy.
+  findings after the dependency refresh. Moderate advisories remain for
+  `sanitize-html` and `query-string`/`decode-uri-component`.
+- Authenticated Snyk runs in GitHub are the source of truth for Snyk because the
+  local CLI is not authenticated. The next pushed commit must show whether the
+  refreshed dependency graph clears the previous Snyk high findings.
 - Physical-device iOS/Android UAT and real push delivery are not proven by
   local/repo automation.
 - Railway production investigation passed the runtime/provider gate and found

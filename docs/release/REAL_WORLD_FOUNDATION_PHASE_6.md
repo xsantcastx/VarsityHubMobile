@@ -267,6 +267,11 @@ Files:
 - `server/src/lib/sentry.ts`
 - `server/src/__tests__/http-log-redaction.test.ts`
 - `server/src/__tests__/sentry-scrubbing.test.ts`
+- `package.json`
+- `package-lock.json`
+- `server/package.json`
+- `server/package-lock.json`
+- `server/Dockerfile`
 
 Changes:
 
@@ -290,6 +295,12 @@ Changes:
   database health query.
 - Redact partial `SENDGRID_API_KEY` and `DATABASE_URL` previews from release
   readiness output.
+- Clear the new high-severity Snyk dependency findings where a safe compatible
+  patch exists: root `@xmldom/xmldom` override to `0.9.12`, server `multer` to
+  `^2.3.0`, server `js-yaml` override to `^4.3.2`, and root/server `qs`
+  overrides to `6.16.0`.
+- Install `npm@11.19.1` in both server Docker stages so Snyk container scans do
+  not inherit vulnerable npm CLI dependencies from the base image.
 
 ## Client OTA Rollout
 
@@ -344,6 +355,40 @@ Result:
 - Full client Jest passed: `199` suites, `1401` tests.
 - Client TypeScript and server TypeScript passed.
 
+Additional dependency-hardening verification:
+
+```bash
+npm --prefix server test -- --runInBand \
+  src/__tests__/api-uploads.test.ts \
+  src/__tests__/auth-security-hardening.test.ts \
+  src/__tests__/media-host-allowlist.test.ts \
+  src/__tests__/sanitizeHtml.test.ts \
+  src/__tests__/cloudinary.test.ts \
+  src/__tests__/r2-presign.test.ts \
+  src/__tests__/gateway-audit.test.ts
+
+npm --prefix server audit --omit=dev --audit-level=high
+
+npm run check:conflicts
+npm run format:check
+git diff --check
+```
+
+Result:
+
+- Server upload/security focused tests passed: `7` suites, `93` tests.
+- Server production dependency audit has no high/critical findings.
+- Root audit high findings are limited to the already allowlisted Expo/Metro
+  `image-size` build-tooling chain. No patched compatible Expo SDK 54 version is
+  available; npm's reported fix is an Expo major upgrade.
+- `sanitize-html@2.17.7` was tested and rejected for this phase: it fixes a
+  moderate advisory but pulls an ESM-only parser path that Jest 29 cannot load
+  with the current server test harness. Keep this as a Node/Jest/runtime upgrade
+  task rather than slipping it into a narrow Snyk cleanup.
+- Docker build was not run locally because the Docker daemon was unavailable on
+  this workstation. Railway/GitHub container build must verify the Dockerfile
+  change after push.
+
 ## New Required Operator Actions
 
 Guard added:
@@ -373,3 +418,11 @@ Before data-export launch:
 6. Optionally set `DATA_EXPORT_S3_ENDPOINT` for R2.
 7. Re-run protected `/health?include=payments`; `dataExportStorage` should be
    true and the warning should disappear.
+
+Before clearing dependency/security readiness:
+
+1. Confirm GitHub Snyk SCA and container jobs pass after the dependency refresh.
+2. Keep the Expo/Metro `image-size` acceptance time-boxed until the Expo major
+   upgrade can be planned and tested.
+3. Plan a Node/Jest-compatible path before upgrading `sanitize-html` to
+   `2.17.7+`.
