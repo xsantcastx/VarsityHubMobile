@@ -262,6 +262,19 @@ function RootLayout() {
     }).catch(() => {});
   }, []);
 
+  React.useEffect(() => {
+    if (Platform.OS === 'web' || isExpoGo || !Notifications?.setNotificationHandler) return;
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  }, []);
+
   // Handle deep links (shared post links, etc.)
   // Public routes (verify, reset-password) navigate immediately.
   // Protected routes (post, game, team, profile) are deferred until AuthProvider
