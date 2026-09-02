@@ -294,10 +294,10 @@ describe('account boundary invariants', () => {
 
     it('server profile mutation routes require verified accounts before changing canonical user state', () => {
       expect(serverAuthRoutes).toMatch(
-        /authRouter\.put\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/
+        /authRouter\.put\(\s*'\/me',\s*profileUpdateLimiter,\s*requireAuth as any,\s*requireVerified as any,/
       );
       expect(serverAuthRoutes).toMatch(
-        /authRouter\.patch\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/
+        /authRouter\.patch\(\s*'\/me',\s*profileUpdateLimiter,\s*requireAuth as any,\s*requireVerified as any,/
       );
       expect(serverAuthRoutes).toMatch(
         /authRouter\.patch\(\s*'\/me\/preferences',\s*requireAuth as any,\s*requireVerified as any,/

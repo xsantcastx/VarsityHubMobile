@@ -6,13 +6,17 @@ const ROOT = process.cwd();
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 describe('event/game id contract', () => {
-  it('keeps competitive voting keyed to Game.id only', () => {
+  it('keeps competitive voting on the matching game or event vote endpoint', () => {
     const gameDetails = read('app/game-details/GameDetailsScreen.tsx');
 
-    expect(gameDetails).toContain('const voteId = vm?.gameId;');
+    expect(gameDetails).toContain('const voteId = vm?.gameId ?? vm?.eventId;');
     expect(gameDetails).not.toContain('const voteId = vm?.gameId || vm?.eventId;');
-    expect(gameDetails).toContain('Game.castVote(voteId, team)');
-    expect(gameDetails).toContain('Game.clearVote(vm.gameId!)');
+    expect(gameDetails).toContain(
+      '() => (vm?.gameId ? Game.castVote(voteId, team) : Event.castVote(voteId, team))'
+    );
+    expect(gameDetails).toContain(
+      '() => (vm?.gameId ? Game.clearVote(voteId) : Event.clearVote(voteId))'
+    );
   });
 
   it('refreshes the event page after returning from the upload composer', () => {
