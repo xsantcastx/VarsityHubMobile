@@ -79,7 +79,7 @@
     "pino-pretty": "^11.2.1",
     "prisma": "5.22.0",
     "rate-limit-redis": "^4.3.1",
-    "sanitize-html": "^2.17.1",
+    "sanitize-html": "2.17.5",
     "socket.io": "^4.8.3",
     "stripe": "^16.6.0",
     "swagger-jsdoc": "^6.2.8",
@@ -116,6 +116,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "overrides": {
+    "nanoid": "3.3.18",
     "fast-xml-builder": "1.2.0",
     "fast-xml-parser": "^5.7.1",
     "undici": "^6.28.0",

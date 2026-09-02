@@ -53,6 +53,26 @@ describe('scrubSentryRequestData', () => {
     expect(scrubbed.request.headers.cookie).toBeUndefined();
     expect(scrubbed.request.headers.accept).toBe('application/json');
   });
+
+  it('strips operational secret headers', () => {
+    const event = {
+      request: {
+        headers: {
+          'x-health-check-secret': 'health-secret',
+          'stripe-signature': 'stripe-secret',
+          'x-idempotency-key': 'idempotency-key',
+          'x-sendgrid-event-webhook-signature': 'sendgrid-secret',
+          accept: 'application/json',
+        },
+      },
+    };
+    const scrubbed = scrubSentryRequestData(event);
+    expect(scrubbed.request.headers['x-health-check-secret']).toBeUndefined();
+    expect(scrubbed.request.headers['stripe-signature']).toBeUndefined();
+    expect(scrubbed.request.headers['x-idempotency-key']).toBeUndefined();
+    expect(scrubbed.request.headers['x-sendgrid-event-webhook-signature']).toBeUndefined();
+    expect(scrubbed.request.headers.accept).toBe('application/json');
+  });
 });
 
 describe('redactTokenQueryParams', () => {

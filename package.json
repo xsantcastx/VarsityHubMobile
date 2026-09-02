@@ -46,9 +46,12 @@
     "verify:build": "bash scripts/verify-build-ready.sh",
     "verify:play-submit-access": "node scripts/verify-play-service-account.js",
     "verify:play-store": "bash scripts/verify-play-store-readiness.sh",
+    "verify:railway-env-drift": "node scripts/verify-railway-env-drift.js",
     "verify:release": "bash scripts/verify-release-readiness.sh",
+    "verify:sentry-readiness": "node scripts/verify-sentry-readiness.js",
     "verify:async-handlers": "node scripts/check-async-handler-usage.js",
     "verify:error-envelope": "node scripts/check-error-envelope-usage.js",
+    "verify:eas-env-drift": "node scripts/verify-eas-env-drift.js",
     "verify:user-cache": "node scripts/check-user-cache-invalidation.js",
     "verify:secrets": "node scripts/check-secret-literals.js",
     "verify:guardrails": "bash scripts/verify-guardrails.sh",
@@ -221,6 +224,8 @@
   },
   "overrides": {
     "react-native-safe-area-context": "5.6.2",
+    "nanoid": "3.3.18",
+    "browserslist": "4.28.8",
     "undici": "^6.28.0",
     "fast-xml-parser": "5.7.1",
     "engine.io-client": "6.6.6",
@@ -229,7 +234,6 @@
     "node-forge": "^1.4.0",
     "brace-expansion": "5.0.9",
     "picomatch": "^4.0.4",
-    "minimatch@<=3.1.3": "3.1.5",
     "@humanwhocodes/config-array": {
       "minimatch": "10.2.6"
     },

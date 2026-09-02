@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { getMapProvider } from '@/utils/maps';
-import { clusterByCoordinate } from '@/utils/mapClustering';
+import { clusterByCoordinate, isValidMapCoordinate } from '@/utils/mapClustering';
 
 import { EventMapData, EventMapProps } from './EventMap.types';
 
@@ -52,6 +52,8 @@ const SPORT_MARKER_COLORS: Record<string, string> = {
   crew: '#0F766E',
   esports: '#4F46E5',
 };
+
+const SINGLE_EVENT_REGION_DELTA = 0.35;
 
 function isHexColor(value?: string | null): value is string {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim());
@@ -100,7 +102,6 @@ export default function EventMap({
   dataLoaded = true,
   preventAutoCenterOnUser = false,
   onRefresh,
-  onCreatePostPress,
   hideCenterOnUser = false,
   onCalendarPress,
   calendarActive = false,
@@ -225,7 +226,7 @@ export default function EventMap({
   // re-fire the "fit all pins" zoom on every state change (tapping a cluster
   // pin zoomed the map OUT to the continental view).
   const eventsWithCoordinates = useMemo(
-    () => searchFilteredEvents.filter(event => event.latitude != null && event.longitude != null),
+    () => searchFilteredEvents.filter(isValidMapCoordinate),
     [searchFilteredEvents]
   );
 
@@ -246,6 +247,20 @@ export default function EventMap({
     captureBreadcrumb('Map fit to events', 'map.navigation', {
       event_count: eventsWithCoordinates.length,
     });
+
+    if (eventsWithCoordinates.length === 1) {
+      const event = eventsWithCoordinates[0];
+      mapRef.current?.animateToRegion(
+        {
+          latitude: event.latitude!,
+          longitude: event.longitude!,
+          latitudeDelta: SINGLE_EVENT_REGION_DELTA,
+          longitudeDelta: SINGLE_EVENT_REGION_DELTA,
+        },
+        800
+      );
+      return;
+    }
 
     const coordinates = eventsWithCoordinates.map(event => ({
       latitude: event.latitude!,
@@ -565,7 +580,14 @@ export default function EventMap({
             <View
               style={[styles.previewAccent, { backgroundColor: getMarkerColor(selectedMarker) }]}
             />
-            <View style={styles.previewText}>
+            <TouchableOpacity
+              testID="map-marker-preview"
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${selectedMarker.title || 'event'} details`}
+              onPress={() => openEventFromMarker(selectedMarker.id, selectedMarker.type)}
+              style={styles.previewText}
+            >
               <Text
                 style={[styles.previewTitle, { color: Colors[colorScheme].text }]}
                 numberOfLines={1}
@@ -580,31 +602,18 @@ export default function EventMap({
                   .filter(Boolean)
                   .join(' · ')}
               </Text>
-            </View>
-            <View style={styles.previewActions}>
-              {onCreatePostPress && (selectedMarker.game_id || selectedMarker.event_id) ? (
-                <TouchableOpacity
-                  testID="map-marker-create-post"
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Create a post for ${selectedMarker.title || 'event'}`}
-                  onPress={() => onCreatePostPress(selectedMarker)}
-                  style={[styles.previewIconButton, { backgroundColor: Colors[colorScheme].tint }]}
-                >
-                  <Ionicons name="add" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity
-                testID="map-marker-preview"
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${selectedMarker.title || 'event'} details`}
-                onPress={() => openEventFromMarker(selectedMarker.id, selectedMarker.type)}
-                style={styles.previewIconButton}
-              >
-                <Ionicons name="chevron-forward" size={22} color={Colors[colorScheme].mutedText} />
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="map-marker-preview-close"
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Close event preview"
+              onPress={() => setSelectedMarker(null)}
+              style={styles.previewCloseButton}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={18} color={Colors[colorScheme].mutedText} />
+            </TouchableOpacity>
           </View>
         </View>
       ) : null}
@@ -861,18 +870,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  previewActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingRight: 10,
-  },
-  previewIconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  previewCloseButton: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 6,
   },
   previewTitle: {
     fontSize: 15,

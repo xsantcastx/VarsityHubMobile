@@ -72,6 +72,61 @@ Evidence:
 - CI run URL:
 - Local/agent run logs:
 
+Agent evidence snapshot, 2026-09-02:
+
+- Runtime gate passed against `https://api-production-8ac3.up.railway.app`.
+- Railway `/health` returned `{"status":"ok"}`.
+- Vercel `https://www.varsityhub.app` returned `200`; apex domain redirected
+  to `https://www.varsityhub.app/`.
+- `npm run release:verify:local` passed.
+- `npm run release:verify:build` passed with non-blocking warnings recorded in
+  `docs/release/REAL_WORLD_FOUNDATION_PHASE_5.md`.
+- Full client Jest passed: `199` suites, `1399` tests.
+- Full server Jest passed: `304` suites, `2860` tests.
+- Client TypeScript and server TypeScript passed.
+- Focused readiness regression tests passed for event-map previews/autofit,
+  guest create-entry routing, and share fallback behavior.
+- Sentry setup verifier passed locally; provider alert links/test issues still
+  need operator evidence.
+- Cloudinary credential verifier passed.
+- Rate-limit verifier passed: `25/25`.
+- Backup freshness verifier passed with provider database URLs: `57` tables
+  checked, backup reachable/complete/restorable, `0` row drift summary.
+- Play Store verifier passed after fixing `docs/well-known/assetlinks.json`:
+  `13` passed, `0` failed, `0` warnings.
+- `npm ls minimatch --all` passed after bumping React Native's nested
+  `minimatch` lockfile entry to `3.1.5`.
+- Root `npm audit --omit=dev --audit-level=high` still fails on Expo/Metro
+  build-tooling advisories; npm's available fix is Expo `57.0.19`, a major
+  native dependency upgrade.
+- Server `npm audit --omit=dev --audit-level=high` has no high-severity
+  findings; moderate advisories remain until Node 22 and upstream dependency
+  movement.
+- Authenticated Snyk scan is blocked by `401 Unauthorized`; Snyk must be
+  reauthenticated or explicitly replaced by a temporary dependency-risk policy.
+- Physical-device iOS/Android UAT and real push delivery are not proven by
+  local/repo automation.
+- Railway production investigation passed the runtime/provider gate and found
+  no recent 5xx responses, but discovered env drift and a log-redaction issue.
+  See `docs/release/REAL_WORLD_FOUNDATION_PHASE_6.md`.
+- Railway env drift cleanup completed for the `api`, `Postgres`, and
+  `Postgres-TnGR` services; `npm run verify:railway-env-drift` now passes with
+  only data-export storage warnings.
+- EAS env drift guard added and passing. `SENTRY_AUTH_TOKEN` visibility was
+  changed from readable/public to sensitive. Duplicate Google `EXPO_PUBLIC_*`
+  env names remain as warnings because this EAS CLI cannot safely delete a
+  duplicate by id.
+- Sentry readiness guard added and passing. Project and production alert rules
+  are visible, but source-map/release-file and unresolved-issue warnings remain.
+- Client observability noise reduced: handled 4xx HTTP outcomes no longer emit
+  transport exceptions, and expected auth/reset/verification UX errors are
+  dropped before Sentry or analytics exception capture. Focused tests passed.
+- Data export storage is not configured in production health diagnostics;
+  `POST /me/data-export` will return `503` until `DATA_EXPORT_S3_*` vars point
+  at private export storage.
+- `x-health-check-secret` was visible in existing Railway request logs before
+  the Phase 6 redaction patch. Rotate `HEALTH_CHECK_SECRET` after deploy.
+
 ---
 
 ## Exception Log (if any)

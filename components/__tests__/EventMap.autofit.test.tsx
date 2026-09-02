@@ -127,4 +127,26 @@ describe('EventMap auto-fit', () => {
     expect(fitToCoordinates).not.toHaveBeenCalled();
     screen.unmount();
   });
+
+  it('uses a bounded region for one pin instead of zooming tightly into it', async () => {
+    render(<EventMap events={[EVENTS[0]]} dataLoaded showUserLocation />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+
+    expect(fitToCoordinates).not.toHaveBeenCalled();
+    expect(animateToRegion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        latitude: EVENTS[0].latitude,
+        longitude: EVENTS[0].longitude,
+        latitudeDelta: 0.35,
+        longitudeDelta: 0.35,
+      }),
+      800
+    );
+  });
 });

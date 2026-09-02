@@ -252,4 +252,21 @@ describe('observability payload scrubbing', () => {
     );
     expect(result).toBeNull();
   });
+
+  it('does not send expected auth UX errors to Sentry or analytics exception capture', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
+
+    sentry.initSentry();
+    sentry.captureException(
+      Object.assign(new Error('Token already used'), {
+        status: 400,
+        data: { error: 'TOKEN_ALREADY_USED' },
+      }),
+      { tags: { context: 'password_reset_submit' } }
+    );
+
+    expect(sentryMock.captureException).not.toHaveBeenCalled();
+    expect(posthogCapture).not.toHaveBeenCalled();
+  });
 });

@@ -172,6 +172,18 @@ function isRailwayInfrastructureError(status: number, contentType: string, body:
   );
 }
 
+function isHandledClientHttpStatus(status: unknown): boolean {
+  const numeric = Number(status);
+  return Number.isFinite(numeric) && numeric >= 400 && numeric < 500;
+}
+
+function shouldCaptureTerminalHttpError(error: unknown): boolean {
+  const status = Number((error as { status?: unknown } | null | undefined)?.status);
+  if (!Number.isFinite(status)) return true;
+  if (isHandledClientHttpStatus(status)) return false;
+  return status >= 500;
+}
+
 /**
  * If an identical GET (same path + auth token) is already in flight,
  * return its pending promise so callers share the response. Otherwise
@@ -483,6 +495,8 @@ async function request(
       (/^\/users\/[^/]+$/.test(path) && error.status === 404) ||
       (path.includes('/notifications') && error.status === 401);
 
+    let capturedResponseError = false;
+
     // Enhanced error logging with more context
     if (!isExpectedDevError && !isKnownMissingEndpoint && !isExpectedAbortInDev) {
       const errorDetails = {
@@ -501,6 +515,7 @@ async function request(
           tags: { component: 'http-client', endpoint: path },
           extra: errorDetails,
         });
+        capturedResponseError = true;
       }
     }
     if (isExpectedAbortInDev) {
@@ -686,7 +701,12 @@ async function request(
       }
       throw err;
     }
-    if (!isExpectedDevError && !isKnownMissingEndpoint) {
+    if (
+      !capturedResponseError &&
+      !isExpectedDevError &&
+      !isKnownMissingEndpoint &&
+      shouldCaptureTerminalHttpError(error)
+    ) {
       captureException(error, { path, base, method: options.method || 'GET' });
     }
     throw error;

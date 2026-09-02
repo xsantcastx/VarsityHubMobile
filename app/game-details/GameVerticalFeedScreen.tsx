@@ -1303,6 +1303,8 @@ function GameVerticalFeedScreen({
   );
 
   const handleShare = useCallback(async (post: FeedPost) => {
+    const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
+
     if (post.media_type === 'video' && post.media_url) {
       try {
         const localUri = await getCachedShareableVideoUri(post);
@@ -1318,12 +1320,26 @@ function GameVerticalFeedScreen({
         }
       }
     }
-    const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
-    Share.share(buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl))
-      .then(() => {
+
+    try {
+      const result = await Share.share(
+        buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl)
+      );
+      if (result.action === Share.sharedAction) {
         void Post.share(post.id).catch(() => {});
-      })
-      .catch(() => {});
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[GameVerticalFeed] Link share failed, copying link instead:', error);
+      }
+      try {
+        const Clipboard = await import('expo-clipboard');
+        await Clipboard.setStringAsync(shareLink.webUrl);
+        Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');
+      } catch {
+        Alert.alert('Share unavailable', 'Unable to open the share sheet or copy the link.');
+      }
+    }
   }, []);
 
   const handleCopyLink = useCallback(async (post: FeedPost) => {

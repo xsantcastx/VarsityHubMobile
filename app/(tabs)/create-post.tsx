@@ -1164,16 +1164,24 @@ function CreatePostScreen() {
       ? 'Share Highlight'
       : 'Post';
 
-  // Hard guard: never render the composer for a signed-out user. The useEffect
-  // above redirects guests to /create, but that runs AFTER the first render —
-  // without this a guest reaching create-post directly (e.g. an event page's
-  // "Create Post" button) briefly sees the composer and can attempt a post,
-  // hitting a raw "Unauthorized". Owner ask (2026-07-14): don't even let a
-  // signed-out user reach the upload screen.
-  if (!authLoading && !user) {
+  // Hard guard: never render the composer until auth is known. The useEffect
+  // above redirects guests/unverified users, but it runs after render; showing
+  // a real state here avoids a blank upload page during that handoff.
+  if (authLoading || !user || !(user as any)?.email_verified) {
+    const message = authLoading
+      ? 'Loading upload...'
+      : !user
+        ? 'Opening sign in...'
+        : 'Opening verification...';
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
         <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.authGateState}>
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+          <Text style={[styles.authGateText, { color: Colors[colorScheme].mutedText }]}>
+            {message}
+          </Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -2109,6 +2117,18 @@ function CreatePostScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  authGateState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  authGateText: {
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',

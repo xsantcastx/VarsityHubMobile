@@ -94,6 +94,26 @@ describe('EventMap', () => {
     expect(markers.length).toBe(1);
   });
 
+  it('does not render native markers for invalid coordinates', async () => {
+    const events = [
+      mockEvents[0],
+      { ...mockEvents[0], id: 'nan-lat', latitude: Number.NaN },
+      { ...mockEvents[0], id: 'inf-lng', longitude: Number.POSITIVE_INFINITY },
+      { ...mockEvents[0], id: 'bad-lat', latitude: 91 },
+      { ...mockEvents[0], id: 'bad-lng', longitude: -181 },
+      { ...mockEvents[0], id: 'string-lat', latitude: '37.7749' as any },
+    ];
+
+    const { findAllByTestId } = render(<EventMap {...baseProps({ events })} />);
+    const markers = await findAllByTestId('Marker');
+
+    expect(markers.length).toBe(1);
+    expect(markers[0].props.coordinate).toEqual({
+      latitude: mockEvents[0].latitude,
+      longitude: mockEvents[0].longitude,
+    });
+  });
+
   it('shows a marker preview first, then opens details from the preview', async () => {
     const onEventPress = jest.fn();
     const { findByTestId, findByText } = render(<EventMap {...baseProps({ onEventPress })} />);
@@ -107,7 +127,7 @@ describe('EventMap', () => {
     expect(onEventPress).toHaveBeenCalledWith('1', undefined);
   });
 
-  it('surfaces a create-post action from marker previews with upload targets', async () => {
+  it('does not surface a create-post shortcut from marker previews', async () => {
     const onEventPress = jest.fn();
     const onCreatePostPress = jest.fn();
     const eventWithTarget = {
@@ -116,7 +136,7 @@ describe('EventMap', () => {
       game_id: 'game-1',
       type: 'game' as const,
     };
-    const { findByTestId } = render(
+    const { findByTestId, queryByTestId } = render(
       <EventMap
         {...baseProps({
           events: [eventWithTarget],
@@ -127,9 +147,22 @@ describe('EventMap', () => {
     );
 
     fireEvent.press(await findByTestId('Marker'));
-    fireEvent.press(await findByTestId('map-marker-create-post'));
 
-    expect(onCreatePostPress).toHaveBeenCalledWith(eventWithTarget);
+    expect(queryByTestId('map-marker-create-post')).toBeNull();
+    expect(onCreatePostPress).not.toHaveBeenCalled();
+    expect(onEventPress).not.toHaveBeenCalled();
+  });
+
+  it('closes marker previews without navigating', async () => {
+    const onEventPress = jest.fn();
+    const { findByTestId, queryByText } = render(<EventMap {...baseProps({ onEventPress })} />);
+
+    fireEvent.press(await findByTestId('Marker'));
+    expect(queryByText('Test Event')).toBeTruthy();
+
+    fireEvent.press(await findByTestId('map-marker-preview-close'));
+
+    expect(queryByText('Test Event')).toBeNull();
     expect(onEventPress).not.toHaveBeenCalled();
   });
 

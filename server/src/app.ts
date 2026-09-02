@@ -18,6 +18,7 @@ import { sendError } from './lib/http/sendError.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
+import { redactSerializedRequest } from './lib/httpLogRedaction.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requestLogging } from './middleware/logging.js';
 import {
@@ -134,28 +135,30 @@ const pinoMiddleware =
 // can wrap the default `req` serializer instead of replacing it.
 const pinoStdSerializers =
   (pinoHttp as any).stdSerializers || (pinoHttp as any).default?.stdSerializers;
-// Strip token/access_token values from a logged URL (value only, shape kept).
-const redactUrlTokens = (url: string): string =>
-  url.replace(
-    /(^|[?&#])(access_token|token)=[^&#\s]*/gi,
-    (_match, prefix, key) => `${prefix}${key}=[redacted]`
-  );
 // Production log hardening: never log the Authorization/Cookie request headers,
-// the Set-Cookie response header, or the `?token=` query param. Dev keeps
-// pino-pretty. method/status/responseTime logging is unaffected — only the
-// `req` serializer is wrapped and the res serializer stays the default.
+// sensitive operational headers, the Set-Cookie response header, or the
+// `?token=` query param. Dev keeps pino-pretty. method/status/responseTime
+// logging is unaffected — only the `req` serializer is wrapped and the res
+// serializer stays the default.
 const prodPinoOptions = {
   redact: {
-    paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+    paths: [
+      'req.headers.authorization',
+      'req.headers.cookie',
+      'req.headers.proxy-authorization',
+      'req.headers.stripe-signature',
+      'req.headers.x-health-check-secret',
+      'req.headers.x-idempotency-key',
+      'req.headers.x-sendgrid-event-webhook-signature',
+      'req.headers.x-sendgrid-event-webhook-timestamp',
+      'res.headers["set-cookie"]',
+    ],
     censor: '[redacted]',
   },
   serializers: {
     req(req: any) {
       const serialized = pinoStdSerializers?.req ? pinoStdSerializers.req(req) : req;
-      if (serialized && typeof serialized.url === 'string') {
-        serialized.url = redactUrlTokens(serialized.url);
-      }
-      return serialized;
+      return redactSerializedRequest(serialized);
     },
   },
 };
