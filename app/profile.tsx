@@ -866,9 +866,13 @@ export default function ProfileScreen() {
                         queryClient.removeQueries({ queryKey: ['profile-posts', viewingUserId] });
                         queryClient.removeQueries({ queryKey: ['profile-replies', viewingUserId] });
                         queryClient.removeQueries({ queryKey: ['profile-upvotes', viewingUserId] });
-                        queryClient.invalidateQueries({ queryKey: ['feed'] });
-                        queryClient.invalidateQueries({ queryKey: ['discover-personalization'] });
-                        queryClient.invalidateQueries({ queryKey: ['discover-suggested-people'] });
+                        void queryClient.invalidateQueries({ queryKey: ['feed'] });
+                        void queryClient.invalidateQueries({
+                          queryKey: ['discover-personalization'],
+                        });
+                        void queryClient.invalidateQueries({
+                          queryKey: ['discover-suggested-people'],
+                        });
                         setViewerOpen(false);
                         setMe(null);
                         setIsFollowing(false);

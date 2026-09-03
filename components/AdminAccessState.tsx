@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/Colors';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type AdminAccessStateProps = {

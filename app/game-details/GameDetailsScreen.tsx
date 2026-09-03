@@ -24,7 +24,6 @@ import {
 import { recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { buildEventScrapbookPlan, eventScrapbookSeed } from '@/utils/eventPostGrid';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { isPostingWindowOpen, type LiveWindowFields } from '@/utils/liveWindow';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { pickerAllMediaTypesProp } from '@/utils/picker';
