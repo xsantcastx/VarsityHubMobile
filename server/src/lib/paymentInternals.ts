@@ -583,6 +583,41 @@ function buildSlotFullError(dates: string[]) {
   return err;
 }
 
+type AdSlotAvailabilityDb = Pick<Prisma.TransactionClient, 'ad' | 'adReservation'>;
+
+export async function getFullAdSlotDates(
+  db: AdSlotAvailabilityDb,
+  params: {
+    adId: string;
+    targetZipCode?: string | null;
+    isoDates: string[];
+  }
+): Promise<string[]> {
+  if (!params.targetZipCode) return [];
+
+  const competingAds = await db.ad.findMany({
+    where: {
+      target_zip_code: params.targetZipCode,
+      payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+      NOT: { id: params.adId },
+    },
+    select: { id: true },
+    take: 100,
+  });
+  if (competingAds.length === 0) return [];
+
+  const dateObjects = params.isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
+  const bookedSlots = await db.adReservation.groupBy({
+    by: ['date'],
+    where: { ad_id: { in: competingAds.map(a => a.id) }, date: { in: dateObjects } },
+    _count: { date: true },
+  });
+
+  return bookedSlots
+    .filter(slot => slot._count.date >= MAX_AD_SLOTS)
+    .map(slot => slot.date.toISOString().slice(0, 10));
+}
+
 export async function reserveAdSlots(
   tx: Prisma.TransactionClient,
   params: {
@@ -593,30 +628,9 @@ export async function reserveAdSlots(
     status?: AdStatus;
   }
 ) {
-  if (params.targetZipCode) {
-    const competingAds = await tx.ad.findMany({
-      where: {
-        target_zip_code: params.targetZipCode,
-        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-        NOT: { id: params.adId },
-      },
-      select: { id: true },
-      take: 100,
-    });
-    if (competingAds.length > 0) {
-      const dateObjects = params.isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-      const bookedSlots = await tx.adReservation.groupBy({
-        by: ['date'],
-        where: { ad_id: { in: competingAds.map(a => a.id) }, date: { in: dateObjects } },
-        _count: { date: true },
-      });
-      const fullDates = bookedSlots
-        .filter(slot => slot._count.date >= MAX_AD_SLOTS)
-        .map(slot => slot.date.toISOString().slice(0, 10));
-      if (fullDates.length > 0) {
-        throw buildSlotFullError(fullDates);
-      }
-    }
+  const fullDates = await getFullAdSlotDates(tx, params);
+  if (fullDates.length > 0) {
+    throw buildSlotFullError(fullDates);
   }
 
   await tx.ad.update({
@@ -1129,32 +1143,16 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             select: { target_zip_code: true },
           });
           if (adRecord?.target_zip_code) {
-            const reservedAdsInZip = await tx.ad.findMany({
-              where: {
-                target_zip_code: adRecord.target_zip_code,
-                payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-                NOT: { id: ad_id },
-              },
-              select: { id: true },
-              take: 100,
+            const fullDates = await getFullAdSlotDates(tx, {
+              adId: ad_id,
+              targetZipCode: adRecord.target_zip_code,
+              isoDates: dates,
             });
-            if (reservedAdsInZip.length > 0) {
-              const dateObjects = dates.map(s => new Date(s + 'T00:00:00.000Z'));
-              const bookedSlots = await tx.adReservation.groupBy({
-                by: ['date'],
-                where: {
-                  ad_id: { in: reservedAdsInZip.map(a => a.id) },
-                  date: { in: dateObjects },
-                },
-                _count: { date: true },
-              });
-              const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-              if (fullDates.length > 0) {
-                const err = new Error('SLOT_FULL') as any;
-                err.slotFull = true;
-                err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-                throw err;
-              }
+            if (fullDates.length > 0) {
+              const err = new Error('SLOT_FULL') as any;
+              err.slotFull = true;
+              err.dates = fullDates;
+              throw err;
             }
           }
 

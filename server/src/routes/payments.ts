@@ -30,6 +30,7 @@ import {
   ensureApplePendingTransactionLog,
   finalizeAppleAdPurchase,
   finalizeAppleSubscriptionPurchase,
+  getFullAdSlotDates,
   getVeteranBillingSnapshot,
   getVeteranTotalTeamAllowance,
   isUniqueConstraintError,
@@ -98,7 +99,6 @@ const stripe = new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_conf
   timeout: 20000,
   maxNetworkRetries: 2,
 });
-const MAX_AD_SLOTS = 2;
 const webhookEventLocks = new Map<string, Promise<any>>();
 const isJestRuntime = process.env.JEST_WORKER_ID != null;
 const hasStripeWebhookSecret = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
@@ -165,29 +165,16 @@ async function activateApprovedAdPaymentIntent(
   });
 
   if (adRecord?.target_zip_code) {
-    const reservedAdsInZip = await tx.ad.findMany({
-      where: {
-        target_zip_code: adRecord.target_zip_code,
-        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-        NOT: { id: adId },
-      },
-      select: { id: true },
-      take: 100,
+    const fullDates = await getFullAdSlotDates(tx, {
+      adId,
+      targetZipCode: adRecord.target_zip_code,
+      isoDates: dates,
     });
-    if (reservedAdsInZip.length > 0) {
-      const dateObjects = dates.map(s => new Date(s + 'T00:00:00.000Z'));
-      const bookedSlots = await tx.adReservation.groupBy({
-        by: ['date'],
-        where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-        _count: { date: true },
-      });
-      const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-      if (fullDates.length > 0) {
-        const err = new Error('SLOT_FULL') as Error & { slotFull?: boolean; dates?: string[] };
-        err.slotFull = true;
-        err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-        throw err;
-      }
+    if (fullDates.length > 0) {
+      const err = new Error('SLOT_FULL') as Error & { slotFull?: boolean; dates?: string[] };
+      err.slotFull = true;
+      err.dates = fullDates;
+      throw err;
     }
   }
 
@@ -820,32 +807,16 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
                   select: { target_zip_code: true, status: true, payment_status: true },
                 });
                 if (adRecord?.target_zip_code) {
-                  const reservedAdsInZip = await tx.ad.findMany({
-                    where: {
-                      target_zip_code: adRecord.target_zip_code,
-                      payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-                      NOT: { id: adId },
-                    },
-                    select: { id: true },
-                    take: 100,
+                  const fullDates = await getFullAdSlotDates(tx, {
+                    adId,
+                    targetZipCode: adRecord.target_zip_code,
+                    isoDates: piDates,
                   });
-                  if (reservedAdsInZip.length > 0) {
-                    const dateObjects = piDates.map(s => new Date(s + 'T00:00:00.000Z'));
-                    const bookedSlots = await tx.adReservation.groupBy({
-                      by: ['date'],
-                      where: {
-                        ad_id: { in: reservedAdsInZip.map(a => a.id) },
-                        date: { in: dateObjects },
-                      },
-                      _count: { date: true },
-                    });
-                    const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-                    if (fullDates.length > 0) {
-                      const err = new Error('SLOT_FULL') as any;
-                      err.slotFull = true;
-                      err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-                      throw err;
-                    }
+                  if (fullDates.length > 0) {
+                    const err = new Error('SLOT_FULL') as any;
+                    err.slotFull = true;
+                    err.dates = fullDates;
+                    throw err;
                   }
                 }
                 if (!adRecord || (adRecord.status !== 'approved' && adRecord.status !== 'active')) {
@@ -1606,32 +1577,19 @@ paymentsRouter.post(
     }
 
     // Slot availability check — reject before Stripe if any date is already full.
-    // Up to MAX_AD_SLOTS different ads may run per date per zip.
+    // Up to the shared ad-slot cap may run per date per zip.
     if (ad.target_zip_code) {
       // Include paid, hold, and pending_approval — align with PaymentSheet to prevent overfilling zip
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id: String(ad_id) },
-        },
-        select: { id: true },
-        take: 100,
+      const fullDates = await getFullAdSlotDates(prisma, {
+        adId: String(ad_id),
+        targetZipCode: ad.target_zip_code,
+        isoDates,
       });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
+      if (fullDates.length > 0) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: fullDates,
         });
-        const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-          });
-        }
       }
     }
 
@@ -2193,31 +2151,17 @@ paymentsRouter.post(
     }
 
     // Slot availability check — include 'hold' and 'pending_approval' ads
-    const MAX_AD_SLOTS = 2;
     if (ad.target_zip_code) {
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id: String(ad_id) },
-        },
-        select: { id: true },
-        take: 100,
+      const fullDates = await getFullAdSlotDates(prisma, {
+        adId: String(ad_id),
+        targetZipCode: ad.target_zip_code,
+        isoDates,
       });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
+      if (fullDates.length > 0) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: fullDates,
         });
-        const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-          });
-        }
       }
     }
 
@@ -3992,31 +3936,17 @@ paymentsRouter.post(
         return res.status(400).json({ error: 'Missing Apple transaction ids in purchase data' });
       }
 
-      const MAX_AD_SLOTS = 2;
       if (ad.target_zip_code) {
-        const reservedAdsInZip = await prisma.ad.findMany({
-          where: {
-            target_zip_code: ad.target_zip_code,
-            payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-            NOT: { id: String(ad_id) },
-          },
-          select: { id: true },
-          take: 100,
+        const fullDates = await getFullAdSlotDates(prisma, {
+          adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates: dates,
         });
-        if (reservedAdsInZip.length > 0) {
-          const dateObjects = dates.map((s: string) => new Date(s + 'T00:00:00.000Z'));
-          const bookedSlots = await prisma.adReservation.groupBy({
-            by: ['date'],
-            where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-            _count: { date: true },
+        if (fullDates.length > 0) {
+          return res.status(409).json({
+            error: 'One or more dates are fully booked',
+            dates: fullDates,
           });
-          const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-          if (fullDates.length > 0) {
-            return res.status(409).json({
-              error: 'One or more dates are fully booked',
-              dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-            });
-          }
         }
       }
 
