@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { feedHighlightPostSelect } from '../lib/highlightPostSelect.js';
 import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { loadPostInteractionSets, serializeFeedPost } from '../lib/feedPostSerializer.js';
@@ -228,29 +229,6 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   const since = new Date(Date.now() - 90 * 864e5);
   const radiusKm = 100;
 
-  const baseSelect = {
-    id: true,
-    title: true,
-    content: true,
-    media_url: true,
-    poster_url: true,
-    media_width: true,
-    media_height: true,
-    media_duration_s: true,
-    upvotes_count: true,
-    created_at: true,
-    author_id: true,
-    // Event/game linkage — every post surface must be able to offer
-    // "open the event page" (mirrors highlightPostSelect).
-    game_id: true,
-    event_id: true,
-    author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-    lat: true,
-    lng: true,
-    country_code: true,
-    _count: { select: { comments: true } },
-  } as const;
-
   const [excludedIds, blockedIds, excludedTeamIds] = await Promise.all([
     getExcludedPrivateAuthorIds(req.user?.id ?? null),
     getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req)),
@@ -273,7 +251,7 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
       },
       orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
       take: 10,
-      select: baseSelect,
+      select: feedHighlightPostSelect,
     }),
     prisma.post.findMany({
       where: {
@@ -285,7 +263,7 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
       },
       orderBy: [{ created_at: 'desc' }],
       take: 150,
-      select: baseSelect,
+      select: feedHighlightPostSelect,
     }),
   ]);
 
