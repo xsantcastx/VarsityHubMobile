@@ -51,6 +51,163 @@ async function invalidateFollowCaches(...userIds: Array<string | null | undefine
   await Promise.all(userIds.map(userId => invalidateMeCacheForUser(userId)));
 }
 
+async function loadUserAdsWithReservationDates(userId: string) {
+  const ads = await prisma.ad.findMany({
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
+    take: 100,
+  });
+  const adIds = ads.map(ad => ad.id);
+  const reservations = adIds.length
+    ? await prisma.adReservation.findMany({
+        where: { ad_id: { in: adIds } },
+        orderBy: { date: 'asc' },
+        take: 1000,
+      })
+    : [];
+  const datesByAd: Record<string, string[]> = {};
+  for (const reservation of reservations) {
+    const key = reservation.ad_id;
+    if (!datesByAd[key]) datesByAd[key] = [];
+    datesByAd[key].push(reservation.date.toISOString().slice(0, 10));
+  }
+  return { ads, datesByAd };
+}
+
+function parseFollowListLimit(limit: unknown) {
+  return Math.max(1, Math.min(parseInt(String(limit || '20'), 10) || 20, 50));
+}
+
+async function decoratePublicUsersWithFollowState(users: any[], currentUserId?: string) {
+  if (!currentUserId) return;
+
+  const userIds = users.map(user => user.id);
+  const [followingSet, followsViewerSet] = await Promise.all([
+    prisma.follows
+      .findMany({
+        where: {
+          follower_id: currentUserId,
+          following_id: { in: userIds },
+          status: 'accepted',
+        },
+        select: { following_id: true },
+        take: Math.max(userIds.length, 1),
+      })
+      .then(rows => new Set(rows.map(follow => follow.following_id))),
+    prisma.follows
+      .findMany({
+        where: {
+          follower_id: { in: userIds },
+          following_id: currentUserId,
+          status: 'accepted',
+        },
+        select: { follower_id: true },
+        take: Math.max(userIds.length, 1),
+      })
+      .then(rows => new Set(rows.map(follow => follow.follower_id))),
+  ]);
+  users.forEach(user => {
+    user.is_following = followingSet.has(user.id);
+    user.is_following_viewer = followsViewerSet.has(user.id);
+  });
+}
+
+async function loadProfileFollowList({
+  profileUserId,
+  currentUserId,
+  limit,
+  cursor,
+  mode,
+  req,
+}: {
+  profileUserId: string;
+  currentUserId?: string;
+  limit: number;
+  cursor?: string;
+  mode: 'followers' | 'following';
+  req: AuthedRequest;
+}) {
+  const hidden = await isProfileHiddenFromViewer(profileUserId, currentUserId || null);
+  if (hidden) return { items: [], nextCursor: null };
+
+  const blockedIds = currentUserId
+    ? await getBlockedUserIds(currentUserId, getRequestBlockedCache(req))
+    : [];
+  const listingFollowers = mode === 'followers';
+  const follows = (await prisma.follows.findMany({
+    where: listingFollowers
+      ? {
+          following_id: profileUserId,
+          status: 'accepted',
+          ...(blockedIds.length ? { follower_id: { notIn: blockedIds } } : {}),
+        }
+      : {
+          follower_id: profileUserId,
+          status: 'accepted',
+          ...(blockedIds.length ? { following_id: { notIn: blockedIds } } : {}),
+        },
+    take: limit + 1,
+    cursor: cursor
+      ? {
+          follower_id_following_id: listingFollowers
+            ? { follower_id: cursor, following_id: profileUserId }
+            : { follower_id: profileUserId, following_id: cursor },
+        }
+      : undefined,
+    include: listingFollowers
+      ? { follower: { select: publicUserSelect } }
+      : { following: { select: publicUserSelect } },
+  })) as any[];
+
+  const page = follows.slice(0, limit);
+  const users = page.map(follow => (listingFollowers ? follow.follower : follow.following));
+  const nextCursor =
+    follows.length > limit
+      ? listingFollowers
+        ? follows[limit].follower_id
+        : follows[limit].following_id
+      : null;
+
+  await decoratePublicUsersWithFollowState(users, currentUserId);
+
+  return { items: users, nextCursor };
+}
+
+function registerProfileFollowListRoute(path: string, mode: 'followers' | 'following') {
+  usersRouter.get(
+    path,
+    requireAuth as any,
+    requireVerified as any,
+    asyncHandler(async (req: AuthedRequest, res) => {
+      const { id } = req.params;
+      const currentUserId = req.user?.id;
+      const limit = parseFollowListLimit(req.query.limit);
+      const cursor = (req.query.cursor as string | undefined) || undefined;
+
+      res.json(
+        await loadProfileFollowList({
+          profileUserId: id,
+          currentUserId,
+          limit,
+          cursor,
+          mode,
+          req,
+        })
+      );
+    })
+  );
+}
+
+async function readProfileContentRequest(req: AuthedRequest) {
+  const id = String(req.params.id);
+  const currentUserId = req.user?.id || null;
+  const hidden = await isProfileHiddenFromViewer(id, currentUserId);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50));
+  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+  const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
+  return { id, currentUserId, hidden, limit, cursor, sort };
+}
+
 // List users (admin only)
 usersRouter.get(
   '/',
@@ -192,25 +349,7 @@ usersRouter.get(
         },
       });
       if (!user) return res.status(404).json({ error: 'Not found' });
-      const ads = await prisma.ad.findMany({
-        where: { user_id: id },
-        orderBy: { created_at: 'desc' },
-        take: 100,
-      });
-      const adIds = ads.map(a => a.id);
-      const reservations = adIds.length
-        ? await prisma.adReservation.findMany({
-            where: { ad_id: { in: adIds } },
-            orderBy: { date: 'asc' },
-            take: 1000,
-          })
-        : [];
-      const datesByAd: Record<string, string[]> = {};
-      for (const r of reservations) {
-        const key = r.ad_id;
-        if (!datesByAd[key]) datesByAd[key] = [];
-        datesByAd[key].push(r.date.toISOString().slice(0, 10));
-      }
+      const { ads, datesByAd } = await loadUserAdsWithReservationDates(id);
       return res.json({ user, ads, datesByAd });
     } catch (err) {
       console.error('[users] GET /:id/full error:', err);
@@ -413,25 +552,7 @@ usersRouter.get(
         select: { id: true, email: true, username: true },
       });
       if (!user) return res.status(404).send('Not found');
-      const ads = await prisma.ad.findMany({
-        where: { user_id: id },
-        orderBy: { created_at: 'desc' },
-        take: 100,
-      });
-      const adIds = ads.map(a => a.id);
-      const reservations = adIds.length
-        ? await prisma.adReservation.findMany({
-            where: { ad_id: { in: adIds } },
-            orderBy: { date: 'asc' },
-            take: 1000,
-          })
-        : [];
-      const datesByAd: Record<string, string[]> = {};
-      for (const r of reservations) {
-        const key = r.ad_id;
-        if (!datesByAd[key]) datesByAd[key] = [];
-        datesByAd[key].push(r.date.toISOString().slice(0, 10));
-      }
+      const { ads, datesByAd } = await loadUserAdsWithReservationDates(id);
       let csv = 'ad_id,business_name,status,payment_status,created_at,reservation_dates\n';
       for (const a of ads) {
         const dates = (datesByAd[a.id] || []).join(';');
@@ -545,15 +666,11 @@ usersRouter.get(
   '/:id/posts',
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      const id = String(req.params.id);
-      const currentUserId = req.user?.id || null;
-      const hidden = await isProfileHiddenFromViewer(id, currentUserId);
+      const { id, currentUserId, hidden, limit, cursor, sort } =
+        await readProfileContentRequest(req);
       if (hidden) {
         return res.status(404).json({ error: 'User not found' });
       }
-      const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50));
-      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
-      const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
 
       const orderBy = sortParamToOrder(sort);
       const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
@@ -635,15 +752,11 @@ usersRouter.get(
   '/:id/interactions',
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      const id = String(req.params.id);
-      const currentUserId = req.user?.id || null;
-      const hidden = await isProfileHiddenFromViewer(id, currentUserId);
+      const { id, currentUserId, hidden, limit, cursor, sort } =
+        await readProfileContentRequest(req);
       if (hidden) {
         return res.status(404).json({ error: 'User not found' });
       }
-      const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50));
-      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
-      const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
       const type = typeof req.query.type === 'string' ? req.query.type : 'all';
 
       // Collect interactions (capped at 200 per type to prevent OOM on prolific users)
@@ -1465,142 +1578,9 @@ usersRouter.get(
   })
 );
 
-// Get followers
-usersRouter.get(
-  '/:id/followers',
-  requireAuth as any,
-  requireVerified as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const { id } = req.params;
-    const currentUserId = req.user?.id;
-    const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
-    if (hidden) return res.json({ items: [], nextCursor: null });
-    const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50));
-    const cursor = (req.query.cursor as string | undefined) || undefined;
-    const blockedIds = currentUserId
-      ? await getBlockedUserIds(currentUserId, getRequestBlockedCache(req))
-      : [];
-
-    const follows = await prisma.follows.findMany({
-      where: {
-        following_id: id,
-        status: 'accepted',
-        ...(blockedIds.length ? { follower_id: { notIn: blockedIds } } : {}),
-      },
-      take: limit + 1,
-      cursor: cursor
-        ? { follower_id_following_id: { follower_id: cursor, following_id: id } }
-        : undefined,
-      include: { follower: { select: publicUserSelect } },
-    });
-
-    const users = follows.slice(0, limit).map(f => f.follower);
-    const nextCursor = follows.length > limit ? follows[limit].follower_id : null;
-
-    if (currentUserId) {
-      const userIds = users.map(u => u.id);
-      const [followingSet, followsViewerSet] = await Promise.all([
-        prisma.follows
-          .findMany({
-            where: {
-              follower_id: currentUserId,
-              following_id: { in: userIds },
-              status: 'accepted',
-            },
-            select: { following_id: true },
-            take: Math.max(userIds.length, 1),
-          })
-          .then(rows => new Set(rows.map(f => f.following_id))),
-        // is_following_viewer: does each follower also follow the current viewer?
-        prisma.follows
-          .findMany({
-            where: {
-              follower_id: { in: userIds },
-              following_id: currentUserId,
-              status: 'accepted',
-            },
-            select: { follower_id: true },
-            take: Math.max(userIds.length, 1),
-          })
-          .then(rows => new Set(rows.map(f => f.follower_id))),
-      ]);
-      users.forEach(u => {
-        (u as any).is_following = followingSet.has(u.id);
-        (u as any).is_following_viewer = followsViewerSet.has(u.id);
-      });
-    }
-
-    res.json({ items: users, nextCursor });
-  })
-);
-
-// Get following
-usersRouter.get(
-  '/:id/following',
-  requireAuth as any,
-  requireVerified as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const { id } = req.params;
-    const currentUserId = req.user?.id;
-    const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
-    if (hidden) return res.json({ items: [], nextCursor: null });
-    const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50));
-    const cursor = (req.query.cursor as string | undefined) || undefined;
-    const blockedIds = currentUserId
-      ? await getBlockedUserIds(currentUserId, getRequestBlockedCache(req))
-      : [];
-
-    const follows = await prisma.follows.findMany({
-      where: {
-        follower_id: id,
-        status: 'accepted',
-        ...(blockedIds.length ? { following_id: { notIn: blockedIds } } : {}),
-      },
-      take: limit + 1,
-      cursor: cursor
-        ? { follower_id_following_id: { follower_id: id, following_id: cursor } }
-        : undefined,
-      include: { following: { select: publicUserSelect } },
-    });
-
-    const users = follows.slice(0, limit).map(f => f.following);
-    const nextCursor = follows.length > limit ? follows[limit].following_id : null;
-
-    if (currentUserId) {
-      const userIds = users.map(u => u.id);
-      const [followingSet, followsViewerSet] = await Promise.all([
-        prisma.follows
-          .findMany({
-            where: {
-              follower_id: currentUserId,
-              following_id: { in: userIds },
-              status: 'accepted',
-            },
-            select: { following_id: true },
-            take: Math.max(userIds.length, 1),
-          })
-          .then(rows => new Set(rows.map(f => f.following_id))),
-        prisma.follows
-          .findMany({
-            where: {
-              follower_id: { in: userIds },
-              following_id: currentUserId,
-              status: 'accepted',
-            },
-            select: { follower_id: true },
-            take: Math.max(userIds.length, 1),
-          })
-          .then(rows => new Set(rows.map(f => f.follower_id))),
-      ]);
-      users.forEach(u => {
-        (u as any).is_following = followingSet.has(u.id);
-        (u as any).is_following_viewer = followsViewerSet.has(u.id);
-      });
-    }
-
-    res.json({ items: users, nextCursor });
-  })
-);
+// Get followers/following
+registerProfileFollowListRoute('/:id/followers', 'followers');
+registerProfileFollowListRoute('/:id/following', 'following');
 
 // Search users for mentions/tagging
 usersRouter.get(
