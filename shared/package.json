@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     "./runtime/billingCore": "./runtime/billingCore.js",
+    "./runtime/salesTaxEstimate": "./runtime/salesTaxEstimate.js",
     "./runtime/sentrySanitization": "./runtime/sentrySanitization.js",
     "./plan-definitions.json": "./plan-definitions.json"
   }
