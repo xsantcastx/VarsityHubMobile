@@ -171,6 +171,26 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
     </View>
   );
 
+  const renderTeamLabelsOverlay = (style?: object) =>
+    teamLabels ? (
+      <View style={[styles.teamRowOverlay, style]}>
+        <View style={styles.teamPill}>
+          <Text style={styles.teamPillText}>{teamLabels.teamA}</Text>
+        </View>
+        <Text style={styles.vsText}>vs</Text>
+        <View style={styles.teamPillAlt}>
+          <Text
+            style={[
+              styles.teamPillAltText,
+              { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
+            ]}
+          >
+            {teamLabels.teamB}
+          </Text>
+        </View>
+      </View>
+    ) : null;
+
   return (
     <View style={{ position: 'relative' }}>
       <Pressable
@@ -353,24 +373,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                 colors={['transparent', 'rgba(0,0,0,0.6)']}
                 style={styles.mediaGradient}
               />
-              {teamLabels ? (
-                <View style={styles.teamRowOverlay}>
-                  <View style={styles.teamPill}>
-                    <Text style={styles.teamPillText}>{teamLabels.teamA}</Text>
-                  </View>
-                  <Text style={styles.vsText}>vs</Text>
-                  <View style={styles.teamPillAlt}>
-                    <Text
-                      style={[
-                        styles.teamPillAltText,
-                        { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
-                      ]}
-                    >
-                      {teamLabels.teamB}
-                    </Text>
-                  </View>
-                </View>
-              ) : null}
+              {renderTeamLabelsOverlay()}
               <ExpandableText
                 text={caption}
                 maxLines={2}
@@ -395,29 +398,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                 colors={['#0b1120', '#0b1120', '#020617']}
                 style={StyleSheet.absoluteFillObject as any}
               />
-              {teamLabels ? (
-                <View
-                  style={[
-                    styles.teamRowOverlay,
-                    { top: 8, left: 8, right: 8, position: 'absolute' },
-                  ]}
-                >
-                  <View style={styles.teamPill}>
-                    <Text style={styles.teamPillText}>{teamLabels.teamA}</Text>
-                  </View>
-                  <Text style={styles.vsText}>vs</Text>
-                  <View style={styles.teamPillAlt}>
-                    <Text
-                      style={[
-                        styles.teamPillAltText,
-                        { color: colorScheme === 'dark' ? '#6EE7B7' : '#065F46' },
-                      ]}
-                    >
-                      {teamLabels.teamB}
-                    </Text>
-                  </View>
-                </View>
-              ) : null}
+              {renderTeamLabelsOverlay({ top: 8, left: 8, right: 8, position: 'absolute' })}
               <ExpandableText
                 text={caption || 'Post'}
                 maxLines={3}
