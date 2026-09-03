@@ -8,6 +8,7 @@ import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
+import { buildPostGridViewerState, unwrapPostGridItem } from '@/utils/postGridViewer';
 import { useProgramScreenSummary } from '@/hooks/useProgramScreenSummary';
 import { buildProgramSubTeams } from '@/constants/programs';
 import { getGradientForColor } from '@/utils/theme';
@@ -522,26 +523,14 @@ function TeamScreen() {
     }
   }, [upvotesHasMore, upvotesLoading, team?.id]);
 
-  const unwrapPost = useCallback(
-    (item: PostItem | { post?: PostItem; target?: PostItem | { post?: PostItem } }) => {
-      const postItem = item as any; // Complex nested structure from interactions
-      return postItem?.post || postItem?.target?.post || postItem?.target || item;
-    },
-    []
-  );
-
   const openPostGridViewer = useCallback(
     (sourceItems: any[], index: number, unwrapSource: boolean) => {
-      const sourcePosts = unwrapSource ? sourceItems.map(unwrapPost) : sourceItems;
-      const mapped = sourcePosts.map(toFeedPost);
-      const items = mapped.filter(Boolean) as FeedPost[];
-      const targetId = sourcePosts[index]?.id;
-      const targetIdx = targetId ? items.findIndex(post => post.id === targetId) : index;
-      setViewerItems(items);
-      setViewerIndex(Math.max(0, targetIdx));
+      const state = buildPostGridViewerState(sourceItems, index, unwrapSource, toFeedPost);
+      setViewerItems(state.items);
+      setViewerIndex(state.index);
       setViewerOpen(true);
     },
-    [unwrapPost]
+    []
   );
 
   const renderPostGridTile = useCallback(
@@ -556,7 +545,7 @@ function TeamScreen() {
       sourceItems: any[];
       unwrapSource?: boolean;
     }) => {
-      const postItem = unwrapSource ? unwrapPost(item) : item;
+      const postItem = unwrapSource ? unwrapPostGridItem(item) : item;
       const media = resolvePostMedia(postItem);
       const likes = postItem?.upvotes_count ?? 0;
       const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
@@ -624,7 +613,7 @@ function TeamScreen() {
         </Pressable>
       );
     },
-    [openPostGridViewer, theme.card, unwrapPost]
+    [openPostGridViewer, theme.card]
   );
 
   const renderPostGridList = ({
@@ -1266,7 +1255,7 @@ function TeamScreen() {
           data: replies,
           keyPrefix: activeTab,
           keyExtractor: (item, index) => {
-            const postItem = unwrapPost(item);
+            const postItem = unwrapPostGridItem(item);
             return postItem?.id ?? item?.id ?? `reply-${index}`;
           },
           emptyComponent: renderEmptyReplies,
@@ -1279,7 +1268,7 @@ function TeamScreen() {
           data: upvotes,
           keyPrefix: activeTab,
           keyExtractor: (item, index) => {
-            const postItem = unwrapPost(item);
+            const postItem = unwrapPostGridItem(item);
             return postItem?.id ?? item?.id ?? `upvote-${index}`;
           },
           emptyComponent: renderEmptyUpvotes,

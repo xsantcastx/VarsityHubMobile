@@ -10,6 +10,7 @@ import events from '@/utils/events';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
+import { buildPostGridViewerState, unwrapPostGridItem } from '@/utils/postGridViewer';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { getGradientForColor } from '@/utils/theme';
 import { queryClient } from '@/lib/queryClient';
@@ -1288,23 +1289,14 @@ export default function ProfileScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upvotesQuery.hasNextPage, upvotesQuery.isFetchingNextPage, upvotesQuery.fetchNextPage]);
 
-  // Some interaction items may wrap a post (e.g., { type, post, created_at })
-  const unwrapPost = useCallback((item: any) => {
-    return item?.post || item?.target?.post || item?.target || item;
-  }, []);
-
   const openPostGridViewer = useCallback(
     (sourceItems: any[], index: number, unwrapSource: boolean) => {
-      const sourcePosts = unwrapSource ? sourceItems.map(unwrapPost) : sourceItems;
-      const mapped = sourcePosts.map(toFeedPost);
-      const items = mapped.filter(Boolean) as FeedPost[];
-      const targetId = sourcePosts[index]?.id;
-      const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
-      setViewerItems(items);
-      setViewerIndex(Math.max(0, targetIdx));
+      const state = buildPostGridViewerState(sourceItems, index, unwrapSource, toFeedPost);
+      setViewerItems(state.items);
+      setViewerIndex(state.index);
       setViewerOpen(true);
     },
-    [unwrapPost]
+    []
   );
 
   const renderPostGridTile = useCallback(
@@ -1319,7 +1311,7 @@ export default function ProfileScreen() {
       sourceItems: any[];
       unwrapSource: boolean;
     }) => {
-      const postItem = unwrapSource ? unwrapPost(item) : item;
+      const postItem = unwrapSource ? unwrapPostGridItem(item) : item;
       const media = resolvePostMedia(postItem);
       const likes = postItem?.upvotes_count ?? 0;
       const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
@@ -1413,7 +1405,7 @@ export default function ProfileScreen() {
         </Pressable>
       );
     },
-    [openPostGridViewer, theme.card, theme.mutedText, theme.text, unwrapPost]
+    [openPostGridViewer, theme.card, theme.mutedText, theme.text]
   );
 
   const renderPostGridList = ({
@@ -1624,7 +1616,7 @@ export default function ProfileScreen() {
               data: replies,
               keyPrefix: activeTab,
               keyExtractor: (item, index) => {
-                const postItem = unwrapPost(item);
+                const postItem = unwrapPostGridItem(item);
                 return postItem?.id ?? item?.id ?? `reply-${index}`;
               },
               emptyComponent: renderEmptyReplies,
@@ -1636,7 +1628,7 @@ export default function ProfileScreen() {
               data: upvotes,
               keyPrefix: activeTab,
               keyExtractor: (item, index) => {
-                const postItem = unwrapPost(item);
+                const postItem = unwrapPostGridItem(item);
                 return postItem?.id ?? item?.id ?? `upvote-${index}`;
               },
               emptyComponent: renderEmptyUpvotes,
