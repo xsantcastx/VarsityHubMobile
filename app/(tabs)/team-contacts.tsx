@@ -138,6 +138,16 @@ const selectChatMembers = (membersData: any[]): TeamMember[] =>
     lastSeen: undefined,
   }));
 
+const mapMimeTypeToFileType = (mimeType: string): string => {
+  const mime = mimeType.toLowerCase();
+  if (mime.includes('pdf')) return 'pdf';
+  if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('ms-excel'))
+    return 'excel';
+  if (mime.includes('image')) return 'image';
+  if (mime.includes('video')) return 'video';
+  return 'document';
+};
+
 export default function TeamChatScreen() {
   // Group-chat management mirrors the server's canManageTeam boundary (team
   // staff OR org admin), not the narrower approved-coach-only gate. Aliased to
@@ -264,6 +274,37 @@ export default function TeamChatScreen() {
       }
     },
     [id]
+  );
+
+  const addUploadedFile = useCallback(
+    ({
+      name,
+      size,
+      mimeType,
+      url,
+    }: {
+      name: string;
+      size?: number;
+      mimeType?: string;
+      url: string;
+    }) => {
+      const newFile = {
+        id: Date.now().toString(),
+        name,
+        size: formatFileSize(size || 0),
+        type: mapMimeTypeToFileType(mimeType || 'application/octet-stream'),
+        uploadedBy: 'You',
+        uploadedAt: new Date().toISOString(),
+        url,
+      };
+
+      setFiles(prev => {
+        const updated = [newFile, ...prev];
+        void saveFiles(updated);
+        return updated;
+      });
+    },
+    [saveFiles]
   );
 
   const loadFiles = useCallback(async (): Promise<any[]> => {
@@ -611,6 +652,23 @@ export default function TeamChatScreen() {
     setShowAttachmentMenu(true);
   }, []);
 
+  const markMessageSent = useCallback(
+    (messageId: string, updatedMessage: ChatMessage) => {
+      setMessages(prev => {
+        const updated = prev.map(msg => (msg.id === messageId ? updatedMessage : msg));
+        void saveMessages(updated);
+        return updated;
+      });
+    },
+    [saveMessages]
+  );
+
+  const scrollMessagesToEnd = useCallback(() => {
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, []);
+
   const getFileIcon = (type: string) => {
     const mimeType = type.toLowerCase();
     if (mimeType.includes('pdf')) return 'document-text';
@@ -690,32 +748,14 @@ export default function TeamChatScreen() {
           status: 'sent',
         };
 
-        setMessages(prev => {
-          const updated = prev.map(msg => (msg.id === message.id ? updatedMessage : msg));
-          void saveMessages(updated);
-          return updated;
-        });
+        markMessageSent(message.id, updatedMessage);
+        scrollMessagesToEnd();
 
-        // Scroll to bottom
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-
-        // Add image to files tab list
-        const newFile = {
-          id: Date.now().toString(),
+        addUploadedFile({
           name: fileToUpload.name,
-          size: formatFileSize(fileToUpload.size || 0),
-          type: mapMimeTypeToFileType(fileToUpload.type || 'image/jpeg'),
-          uploadedBy: 'You',
-          uploadedAt: new Date().toISOString(),
+          size: fileToUpload.size,
+          mimeType: fileToUpload.type,
           url: uploadResponse.url,
-        };
-
-        setFiles(prev => {
-          const updated = [newFile, ...prev];
-          void saveFiles(updated);
-          return updated;
         });
 
         showToast('Image uploaded successfully!');
@@ -741,7 +781,16 @@ export default function TeamChatScreen() {
         showModal('Error', 'Failed to upload image to server');
       }
     },
-    [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]
+    [
+      addUploadedFile,
+      animateNewMessage,
+      markMessageSent,
+      replyingTo,
+      saveMessages,
+      scrollMessagesToEnd,
+      showModal,
+      showToast,
+    ]
   );
 
   const pickImage = useCallback(async () => {
@@ -1094,32 +1143,14 @@ export default function TeamChatScreen() {
           status: 'sent',
         };
 
-        setMessages(prev => {
-          const updated = prev.map(msg => (msg.id === message.id ? updatedMessage : msg));
-          void saveMessages(updated);
-          return updated;
-        });
+        markMessageSent(message.id, updatedMessage);
+        scrollMessagesToEnd();
 
-        // Scroll to bottom
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-
-        // Add file to files tab list
-        const newFile = {
-          id: Date.now().toString(),
+        addUploadedFile({
           name: fileAsset.name,
-          size: formatFileSize(fileAsset.size || 0),
-          type: mapMimeTypeToFileType(fileAsset.mimeType || 'application/octet-stream'),
-          uploadedBy: 'You',
-          uploadedAt: new Date().toISOString(),
+          size: fileAsset.size,
+          mimeType: fileAsset.mimeType,
           url: uploadResponse.url,
-        };
-
-        setFiles(prev => {
-          const updated = [newFile, ...prev];
-          void saveFiles(updated);
-          return updated;
         });
 
         showToast('File uploaded successfully!');
@@ -1156,7 +1187,16 @@ export default function TeamChatScreen() {
         }
       }
     },
-    [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]
+    [
+      addUploadedFile,
+      animateNewMessage,
+      markMessageSent,
+      replyingTo,
+      saveMessages,
+      scrollMessagesToEnd,
+      showModal,
+      showToast,
+    ]
   );
 
   // Document picking functions
@@ -1287,16 +1327,6 @@ export default function TeamChatScreen() {
       default:
         return '#6B7280';
     }
-  };
-
-  const mapMimeTypeToFileType = (mimeType: string): string => {
-    const mime = mimeType.toLowerCase();
-    if (mime.includes('pdf')) return 'pdf';
-    if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('ms-excel'))
-      return 'excel';
-    if (mime.includes('image')) return 'image';
-    if (mime.includes('video')) return 'video';
-    return 'document';
   };
 
   const handleTextChange = useCallback(
@@ -1873,36 +1903,40 @@ export default function TeamChatScreen() {
     </Pressable>
   );
 
+  const renderTeamChatHeaderLeft = useCallback(
+    () => (
+      <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
+        <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+      </Pressable>
+    ),
+    [colorScheme, explicitFallback, router]
+  );
+
+  const renderLoadingState = () => (
+    <SafeAreaView
+      style={[
+        styles.container,
+        styles.centerContent,
+        { backgroundColor: Colors[colorScheme].background },
+      ]}
+      edges={['top', 'bottom']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Team Chat',
+          headerShown: true,
+          headerLeft: renderTeamChatHeaderLeft,
+        }}
+      />
+      <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+      <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+        Loading team chat...
+      </Text>
+    </SafeAreaView>
+  );
+
   if (coachLoading) {
-    return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          styles.centerContent,
-          { backgroundColor: Colors[colorScheme].background },
-        ]}
-        edges={['top', 'bottom']}
-      >
-        <Stack.Screen
-          options={{
-            title: 'Team Chat',
-            headerShown: true,
-            headerLeft: () => (
-              <Pressable
-                onPress={() => safeGoBack(router, explicitFallback)}
-                style={{ paddingRight: 8 }}
-              >
-                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-              </Pressable>
-            ),
-          }}
-        />
-        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
-          Loading team chat...
-        </Text>
-      </SafeAreaView>
-    );
+    return renderLoadingState();
   }
 
   if (!canAccessCoachTools) {
@@ -1916,35 +1950,7 @@ export default function TeamChatScreen() {
   }
 
   if (loading) {
-    return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          styles.centerContent,
-          { backgroundColor: Colors[colorScheme].background },
-        ]}
-        edges={['top', 'bottom']}
-      >
-        <Stack.Screen
-          options={{
-            title: 'Team Chat',
-            headerShown: true,
-            headerLeft: () => (
-              <Pressable
-                onPress={() => safeGoBack(router, explicitFallback)}
-                style={{ paddingRight: 8 }}
-              >
-                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-              </Pressable>
-            ),
-          }}
-        />
-        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
-          Loading team chat...
-        </Text>
-      </SafeAreaView>
-    );
+    return renderLoadingState();
   }
 
   if (error) {
@@ -1961,14 +1967,7 @@ export default function TeamChatScreen() {
           options={{
             title: 'Team Chat',
             headerShown: true,
-            headerLeft: () => (
-              <Pressable
-                onPress={() => safeGoBack(router, explicitFallback)}
-                style={{ paddingRight: 8 }}
-              >
-                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-              </Pressable>
-            ),
+            headerLeft: renderTeamChatHeaderLeft,
           }}
         />
         <Ionicons name="cloud-offline-outline" size={48} color={Colors[colorScheme].mutedText} />
@@ -2003,14 +2002,7 @@ export default function TeamChatScreen() {
           headerShown: true,
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
-          headerLeft: () => (
-            <Pressable
-              onPress={() => safeGoBack(router, explicitFallback)}
-              style={{ paddingRight: 8 }}
-            >
-              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ),
+          headerLeft: renderTeamChatHeaderLeft,
           headerRight: () => (
             <Pressable
               onPress={() =>
