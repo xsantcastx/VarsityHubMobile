@@ -7,6 +7,7 @@ import { approveOrganization, rejectOrganization } from '../lib/approvalService.
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { ASSET_URL_MESSAGE, isAllowedAssetUrl } from '../lib/mediaHosts.js';
 import { debugLog } from '../lib/debugLog.js';
+import { normalizeOrganizationName } from '../lib/normalizeNames.js';
 import { isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import {
   buildCoachJoinRequestReviewUrl,
@@ -91,22 +92,6 @@ function isValidOrganizationInviteRole(
 // ---------------------------------------------
 // Duplicate Detection & Admin Helpers
 // ---------------------------------------------
-
-// Normalize organization names to detect near-duplicates across org_type variants.
-// Strategy: lowercase, replace common abbreviations, strip punctuation/spaces, drop trailing generic terms.
-function normalizeOrganizationName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/\bst\.?\b/g, 'saint')
-    .replace(/\bhs\b/g, 'highschool')
-    .replace(/\bhigh school\b/g, 'highschool')
-    .replace(/\bclub\b/g, '')
-    .replace(/\bleague\b/g, '')
-    .replace(/\bschool\b/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
-}
 
 /**
  * Find an existing active organization that would collide with `name`/`zipCode`
