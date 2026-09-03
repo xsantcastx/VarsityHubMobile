@@ -35,7 +35,6 @@ import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -74,6 +73,21 @@ import VideoTrimmer from '@/components/VideoTrimmer';
 import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import {
+  canAddStory,
+  capCount,
+  computeIsPast,
+  DEMO_MATCHUP_TAG,
+  ensureIso,
+  finalsBannerForTeams,
+  formatDateLabel,
+  formatTimeLabel,
+  getVenuePhoto,
+  pickBannerFromArrays,
+  PLACEHOLDER_GRADIENT,
+  type GameVM,
+  type TeamInfo,
+} from './gameDetailsPresentation';
+import {
   applyClearVote,
   applyVoteSelection,
   buildVoteSummary,
@@ -84,143 +98,12 @@ import {
 import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 import StoriesViewer, { VIDEO_EXT, type MediaItem } from './StoriesViewer';
 
-import type { ColorValue } from 'react-native';
-const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = [
-  '#1e293b',
-  '#1d4ed8',
-  '#38bdf8',
-];
-
-type TeamInfo = { id: string; name: string; avatarUrl?: string | null };
-
-type GameVM = {
-  id: string;
-  gameId: string | null;
-  eventId: string | null;
-  title: string;
-  date: string;
-  location: string | null;
-  description?: string | null;
-  bannerUrl?: string | null;
-  venuePhotoUrl?: string | null;
-  venuePhotoCredit?: string | null;
-  homeTeam?: string | null;
-  awayTeam?: string | null;
-  appearance?: string | null;
-  coverImageUrl?: string | null;
-  capacity?: number | null;
-  rsvpCount?: number | null;
-  userRsvped?: boolean;
-  teams: TeamInfo[];
-  posts: any[];
-  media: MediaItem[];
-  reviewsCount?: number | null;
-  isPast: boolean;
-  eventType?: string | null;
-  home_score?: number | null;
-  away_score?: number | null;
-  winner?: string | null;
-  can_edit_result?: boolean;
-  venueLat?: number | null;
-  venueLng?: number | null;
-  // Server-computed posting-window bounds (GET /games/:id[/summary]); used to
-  // gate story posting on the real per-event window instead of a 3h fallback.
-  starts_at?: string | null;
-  live_from?: string | null;
-  live_until?: string | null;
-};
-
-const ensureIso = (value: any) => {
-  if (!value) return null;
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  return null;
-};
-
-const getVenuePhoto = (value: unknown): { url: string | null; credit: string | null } => {
-  if (!value || typeof value !== 'object') {
-    return { url: null, credit: null };
-  }
-  const record = value as { url?: unknown; credit?: unknown };
-  return {
-    url: typeof record.url === 'string' ? record.url : null,
-    credit: typeof record.credit === 'string' ? record.credit : null,
-  };
-};
-
-const formatDateLabel = (iso?: string | null) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return format(d, 'EEE, MMM d, yyyy');
-};
-
-const formatTimeLabel = (iso?: string | null) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return format(d, 'h:mm a');
-};
-
-const computeIsPast = (iso?: string | null) => {
-  return isEventPastEndOfDay(iso);
-};
-
-// Kept in sync with server/scripts/seed-demo-matchups.ts DEMO_TAG and the
-// carve-out in server/src/routes/gameStories.ts — changing this string
-// silently breaks the client gate for seeded promo matchups.
-const DEMO_MATCHUP_TAG = '[DEMO_MATCHUP]';
-
-const canAddStory = (
-  eventIso?: string | null,
-  gameId?: string | null,
-  description?: string | null,
-  liveWindow?: LiveWindowFields | null
-) => {
-  // Seeded demo matchups (Duke v UNC, Cavs v Warriors) bypass the day-of gate
-  // to match the server-side [DEMO_MATCHUP] carve-out in gameStories.ts.
-  if (typeof description === 'string' && description.includes(DEMO_MATCHUP_TAG)) return true;
-
-  // Without an event date, allow uploading — no window to enforce client-side
-  if (!eventIso) return true;
-
-  // Mirrors the server's `isStoryPostingWindowOpen` (geofencing.ts): stories
-  // are LIVE-ONLY (owner rule, 2026-07-16 — "USERS CANT UPLOAD TO STORIES
-  // AFTER THEY HAVE LEFT THE GAME", "do not get the same 7 days after the
-  // fact"). This used to run from the event's UTC midnight through +48h.
-  // Prefer the server-computed bounds when the payload carries them so the
-  // per-event override (fest days run 18h) is honored; otherwise fall back to
-  // the server's default window off the event date.
-  return isPostingWindowOpen({ ...(liveWindow ?? {}), date: eventIso });
-};
-
-const capCount = (count?: number | null, capacity?: number | null) => {
-  if (typeof count !== 'number') return null;
-  if (typeof capacity === 'number' && capacity >= 0) return Math.min(count, capacity);
-  return count;
-};
-
 const openMaps = (location: string) => {
   const query = encodeURIComponent(location);
   const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
   Linking.openURL(url).catch(error => {
     if (__DEV__) console.warn('[GameDetails] Failed to open maps URL:', error);
   });
-};
-
-// No special-case banner — kept generic for any matchup
-const finalsBannerForTeams = (
-  _home?: string | null,
-  _away?: string | null,
-  _title?: string | null
-) => {
-  return null;
-};
-
-const pickBannerFromArrays = (vm: Partial<GameVM>) => {
-  const finalsBanner = finalsBannerForTeams(vm.homeTeam, vm.awayTeam, vm.title as any);
-  const result = vm.bannerUrl || vm.coverImageUrl || finalsBanner || null;
-  return result;
 };
 
 const GameDetailsScreen = () => {
