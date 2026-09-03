@@ -9,7 +9,6 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -34,8 +33,8 @@ import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { handleCoachAccessError } from '@/utils/coachAccess';
+import { uploadEventBannerFromUri as uploadEventBannerAsset } from '@/utils/eventBannerUpload';
 import { sanitizeText } from '@/utils/formUtils';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { buildOpponentLink } from '@/utils/gameOpponent';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getCoachAccessState } from '@/utils/roleChecks';
@@ -361,22 +360,7 @@ function CreateFanEventScreen() {
   const uploadBannerFromUri = useCallback(async (uri: string) => {
     setUploadingBanner(true);
     try {
-      const localUri = await materializeICloudAssetIfNeeded(uri);
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 1600 } }],
-        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      const uploadResult = await uploadFile(
-        getApiBaseUrl(),
-        manipulatedImage.uri,
-        'event-banner.jpg',
-        'image/jpeg'
-      );
-      const nextUrl = uploadResult?.url || uploadResult?.path;
-      if (!nextUrl) {
-        throw new Error('Upload failed - no URL returned');
-      }
+      const nextUrl = await uploadEventBannerAsset(uri);
       setBannerUrl(nextUrl);
     } finally {
       setUploadingBanner(false);
