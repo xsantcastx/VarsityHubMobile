@@ -1,8 +1,9 @@
 # Consolidated Verified Findings
 
 **Date:** 2026-08-24
-**Method:** Every still-open item across `MASTER_BUG_REPORT.md` (147 findings) and `AUDIT_V2.md`
-(Feature-Matrix audit) was re-checked against current `main`. Only findings that **still
+**Method:** Every still-open item across archived root snapshots
+`docs/archive/audits/root/MASTER_BUG_REPORT.md` (147 findings) and
+`docs/archive/audits/root/AUDIT_V2.md` (Feature-Matrix audit) was re-checked against current `main`. Only findings that **still
 reproduce in the current code** are listed as open. Each was verified by reading the actual
 source, not by trusting the audit's (now-drifted) line numbers.
 
@@ -62,15 +63,15 @@ current `main` across every severity, only the 5 above still reproduce. Notable 
 
 1. `docs/AUDIT_CLAIM_VERIFICATION.md` — purpose-built to reconcile stale claims against a
    pinned commit. Most reliable.
-2. `AUDIT.md` — really a fix-log; its "All Issues Ranked" appendix is honest about
+2. `docs/archive/audits/root/AUDIT.md` — really a fix-log; its "All Issues Ranked" appendix is honest about
    FIXED vs. ALREADY-GUARDED vs. deferred.
-3. `PRODUCTION_AUDIT_REPORT.md` — narrow (build/submit config), concrete, self-corrects.
-4. `AUDIT_V2.md` — specific `file:line` findings, but several "bugs" are now intentional or fixed.
-5. 2025 security triplet (`FRONTEND_AUDIT_REPORT.md` A+, `INTEGRATION_AUDIT_REPORT.md` A-,
+3. `docs/archive/audits/root/PRODUCTION_AUDIT_REPORT.md` — narrow (build/submit config), concrete, self-corrects.
+4. `docs/archive/audits/root/AUDIT_V2.md` — specific `file:line` findings, but several "bugs" are now intentional or fixed.
+5. 2025 security triplet (`docs/archive/audits/root/FRONTEND_AUDIT_REPORT.md` A+, `docs/archive/audits/root/INTEGRATION_AUDIT_REPORT.md` A-,
    `server/BACKEND_AUDIT_REPORT.md` B) — coherent but 16+ months stale.
-6. `MASTER_BUG_REPORT.md` — largest (147), no date, no verification, demonstrable false
+6. `docs/archive/audits/root/MASTER_BUG_REPORT.md` — largest (147), no date, no verification, demonstrable false
    positives (e.g. AD‑01). Least reliable.
-7. Tiny root stubs (`API_AUDIT.md`, `SECURITY_AUDIT.md`, etc.) — closure notes, **not audits**;
+7. Tiny archived stubs (`docs/archive/audits/root/API_AUDIT.md`, `docs/archive/audits/root/SECURITY_AUDIT.md`, etc.) — closure notes, **not audits**;
    zero current findings.
 
 The authoritative living standard is the **Security & Architecture Audit Standard + PR
