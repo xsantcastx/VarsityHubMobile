@@ -44,6 +44,23 @@ import type {
   UpdatePreferencesPayload,
 } from './types';
 
+export type SportsLeagueScheduleStatus = 'provider_backed' | 'event_seeded' | 'catalog_only';
+
+export type SportsLeagueSummary = {
+  id: string;
+  slug: string;
+  name: string;
+  sport_slug: string;
+  level: string;
+  gender: string;
+  country_code: string | null;
+  provider: string | null;
+  provider_league_id: string | null;
+  schedule_status: SportsLeagueScheduleStatus;
+  has_current_events: boolean;
+  current_event_count: number;
+};
+
 export const User = {
   me: (options?: { force?: boolean }) => auth.me(options),
   refresh: () => auth.me({ force: true }),
@@ -520,7 +537,7 @@ export const Event = {
   create: (data: CreateEventPayload) => httpPost('/events', data),
   sportsLeagues: (
     where: { sport?: string; level?: string; gender?: string; q?: string; limit?: number } = {}
-  ) => {
+  ): Promise<{ items: SportsLeagueSummary[] }> => {
     const q: string[] = [];
     if (where.sport) q.push('sport=' + encodeURIComponent(where.sport));
     if (where.level) q.push('level=' + encodeURIComponent(where.level));

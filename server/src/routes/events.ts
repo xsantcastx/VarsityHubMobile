@@ -55,6 +55,25 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
 
+type SportsLeagueScheduleStatus = 'provider_backed' | 'event_seeded' | 'catalog_only';
+
+const PROVIDER_BACKED_SCHEDULE_SLUGS = new Set<string>(PRO_SCHEDULE_LEAGUES);
+
+function getSportsLeagueScheduleStatus(
+  league: { slug: string; provider: string | null; provider_league_id: string | null },
+  currentEventCount: number
+): SportsLeagueScheduleStatus {
+  if (
+    PROVIDER_BACKED_SCHEDULE_SLUGS.has(league.slug) &&
+    league.provider &&
+    league.provider_league_id
+  ) {
+    return 'provider_backed';
+  }
+  if (currentEventCount > 0) return 'event_seeded';
+  return 'catalog_only';
+}
+
 /** Hard cap on RSVPs we'll fan out to per event update/cancel. Past this we
  *  stop and trust the next surface (re-open the event, manual notification)
  *  to catch up. 50k is ~2 orders of magnitude above today's largest event;
@@ -509,19 +528,43 @@ eventsRouter.get(
       const bi = catalogOrder.get(b.slug) ?? Number.MAX_SAFE_INTEGER;
       return ai - bi || a.name.localeCompare(b.name);
     });
+    const leagueIds = sorted.map(row => row.id);
+    const currentEventCounts = leagueIds.length
+      ? await prisma.event.groupBy({
+          by: ['sports_league_id'],
+          where: {
+            sports_league_id: { in: leagueIds },
+            approval_status: 'approved',
+            status: { not: 'cancelled' },
+            date: { gte: new Date() },
+          },
+          _count: { _all: true },
+        })
+      : [];
+    const currentEventCountByLeagueId = new Map(
+      currentEventCounts.flatMap(row =>
+        row.sports_league_id ? [[row.sports_league_id, row._count._all] as const] : []
+      )
+    );
 
     return res.json({
-      items: sorted.map(row => ({
-        id: row.id,
-        slug: row.slug,
-        name: row.name,
-        sport_slug: row.sport_slug,
-        level: row.level,
-        gender: row.gender,
-        country_code: row.country_code,
-        provider: row.provider,
-        provider_league_id: row.provider_league_id,
-      })),
+      items: sorted.map(row => {
+        const currentEventCount = currentEventCountByLeagueId.get(row.id) ?? 0;
+        return {
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          sport_slug: row.sport_slug,
+          level: row.level,
+          gender: row.gender,
+          country_code: row.country_code,
+          provider: row.provider,
+          provider_league_id: row.provider_league_id,
+          schedule_status: getSportsLeagueScheduleStatus(row, currentEventCount),
+          has_current_events: currentEventCount > 0,
+          current_event_count: currentEventCount,
+        };
+      }),
     });
   })
 );

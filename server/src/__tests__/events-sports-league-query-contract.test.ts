@@ -34,8 +34,13 @@ describe('events sports league query contract', () => {
     expect(eventsRoute).toContain('prisma.sportsLeague.findMany');
     expect(eventsRoute).toContain('active: true');
     expect(eventsRoute).toContain('Math.min(limitRaw, 300)');
+    expect(eventsRoute).toContain('schedule_status:');
+    expect(eventsRoute).toContain('has_current_events:');
+    expect(eventsRoute).toContain('current_event_count:');
+    expect(eventsRoute).toContain('getSportsLeagueScheduleStatus');
     expect(clientEntities).toContain('sportsLeagues:');
     expect(clientEntities).toContain("httpGet('/events/sports-leagues'");
+    expect(clientEntities).toContain('SportsLeagueScheduleStatus');
   });
 
   it('keeps pro_league compatible with both ProTeam and SportsLeague rows', () => {
