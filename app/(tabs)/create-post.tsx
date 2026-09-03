@@ -97,6 +97,26 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
   }
 };
 
+const prepareImageForPostUpload = async (uri: string, fileSize: number): Promise<string> => {
+  // Skip resize for small images (under 2MB) — already fast enough.
+  if (fileSize <= 2 * 1024 * 1024) return uri;
+
+  try {
+    const result = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1280 } }], {
+      compress: 0.8,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
+    return result.uri;
+  } catch (error: any) {
+    if (__DEV__)
+      console.warn(
+        '[CreatePost] Image manipulation failed, using original:',
+        error?.message || error
+      );
+    return uri;
+  }
+};
+
 function CreatePostScreen() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -526,26 +546,7 @@ function CreatePostScreen() {
           return;
         }
 
-        let uri = a.uri;
-        if (media === 'image') {
-          // Skip resize for small images (under 2MB) — already fast enough
-          if (fileSize > 2 * 1024 * 1024) {
-            try {
-              const result = await ImageManipulator.manipulateAsync(
-                a.uri,
-                [{ resize: { width: 1280 } }],
-                { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-              );
-              uri = result.uri;
-            } catch (error: any) {
-              if (__DEV__)
-                console.warn(
-                  '[CreatePost] Image manipulation failed, using original:',
-                  error?.message || error
-                );
-            }
-          }
-        }
+        const uri = media === 'image' ? await prepareImageForPostUpload(a.uri, fileSize) : a.uri;
         setPicked({
           uri,
           type: media,
@@ -627,26 +628,7 @@ function CreatePostScreen() {
           return;
         }
 
-        let uri = a.uri;
-        if (media === 'image') {
-          // Skip resize for small images (under 2MB) — already fast enough
-          if (fileSize > 2 * 1024 * 1024) {
-            try {
-              const result = await ImageManipulator.manipulateAsync(
-                a.uri,
-                [{ resize: { width: 1280 } }],
-                { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-              );
-              uri = result.uri;
-            } catch (error: any) {
-              if (__DEV__)
-                console.warn(
-                  '[CreatePost] Image manipulation failed, using original:',
-                  error?.message || error
-                );
-            }
-          }
-        }
+        const uri = media === 'image' ? await prepareImageForPostUpload(a.uri, fileSize) : a.uri;
         setPicked({
           uri,
           type: media,
