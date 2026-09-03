@@ -43,9 +43,13 @@ describe('Event approval state-machine race guard', () => {
 
   it('approveEvent bails out with 409 when the guarded update touches 0 rows', () => {
     // The loser of a concurrent approve/reject race must surface as 409, not
-    // silently succeed. We assert the count check + status 409 are present.
+    // silently succeed. We assert the count check delegates to the shared
+    // response helper, and that helper returns 409.
     expect(approveBody).toMatch(/guard\.count\s*===\s*0|count\s*===\s*0/);
-    expect(approveBody).toMatch(/status:\s*409/);
+    expect(approveBody).toMatch(
+      /buildEventReviewRaceResponse\(eventId,\s*prisma,\s*['"]approve['"]\)/
+    );
+    expect(SERVICE).toMatch(/async function buildEventReviewRaceResponse[\s\S]*status:\s*409/);
   });
 
   it('rejectEvent uses updateMany with approval_status in WHERE', () => {
@@ -55,7 +59,10 @@ describe('Event approval state-machine race guard', () => {
 
   it('rejectEvent bails out with 409 when the guarded update touches 0 rows', () => {
     expect(rejectBody).toMatch(/guard\.count\s*===\s*0|count\s*===\s*0/);
-    expect(rejectBody).toMatch(/status:\s*409/);
+    expect(rejectBody).toMatch(
+      /buildEventReviewRaceResponse\(eventId,\s*prisma,\s*['"]reject['"]\)/
+    );
+    expect(SERVICE).toMatch(/async function buildEventReviewRaceResponse[\s\S]*status:\s*409/);
   });
 
   it('neither function calls the unguarded prisma.event.update form for the state transition', () => {
