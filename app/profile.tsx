@@ -1293,6 +1293,167 @@ export default function ProfileScreen() {
     return item?.post || item?.target?.post || item?.target || item;
   }, []);
 
+  const openPostGridViewer = useCallback(
+    (sourceItems: any[], index: number, unwrapSource: boolean) => {
+      const sourcePosts = unwrapSource ? sourceItems.map(unwrapPost) : sourceItems;
+      const mapped = sourcePosts.map(toFeedPost);
+      const items = mapped.filter(Boolean) as FeedPost[];
+      const targetId = sourcePosts[index]?.id;
+      const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
+      setViewerItems(items);
+      setViewerIndex(Math.max(0, targetIdx));
+      setViewerOpen(true);
+    },
+    [unwrapPost]
+  );
+
+  const renderPostGridTile = useCallback(
+    ({
+      item,
+      index,
+      sourceItems,
+      unwrapSource,
+    }: {
+      item: any;
+      index: number;
+      sourceItems: any[];
+      unwrapSource: boolean;
+    }) => {
+      const postItem = unwrapSource ? unwrapPost(item) : item;
+      const media = resolvePostMedia(postItem);
+      const likes = postItem?.upvotes_count ?? 0;
+      const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+      const caption = String(postItem?.caption || postItem?.content || '').trim();
+      const author = postItem?.author;
+      const isTextOnly = !media.hasMedia;
+
+      return (
+        <Pressable
+          style={
+            isTextOnly
+              ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
+              : [styles.gridItem, { backgroundColor: theme.card }]
+          }
+          onPress={() => openPostGridViewer(sourceItems, index, unwrapSource)}
+        >
+          {media.hasMedia ? (
+            <>
+              <View style={styles.gridImageContainer}>
+                {media.isVideo && !media.displayImageUrl ? (
+                  <View
+                    style={[
+                      styles.gridImage,
+                      {
+                        backgroundColor: '#000',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      },
+                    ]}
+                  >
+                    <Ionicons name="play-circle" size={32} color="#fff" />
+                  </View>
+                ) : (
+                  <Image
+                    source={{
+                      uri:
+                        optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
+                        media.displayImageUrl!,
+                    }}
+                    style={styles.gridImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    recyclingKey={postItem?.id ?? item?.id ?? String(index)}
+                    transition={120}
+                  />
+                )}
+                <View style={styles.gridImageOverlay} />
+              </View>
+              <View style={styles.gridCounts}>
+                <View style={styles.gridCountItem}>
+                  <Ionicons name="arrow-up" size={12} color="#fff" />
+                  <Text style={styles.gridCountText}>{likes}</Text>
+                </View>
+                <View style={styles.gridCountItem}>
+                  <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                  <Text style={styles.gridCountText}>{comments}</Text>
+                </View>
+              </View>
+              <View style={styles.gridIconBadge}>
+                <Ionicons
+                  name={media.isVideo ? 'play-circle-outline' : 'camera-outline'}
+                  size={14}
+                  color="#fff"
+                />
+              </View>
+            </>
+          ) : (
+            <View style={styles.textCardInner}>
+              {author?.username ? (
+                <Text numberOfLines={1} style={[styles.textCardAuthor, { color: theme.mutedText }]}>
+                  @{author.username}
+                </Text>
+              ) : null}
+              <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
+                {caption || 'Post'}
+              </Text>
+              <View style={styles.textCardFooter}>
+                <View style={styles.textCardStat}>
+                  <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
+                  <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{likes}</Text>
+                </View>
+                <View style={styles.textCardStat}>
+                  <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
+                  <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
+                    {comments}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </Pressable>
+      );
+    },
+    [openPostGridViewer, theme.card, theme.mutedText, theme.text, unwrapPost]
+  );
+
+  const renderPostGridList = ({
+    data,
+    keyPrefix,
+    keyExtractor,
+    emptyComponent,
+    onEndReached,
+    loading,
+    unwrapItems = false,
+  }: {
+    data: any[];
+    keyPrefix: string;
+    keyExtractor: (item: any, index: number) => string;
+    emptyComponent: React.ComponentType<any> | React.ReactElement | null;
+    onEndReached: () => void;
+    loading: boolean;
+    unwrapItems?: boolean;
+  }) => (
+    <FlatList
+      data={data}
+      key={`${keyPrefix}-grid-2cols`}
+      numColumns={2}
+      columnWrapperStyle={styles.gridRow}
+      keyExtractor={keyExtractor}
+      ListHeaderComponent={renderHeader}
+      ListEmptyComponent={emptyComponent}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
+      }
+      contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
+      onEndReachedThreshold={0.5}
+      onEndReached={onEndReached}
+      renderItem={({ item, index }) =>
+        renderPostGridTile({ item, index, sourceItems: data, unwrapSource: unwrapItems })
+      }
+      ListFooterComponent={loading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+    />
+  );
+
   const SkeletonList = useCallback(
     ({ count = 8 }: { count?: number }) => (
       <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
@@ -1449,390 +1610,40 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: 'Profile' }} />
-      {activeTab === 'posts' ? (
-        <FlatList
-          data={posts}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={item => item.id}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyPosts}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
-          }
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedPosts}
-          renderItem={({ item, index }) => {
-            const media = resolvePostMedia(item);
-            const likes = item.upvotes_count ?? 0;
-            const comments = item.comments_count ?? item?._count?.comments ?? 0;
-            const caption = String(item.caption || item.content || '').trim();
-            const author = item?.author;
-            const isTextOnly = !media.hasMedia;
-            return (
-              <Pressable
-                style={
-                  isTextOnly
-                    ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
-                    : [styles.gridItem, { backgroundColor: theme.card }]
-                }
-                onPress={() => {
-                  const mapped = (posts || []).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = mapped[index]?.id;
-                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {media.hasMedia ? (
-                  <>
-                    <View style={styles.gridImageContainer}>
-                      {media.isVideo && !media.displayImageUrl ? (
-                        <View
-                          style={[
-                            styles.gridImage,
-                            {
-                              backgroundColor: '#000',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                            },
-                          ]}
-                        >
-                          <Ionicons name="play-circle" size={32} color="#fff" />
-                        </View>
-                      ) : (
-                        <Image
-                          source={{
-                            uri:
-                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
-                              media.displayImageUrl!,
-                          }}
-                          style={styles.gridImage}
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
-                          recyclingKey={item.id}
-                          transition={120}
-                        />
-                      )}
-                      <View style={styles.gridImageOverlay} />
-                    </View>
-                    <View style={styles.gridCounts}>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{likes}</Text>
-                      </View>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{comments}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.gridIconBadge}>
-                      <Ionicons
-                        name={media.isVideo ? 'play-circle-outline' : 'camera-outline'}
-                        size={14}
-                        color="#fff"
-                      />
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.textCardInner}>
-                    {author?.username ? (
-                      <Text
-                        numberOfLines={1}
-                        style={[styles.textCardAuthor, { color: theme.mutedText }]}
-                      >
-                        @{author.username}
-                      </Text>
-                    ) : null}
-                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
-                      {caption || 'Post'}
-                    </Text>
-                    <View style={styles.textCardFooter}>
-                      <View style={styles.textCardStat}>
-                        <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
-                          {likes}
-                        </Text>
-                      </View>
-                      <View style={styles.textCardStat}>
-                        <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
-                          {comments}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={
-            postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
-          }
-        />
-      ) : activeTab === 'replies' ? (
-        <FlatList
-          data={replies}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => {
-            const postItem = unwrapPost(item);
-            return postItem?.id ?? item?.id ?? `reply-${index}`;
-          }}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyReplies}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
-          }
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedReplies}
-          renderItem={({ item, index }) => {
-            const postItem = unwrapPost(item);
-            const media = resolvePostMedia(postItem);
-            const likes = postItem?.upvotes_count ?? 0;
-            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-            const caption = String(postItem?.caption || postItem?.content || '').trim();
-            const author = postItem?.author;
-            const isTextOnly = !media.hasMedia;
-            return (
-              <Pressable
-                style={
-                  isTextOnly
-                    ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
-                    : [styles.gridItem, { backgroundColor: theme.card }]
-                }
-                onPress={() => {
-                  const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = unwrapPost(replies[index])?.id;
-                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {media.hasMedia ? (
-                  <>
-                    <View style={styles.gridImageContainer}>
-                      {media.isVideo && !media.displayImageUrl ? (
-                        <View
-                          style={[
-                            styles.gridImage,
-                            {
-                              backgroundColor: '#000',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                            },
-                          ]}
-                        >
-                          <Ionicons name="play-circle" size={32} color="#fff" />
-                        </View>
-                      ) : (
-                        <Image
-                          source={{
-                            uri:
-                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
-                              media.displayImageUrl!,
-                          }}
-                          style={styles.gridImage}
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
-                          recyclingKey={item.id}
-                          transition={120}
-                        />
-                      )}
-                      <View style={styles.gridImageOverlay} />
-                    </View>
-                    <View style={styles.gridCounts}>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{likes}</Text>
-                      </View>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{comments}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.gridIconBadge}>
-                      <Ionicons
-                        name={media.isVideo ? 'play-circle-outline' : 'camera-outline'}
-                        size={14}
-                        color="#fff"
-                      />
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.textCardInner}>
-                    {author?.username ? (
-                      <Text
-                        numberOfLines={1}
-                        style={[styles.textCardAuthor, { color: theme.mutedText }]}
-                      >
-                        @{author.username}
-                      </Text>
-                    ) : null}
-                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
-                      {caption || 'Post'}
-                    </Text>
-                    <View style={styles.textCardFooter}>
-                      <View style={styles.textCardStat}>
-                        <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
-                          {likes}
-                        </Text>
-                      </View>
-                      <View style={styles.textCardStat}>
-                        <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
-                          {comments}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={
-            repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
-          }
-        />
-      ) : (
-        <FlatList
-          data={upvotes}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => {
-            const postItem = unwrapPost(item);
-            return postItem?.id ?? item?.id ?? `upvote-${index}`;
-          }}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyUpvotes}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
-          }
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedUpvotes}
-          renderItem={({ item, index }) => {
-            const postItem = unwrapPost(item);
-            const media = resolvePostMedia(postItem);
-            const likes = postItem?.upvotes_count ?? 0;
-            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-            const caption = String(postItem?.caption || postItem?.content || '').trim();
-            const author = postItem?.author;
-            const isTextOnly = !media.hasMedia;
-            return (
-              <Pressable
-                style={
-                  isTextOnly
-                    ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
-                    : [styles.gridItem, { backgroundColor: theme.card }]
-                }
-                onPress={() => {
-                  const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = unwrapPost(upvotes[index])?.id;
-                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {media.hasMedia ? (
-                  <>
-                    <View style={styles.gridImageContainer}>
-                      {media.isVideo && !media.displayImageUrl ? (
-                        <View
-                          style={[
-                            styles.gridImage,
-                            {
-                              backgroundColor: '#000',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                            },
-                          ]}
-                        >
-                          <Ionicons name="play-circle" size={32} color="#fff" />
-                        </View>
-                      ) : (
-                        <Image
-                          source={{
-                            uri:
-                              optimizeImageUrl(media.previewUrl || media.displayImageUrl!, 500) ||
-                              media.displayImageUrl!,
-                          }}
-                          style={styles.gridImage}
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
-                          recyclingKey={item.id}
-                          transition={120}
-                        />
-                      )}
-                      <View style={styles.gridImageOverlay} />
-                    </View>
-                    <View style={styles.gridCounts}>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{likes}</Text>
-                      </View>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{comments}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.gridIconBadge}>
-                      <Ionicons
-                        name={media.isVideo ? 'play-circle-outline' : 'camera-outline'}
-                        size={14}
-                        color="#fff"
-                      />
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.textCardInner}>
-                    {author?.username ? (
-                      <Text
-                        numberOfLines={1}
-                        style={[styles.textCardAuthor, { color: theme.mutedText }]}
-                      >
-                        @{author.username}
-                      </Text>
-                    ) : null}
-                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
-                      {caption || 'Post'}
-                    </Text>
-                    <View style={styles.textCardFooter}>
-                      <View style={styles.textCardStat}>
-                        <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
-                          {likes}
-                        </Text>
-                      </View>
-                      <View style={styles.textCardStat}>
-                        <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
-                          {comments}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={
-            upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
-          }
-        />
-      )}
+      {activeTab === 'posts'
+        ? renderPostGridList({
+            data: posts,
+            keyPrefix: activeTab,
+            keyExtractor: item => item.id,
+            emptyComponent: renderEmptyPosts,
+            onEndReached: onEndReachedPosts,
+            loading: postsLoading,
+          })
+        : activeTab === 'replies'
+          ? renderPostGridList({
+              data: replies,
+              keyPrefix: activeTab,
+              keyExtractor: (item, index) => {
+                const postItem = unwrapPost(item);
+                return postItem?.id ?? item?.id ?? `reply-${index}`;
+              },
+              emptyComponent: renderEmptyReplies,
+              onEndReached: onEndReachedReplies,
+              loading: repliesLoading,
+              unwrapItems: true,
+            })
+          : renderPostGridList({
+              data: upvotes,
+              keyPrefix: activeTab,
+              keyExtractor: (item, index) => {
+                const postItem = unwrapPost(item);
+                return postItem?.id ?? item?.id ?? `upvote-${index}`;
+              },
+              emptyComponent: renderEmptyUpvotes,
+              onEndReached: onEndReachedUpvotes,
+              loading: upvotesLoading,
+              unwrapItems: true,
+            })}
 
       {/* Avatar Viewer — full-screen enlarged profile picture */}
       <Modal
