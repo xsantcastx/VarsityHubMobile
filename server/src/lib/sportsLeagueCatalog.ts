@@ -52,6 +52,26 @@ export const SPORTS_LEAGUE_CATALOG: SportsLeagueCatalogEntry[] = [
   league('lpga', 'LPGA', 'golf', 'major', 'women'),
   league('atp', 'ATP Tour', 'tennis', 'major', 'men', 'espn', 'tennis/atp'),
   league('wta', 'WTA Tour', 'tennis', 'major', 'women', 'espn', 'tennis/wta'),
+  league(
+    'fiba_womens_world_cup',
+    "FIBA Women's Basketball World Cup",
+    'basketball',
+    'international',
+    'women',
+    'fiba',
+    'fiba-womens-basketball-world-cup',
+    null
+  ),
+  league(
+    'fiba_world_cup_qualifiers',
+    'FIBA Basketball World Cup Qualifiers',
+    'basketball',
+    'international',
+    'men',
+    'fiba',
+    'fiba-basketball-world-cup-qualifiers',
+    null
+  ),
   league('nascar_cup', 'NASCAR Cup Series', 'auto_racing', 'major', 'mixed'),
   league('indycar', 'IndyCar', 'auto_racing', 'major', 'mixed'),
   league('formula_one', 'Formula 1', 'auto_racing', 'major', 'mixed', null, null, null),

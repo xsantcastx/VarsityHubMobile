@@ -34,6 +34,8 @@ describe('sports league catalog', () => {
         'nwsl',
         'wwe',
         'ufc',
+        'fiba_womens_world_cup',
+        'fiba_world_cup_qualifiers',
         'milb_triple_a',
         'milb_double_a',
         'milb_high_a',
@@ -64,6 +66,21 @@ describe('sports league catalog', () => {
     expect(SPORTS_LEAGUE_CATALOG.some(league => league.level === 'major')).toBe(true);
     expect(SPORTS_LEAGUE_CATALOG.some(league => league.level === 'minor')).toBe(true);
     expect(SPORTS_LEAGUE_CATALOG.some(league => league.level === 'college')).toBe(true);
+    expect(SPORTS_LEAGUE_CATALOG.some(league => league.level === 'international')).toBe(true);
+  });
+
+  it('classifies FIBA women as international basketball, not WNBA', () => {
+    expect(SPORTS_LEAGUE_CATALOG).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slug: 'fiba_womens_world_cup',
+          sport_slug: 'basketball',
+          level: 'international',
+          gender: 'women',
+          provider: 'fiba',
+        }),
+      ])
+    );
   });
 
   it('uses sports that the map can normalize and filter', () => {
