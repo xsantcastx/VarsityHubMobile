@@ -928,155 +928,80 @@ export default function PostDetailScreen() {
     return <SkeletonLoader />;
   }
 
+  const renderUnavailablePostState = ({
+    message,
+    iconName = 'alert-circle',
+    iconColor = Colors[colorScheme].destructive,
+    showRetry = true,
+    retryTestID,
+  }: {
+    message: string;
+    iconName?: keyof typeof Ionicons.glyphMap;
+    iconColor?: string;
+    showRetry?: boolean;
+    retryTestID?: string;
+  }) => (
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['top', 'bottom']}
+    >
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={Colors[colorScheme].background}
+      />
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.errorContainer}>
+        <Ionicons name={iconName} size={48} color={iconColor} />
+        <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{message}</Text>
+        {showRetry ? (
+          <Pressable testID={retryTestID} style={styles.retryButton} onPress={retryLoad}>
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          style={[
+            styles.retryButton,
+            showRetry && { marginTop: 8 },
+            { backgroundColor: Colors[colorScheme].surface },
+          ]}
+          onPress={() => {
+            handleBack();
+          }}
+        >
+          <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  );
+
   if (error && !loading) {
     const is404 =
       error.toLowerCase().includes('not found') || error.toLowerCase().includes('deleted');
-    return (
-      <SafeAreaView
-        style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
-        edges={['top', 'bottom']}
-      >
-        <StatusBar
-          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
-          backgroundColor={Colors[colorScheme].background}
-        />
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.errorContainer}>
-          <Ionicons
-            name={is404 ? 'document-text-outline' : 'alert-circle'}
-            size={48}
-            color={Colors[colorScheme].mutedText}
-          />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
-            {is404 ? 'This post is no longer available' : error}
-          </Text>
-          {!is404 && (
-            <Pressable testID="retry-button" style={styles.retryButton} onPress={retryLoad}>
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </Pressable>
-          )}
-          <Pressable
-            style={[
-              styles.retryButton,
-              !is404 && { marginTop: 8 },
-              { backgroundColor: Colors[colorScheme].surface },
-            ]}
-            onPress={() => {
-              handleBack();
-            }}
-          >
-            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
-              Go Back
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
+    return renderUnavailablePostState({
+      message: is404 ? 'This post is no longer available' : error,
+      iconName: is404 ? 'document-text-outline' : 'alert-circle',
+      iconColor: Colors[colorScheme].mutedText,
+      showRetry: !is404,
+      retryTestID: 'retry-button',
+    });
   }
 
   if (!post && !loading && !error) {
     // Post failed to load but no error was set - show error state
-    return (
-      <SafeAreaView
-        style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
-        edges={['top', 'bottom']}
-      >
-        <StatusBar
-          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
-          backgroundColor={Colors[colorScheme].background}
-        />
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
-            Failed to load post
-          </Text>
-          <Pressable style={styles.retryButton} onPress={retryLoad}>
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.retryButton,
-              { marginTop: 8, backgroundColor: Colors[colorScheme].surface },
-            ]}
-            onPress={() => {
-              handleBack();
-            }}
-          >
-            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
-              Go Back
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
+    return renderUnavailablePostState({ message: 'Failed to load post' });
   }
 
   if (error) {
     // Show error with retry and back options
-    return (
-      <SafeAreaView
-        style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
-        edges={['top', 'bottom']}
-      >
-        <StatusBar
-          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
-          backgroundColor={Colors[colorScheme].background}
-        />
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={retryLoad}>
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.retryButton,
-              { marginTop: 8, backgroundColor: Colors[colorScheme].surface },
-            ]}
-            onPress={() => {
-              handleBack();
-            }}
-          >
-            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
-              Go Back
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
+    return renderUnavailablePostState({ message: error });
   }
 
   if (!post) {
-    return (
-      <SafeAreaView
-        style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
-        edges={['top', 'bottom']}
-      >
-        <StatusBar
-          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
-          backgroundColor={Colors[colorScheme].background}
-        />
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
-            Post not found
-          </Text>
-          <Pressable
-            style={[styles.retryButton, { backgroundColor: Colors[colorScheme].surface }]}
-            onPress={() => {
-              handleBack();
-            }}
-          >
-            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
-              Go Back
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
+    return renderUnavailablePostState({
+      message: 'Post not found',
+      iconColor: Colors[colorScheme].mutedText,
+      showRetry: false,
+    });
   }
 
   const hasMultiplePosts = postIdsArray.length > 1;
