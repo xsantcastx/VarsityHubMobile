@@ -43,6 +43,7 @@ import {
   ORG_ADMIN_ROLES,
   TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
+import { buildBinaryVoteSummary } from '../lib/voteSummary.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
 import {
@@ -961,10 +962,7 @@ const summarizeVotes = async (gameId: string, userId?: string | null) => {
         })
       : Promise.resolve(null),
   ]);
-  const total = teamA + teamB;
-  const pctA = total ? Math.round((teamA / total) * 100) : 0;
-  const pctB = total ? 100 - pctA : 0;
-  return { teamA, teamB, total, pctA, pctB, userVote: mine?.team ?? null };
+  return buildBinaryVoteSummary(teamA, teamB, mine?.team);
 };
 
 type GameVisibilityRecord = {
@@ -2242,17 +2240,7 @@ gamesRouter.get(
       const result: Record<string, Awaited<ReturnType<typeof summarizeVotes>>> = {};
       for (const id of eligibleIds) {
         const counts = countMap.get(id) || { A: 0, B: 0 };
-        const total = counts.A + counts.B;
-        const pctA = total ? Math.round((counts.A / total) * 100) : 0;
-        const pctB = total ? 100 - pctA : 0;
-        result[id] = {
-          teamA: counts.A,
-          teamB: counts.B,
-          total,
-          pctA,
-          pctB,
-          userVote: userVoteMap.get(id) ?? null,
-        };
+        result[id] = buildBinaryVoteSummary(counts.A, counts.B, userVoteMap.get(id));
       }
       return res.json(result);
     } catch (err) {

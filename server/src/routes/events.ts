@@ -41,6 +41,7 @@ import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
 } from '../lib/teamAuthorization.js';
+import { buildBinaryVoteSummary } from '../lib/voteSummary.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -132,10 +133,7 @@ const summarizeEventVotes = async (eventId: string, userId?: string | null) => {
         })
       : Promise.resolve(null),
   ]);
-  const total = teamA + teamB;
-  const pctA = total ? Math.round((teamA / total) * 100) : 0;
-  const pctB = total ? 100 - pctA : 0;
-  return { teamA, teamB, total, pctA, pctB, userVote: mine?.team ?? null };
+  return buildBinaryVoteSummary(teamA, teamB, mine?.team);
 };
 
 /**
