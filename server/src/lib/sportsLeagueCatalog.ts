@@ -62,16 +62,6 @@ export const SPORTS_LEAGUE_CATALOG: SportsLeagueCatalogEntry[] = [
     'fiba-womens-basketball-world-cup',
     null
   ),
-  league(
-    'fiba_world_cup_qualifiers',
-    'FIBA Basketball World Cup Qualifiers',
-    'basketball',
-    'international',
-    'men',
-    'fiba',
-    'fiba-basketball-world-cup-qualifiers',
-    null
-  ),
   league('nascar_cup', 'NASCAR Cup Series', 'auto_racing', 'major', 'mixed'),
   league('indycar', 'IndyCar', 'auto_racing', 'major', 'mixed'),
   league('formula_one', 'Formula 1', 'auto_racing', 'major', 'mixed', null, null, null),

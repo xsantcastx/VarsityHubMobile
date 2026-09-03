@@ -21,18 +21,6 @@ INSERT INTO "SportsLeague" (
     'fiba',
     'fiba-womens-basketball-world-cup',
     true
-  ),
-  (
-    'sports_league_fiba_world_cup_qualifiers',
-    'fiba_world_cup_qualifiers',
-    'FIBA Basketball World Cup Qualifiers',
-    'basketball',
-    'international',
-    'men',
-    NULL,
-    'fiba',
-    'fiba-basketball-world-cup-qualifiers',
-    true
   )
 ON CONFLICT ("slug") DO UPDATE SET
   "name" = EXCLUDED."name",

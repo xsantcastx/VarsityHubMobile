@@ -35,7 +35,6 @@ describe('sports league catalog', () => {
         'wwe',
         'ufc',
         'fiba_womens_world_cup',
-        'fiba_world_cup_qualifiers',
         'milb_triple_a',
         'milb_double_a',
         'milb_high_a',

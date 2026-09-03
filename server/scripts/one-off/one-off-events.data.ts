@@ -74,7 +74,7 @@ export interface OneOffEventDef {
 }
 
 export const EVENTS: OneOffEventDef[] = [
-  // ── Wimbledon 2026 — Women's Semifinal 2 (created 2026-07-09) ────────────────────
+  // ── FIBA Women’s Basketball World Cup 2026 — Berlin group stage (Sept 4–7) ───────
   {
     title: 'Japan vs Mali — FIBA Women’s Basketball World Cup 2026',
     description:
