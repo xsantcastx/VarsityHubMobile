@@ -33,12 +33,14 @@ describe('game map create-post contract', () => {
     expect(gameMapSource).not.toContain('Date.UTC(picked.getFullYear()');
   });
 
-  it('keeps the map search as a visible-marker title filter, not a global event-page search', () => {
-    expect(eventMapSource).toContain('Search box — filters the visible pins/clusters by title');
+  it('keeps the map search as a loaded-marker filter, not a global event-page search', () => {
+    expect(eventMapSource).toContain('Search box — filters the loaded map event/game pins only');
     expect(eventMapSource).toContain("const [searchQuery, setSearchQuery] = useState('')");
-    expect(eventMapSource).toContain(
-      "events.filter(event => (event.title || '').toLowerCase().includes(query))"
-    );
+    expect(eventMapSource).toContain('event.title,');
+    expect(eventMapSource).toContain('event.location,');
+    expect(eventMapSource).toContain('event.sport,');
+    expect(eventMapSource).toContain('event.league_slug,');
+    expect(eventMapSource).toContain('event.league_name,');
     expect(eventMapSource).not.toContain('/event-discovery?surface=map&q=');
   });
 });

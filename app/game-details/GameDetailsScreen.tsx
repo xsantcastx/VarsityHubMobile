@@ -32,6 +32,21 @@ import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
+import {
+  canAddStory,
+  capCount,
+  computeIsPast,
+  DEMO_MATCHUP_TAG,
+  ensureIso,
+  finalsBannerForTeams,
+  formatDateLabel,
+  formatTimeLabel,
+  getVenuePhoto,
+  pickBannerFromArrays,
+  PLACEHOLDER_GRADIENT,
+  type GameVM,
+  type TeamInfo,
+} from '@/utils/gameDetailsPresentation';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -71,21 +86,6 @@ import VideoThumbnail from '@/components/VideoThumbnail';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
-import {
-  canAddStory,
-  capCount,
-  computeIsPast,
-  DEMO_MATCHUP_TAG,
-  ensureIso,
-  finalsBannerForTeams,
-  formatDateLabel,
-  formatTimeLabel,
-  getVenuePhoto,
-  pickBannerFromArrays,
-  PLACEHOLDER_GRADIENT,
-  type GameVM,
-  type TeamInfo,
-} from './gameDetailsPresentation';
 import {
   applyClearVote,
   applyVoteSelection,

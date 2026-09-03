@@ -7,7 +7,7 @@ import {
   formatTimeLabel,
   getVenuePhoto,
   pickBannerFromArrays,
-} from '../gameDetailsPresentation';
+} from '@/utils/gameDetailsPresentation';
 
 describe('gameDetailsPresentation', () => {
   it('normalizes dates and rejects non-date values', () => {

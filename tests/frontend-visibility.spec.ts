@@ -8,7 +8,7 @@ async function gotoAndWait(page: Page, path: string) {
 }
 
 async function expectPublicFeedShell(page: Page) {
-  await expect(page.getByText('View Events Map')).toBeVisible();
+  await expect(page.getByText('View Games Nearby')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Feed' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Highlights' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Discover' })).toBeVisible();
@@ -24,7 +24,7 @@ test.describe('Front-End Visibility Tests', () => {
   test('Public web shell keeps readable text and navigation sizing', async ({ page }) => {
     await gotoAndWait(page, '/sign-in');
 
-    const title = page.getByText('View Events Map');
+    const title = page.getByText('View Games Nearby');
     const feedTab = page.getByRole('tab', { name: 'Feed' });
     const discoverTab = page.getByRole('tab', { name: 'Discover' });
 

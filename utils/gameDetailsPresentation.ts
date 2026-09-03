@@ -3,7 +3,7 @@ import type { ColorValue } from 'react-native';
 
 import { isEventPastEndOfDay } from '@/utils/eventPresentation';
 import { isPostingWindowOpen, type LiveWindowFields } from '@/utils/liveWindow';
-import type { MediaItem } from './StoriesViewer';
+import type { MediaItem } from '../app/game-details/StoriesViewer';
 
 export const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = [
   '#1e293b',

@@ -4,7 +4,7 @@ const APP_URL = process.env.APP_URL || 'http://localhost:8081';
 
 async function expectPublicFeedShell(page: any) {
   await page.locator('body').waitFor({ state: 'visible', timeout: 30000 });
-  await expect(page.locator('body')).toContainText('View Events Map', { timeout: 20000 });
+  await expect(page.locator('body')).toContainText('View Games Nearby', { timeout: 20000 });
   await expect(page.locator('body')).toContainText('Feed', { timeout: 20000 });
 }
 

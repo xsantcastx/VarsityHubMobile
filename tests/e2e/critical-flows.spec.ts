@@ -112,15 +112,11 @@ test.describe('Critical User Flows', () => {
     await page.goto(APP_URL);
     await page.waitForLoadState('networkidle');
 
-    // Try to find and click navigation elements
-    const navItems = ['Feed', 'Highlights', 'Games', 'Teams', 'Profile'];
+    // Try to find and click the visible tab bar items.
+    const navItems = ['Feed', 'Highlights', 'Create', 'Discover', 'Profile'];
 
     for (const navItem of navItems) {
-      const navLink = page
-        .locator(`text=/${navItem}/i`)
-        .or(page.locator(`a:has-text("${navItem}")`))
-        .or(page.locator(`button:has-text("${navItem}")`))
-        .first();
+      const navLink = page.getByRole('tab', { name: navItem }).first();
       const isVisible = await navLink.isVisible().catch(() => false);
 
       if (isVisible) {
