@@ -198,6 +198,69 @@ function tennisTitle(event: EspnEvent, competition: EspnTennisCompetition): stri
   return null;
 }
 
+function timeZoneParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const value = (type: string) => Number(parts.find(part => part.type === type)?.value);
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+    hour: value('hour') % 24,
+    minute: value('minute'),
+    second: value('second'),
+  };
+}
+
+function timeZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = timeZoneParts(date, timeZone);
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
+  );
+  return asUtc - date.getTime();
+}
+
+function utcDateForTimeZone(
+  timeZone: string,
+  parts: { year: number; month: number; day: number; hour: number }
+): Date {
+  const firstPass = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour));
+  const offset = timeZoneOffsetMs(firstPass, timeZone);
+  return new Date(firstPass.getTime() - offset);
+}
+
+function tennisWindowKey(startsAt: Date, timeZone: string) {
+  const parts = timeZoneParts(startsAt, timeZone);
+  const windowStartHour = parts.hour < 12 ? 0 : 12;
+  const windowStart = utcDateForTimeZone(timeZone, { ...parts, hour: windowStartHour });
+  const dateKey = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(
+    parts.day
+  ).padStart(2, '0')}`;
+  const label = windowStartHour === 0 ? '12 AM-12 PM' : '12 PM-12 AM';
+  return { dateKey, label, windowStartHour, windowStart };
+}
+
+function tennisWindowTitle(event: EspnEvent, league: ProLeague, dateKey: string, label: string) {
+  const tournament = varchar(event.shortName || event.name, 80);
+  const leagueLabel = league.toUpperCase();
+  return tournament
+    ? `${tournament} ${leagueLabel} ${dateKey} ${label}`
+    : `${leagueLabel} Tennis ${dateKey} ${label}`;
+}
+
 function parseTennisScoreboard(
   league: ProLeague,
   raw: unknown,
@@ -207,7 +270,7 @@ function parseTennisScoreboard(
   const events = (raw as { events?: EspnEvent[] })?.events;
   if (!Array.isArray(events)) return [];
 
-  const out: EspnPreGeocode[] = [];
+  const buckets = new Map<string, EspnPreGeocode & { hasScheduled: boolean }>();
   for (const event of events) {
     const venue = tennisVenueFor(event);
     if (!venue) continue;
@@ -219,29 +282,38 @@ function parseTennisScoreboard(
         if (startsAt < from || startsAt > to) continue;
         const title = tennisTitle(event, competition);
         if (!title) continue;
-        const court = varchar(competition.venue?.court, 80);
-        out.push({
-          external_ref: `${league}:${event.id}:${competition.id}`,
+        const window = tennisWindowKey(startsAt, venue.timezone);
+        const status = mapStatus(competition.status?.type?.name);
+        const externalRef = `${league}:${event.id}:${window.dateKey}:h${window.windowStartHour}`;
+        const existing = buckets.get(externalRef);
+        if (existing) {
+          existing.hasScheduled = existing.hasScheduled || status === 'scheduled';
+          existing.status = existing.hasScheduled ? 'scheduled' : existing.status;
+          continue;
+        }
+        buckets.set(externalRef, {
+          external_ref: externalRef,
           league,
-          starts_at: startsAt,
+          starts_at: window.windowStart,
           home_team_ref: null,
           away_team_ref: null,
           home_team: null,
           away_team: null,
-          title,
+          title: tennisWindowTitle(event, league, window.dateKey, window.label),
           venue_name: venue.venue_name,
-          venue_address: court ? `${court}, ${venue.venue_address}` : venue.venue_address,
+          venue_address: venue.venue_address,
           venue_lat: venue.venue_lat,
           venue_lng: venue.venue_lng,
           timezone: venue.timezone,
           venue_is_neutral: false,
-          status: mapStatus(competition.status?.type?.name),
+          status,
           _geocodeQuery: null,
+          hasScheduled: status === 'scheduled',
         });
       }
     }
   }
-  return out;
+  return [...buckets.values()].map(({ hasScheduled: _hasScheduled, ...fixture }) => fixture);
 }
 
 /** UTC yyyymmdd for ESPN's `dates=START-END` range param. */

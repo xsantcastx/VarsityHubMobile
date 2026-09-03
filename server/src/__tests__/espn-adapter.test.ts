@@ -312,6 +312,24 @@ describe('espnAdapter tennis parser', () => {
                   },
                 ],
               },
+              {
+                id: '184609',
+                startDate: '2026-09-02T18:00Z',
+                venue: { fullName: 'New York, USA', court: 'Grandstand' },
+                status: { type: { name: 'STATUS_SCHEDULED' } },
+                type: { text: "Men's Singles", slug: 'mens-singles' },
+                round: { displayName: 'Quarterfinal' },
+                competitors: [
+                  {
+                    homeAway: 'home',
+                    athlete: { displayName: 'Jannik Sinner', shortName: 'J. Sinner' },
+                  },
+                  {
+                    homeAway: 'away',
+                    athlete: { displayName: 'Taylor Fritz', shortName: 'T. Fritz' },
+                  },
+                ],
+              },
             ],
           },
           {
@@ -342,7 +360,7 @@ describe('espnAdapter tennis parser', () => {
     ],
   };
 
-  it('parses ATP tournament matches onto an exact tennis venue', () => {
+  it('collapses ATP tournament matches into a venue-local 12-hour window', () => {
     const parsed = adapter.__parseScoreboard!(
       'atp',
       tennisSample,
@@ -351,18 +369,19 @@ describe('espnAdapter tennis parser', () => {
     );
     expect(parsed).toHaveLength(1);
     expect(parsed[0]).toMatchObject({
-      external_ref: 'atp:189-2026:184607',
+      external_ref: 'atp:189-2026:2026-09-02:h12',
       league: 'atp',
-      title: 'Novak Djokovic vs Carlos Alcaraz - US Open',
+      title: 'US Open ATP 2026-09-02 12 PM-12 AM',
+      starts_at: new Date('2026-09-02T16:00:00.000Z'),
       venue_name: 'USTA Billie Jean King National Tennis Center',
-      venue_address: 'Arthur Ashe Stadium, Flushing Meadows Corona Park, Queens, NY 11368',
+      venue_address: 'Flushing Meadows Corona Park, Queens, NY 11368',
       venue_lat: 40.7499,
       venue_lng: -73.8476,
       timezone: 'America/New_York',
     });
   });
 
-  it('parses WTA tournament matches without duplicating ATP draws', () => {
+  it('collapses WTA tournament matches without duplicating ATP draws', () => {
     const parsed = adapter.__parseScoreboard!(
       'wta',
       tennisSample,
@@ -370,8 +389,8 @@ describe('espnAdapter tennis parser', () => {
       new Date('2026-09-03T00:00:00.000Z')
     );
     expect(parsed).toHaveLength(1);
-    expect(parsed[0].external_ref).toBe('wta:189-2026:184608');
-    expect(parsed[0].title).toBe('Iga Swiatek vs Coco Gauff - US Open');
+    expect(parsed[0].external_ref).toBe('wta:189-2026:2026-09-02:h12');
+    expect(parsed[0].title).toBe('US Open WTA 2026-09-02 12 PM-12 AM');
   });
 
   it('does not create generic round events when ESPN omits tennis competitors', () => {
