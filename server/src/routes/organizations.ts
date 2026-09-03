@@ -1056,6 +1056,21 @@ const organizationCreateSchemaFields = {
 // H3: zip_code aligned with ads — 5-digit US format when provided
 const createOrganizationSchema = z.object(organizationCreateSchemaFields);
 
+function sendOrganizationCreateValidationError(
+  res: Response,
+  issues: Array<{ path: PropertyKey[]; message: string }>
+) {
+  // v1.0.3: return Zod issues so the client can render actionable errors.
+  return res.status(400).json({
+    error: 'Invalid payload',
+    code: 'VALIDATION_FAILED',
+    issues: issues.map(i => ({
+      path: i.path,
+      message: i.message,
+    })),
+  });
+}
+
 // Create organization
 organizationsRouter.post(
   '/',
@@ -1071,14 +1086,7 @@ organizationsRouter.post(
       // with no way for users OR support to diagnose missing fields
       // (most commonly: supporting_document_url null after a silent upload
       // failure).
-      return res.status(400).json({
-        error: 'Invalid payload',
-        code: 'VALIDATION_FAILED',
-        issues: parsed.error.issues.map(i => ({
-          path: i.path,
-          message: i.message,
-        })),
-      });
+      return sendOrganizationCreateValidationError(res, parsed.error.issues);
     }
 
     const applicantResult = await loadEligibleOrganizationCreateApplicant(req, res);
@@ -1121,15 +1129,7 @@ organizationsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
     if (!parsed.success) {
-      // v1.0.3: return Zod issues so client can render actionable errors.
-      return res.status(400).json({
-        error: 'Invalid payload',
-        code: 'VALIDATION_FAILED',
-        issues: parsed.error.issues.map(i => ({
-          path: i.path,
-          message: i.message,
-        })),
-      });
+      return sendOrganizationCreateValidationError(res, parsed.error.issues);
     }
 
     const applicantResult = await loadEligibleOrganizationCreateApplicant(req, res);
