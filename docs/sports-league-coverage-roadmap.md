@@ -24,6 +24,17 @@ The current supported schedule enum is:
 Everything outside that list needs new data modeling and provider coverage
 before it can be considered active.
 
+Update, 2026-09-03:
+
+- FIBA Women's Basketball World Cup is now represented as data-driven
+  `SportsLeague` metadata and the 2026 group-stage slate is seeded through the
+  one-off event path.
+- That is event coverage, not recurring provider-backed ingestion. Future FIBA
+  tournaments still need a FIBA provider adapter or maintained import feed.
+- Minor leagues are cataloged, but most are not active schedule feeds yet.
+  Catalog presence means the league can be filtered/labeled once events exist;
+  it does not mean current fixtures are automatically imported.
+
 ## Provider Facts To Re-Verify Before Purchase
 
 - Sportradar's public developer coverage includes NFL, NCAAFB, UFL, NBA, WNBA,
@@ -106,6 +117,8 @@ Add leagues only when each has:
 
 Initial expansion targets:
 
+- FIBA recurring tournament importer: Women's World Cup, World Cup qualifiers,
+  AmeriCup/EuroBasket qualifiers where venue data is available.
 - NHL, AHL, ECHL, PWHL
 - MLS, NWSL, USL
 - G League
