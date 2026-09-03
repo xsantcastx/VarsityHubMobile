@@ -1156,6 +1156,91 @@ async function buildAdQuote(params: {
   };
 }
 
+async function handleFullyCompedAdPayment(params: {
+  res: Response;
+  userId: string;
+  adId: string;
+  isoDates: string[];
+  appliedCode?: string | null;
+  subtotalCents: number;
+  discountCents: number;
+  ad: {
+    target_zip_code?: string | null;
+    business_name?: string | null;
+  };
+  transactionLogContext: string;
+}) {
+  const { res, userId, adId, isoDates, appliedCode, subtotalCents, discountCents, ad } = params;
+
+  if (appliedCode) {
+    await redeemPromo({
+      code: appliedCode,
+      subtotalCents,
+      userId,
+      service: 'booking',
+      orderId: `FREE-${crypto.randomUUID()}`,
+    });
+  }
+  try {
+    await prisma.$transaction(
+      async tx => {
+        await reserveAdSlots(tx, {
+          adId,
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'paid',
+          status: 'active',
+        });
+      },
+      { isolationLevel: 'Serializable' }
+    );
+  } catch (e: any) {
+    if (e?.slotFull) {
+      return res.status(409).json({
+        error: 'One or more selected dates are fully booked',
+        dates: e.dates,
+      });
+    }
+    console.error('Failed to create ad reservations for free promo:', e);
+    return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
+  }
+
+  try {
+    await logTransaction({
+      transactionType: 'AD_PURCHASE',
+      status: 'COMPLETED',
+      userId,
+      subtotalCents,
+      taxCents: 0,
+      discountCents,
+      promoCode: appliedCode || undefined,
+      promoDiscountCents: discountCents,
+      totalCents: 0,
+      netCents: 0,
+      currency: 'usd',
+      metadata: { free_promo: true, ad_id: adId, dates: isoDates },
+    });
+  } catch (err) {
+    console.error('[payments] Failed to log free promo transaction:', err);
+    captureException(err as Error, {
+      context: params.transactionLogContext,
+      adId,
+    });
+  }
+
+  sendAdPaymentEmail({
+    userId,
+    adId,
+    dates: isoDates,
+    totalCents: 0,
+    businessName: ad.business_name,
+    zipCode: ad.target_zip_code,
+  }).catch((err: any) =>
+    console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
+  );
+  return res.json({ free: true });
+}
+
 // Ad pricing now uses the shared helper from utils/adPricing.ts
 // This ensures consistent pricing calculation ($5 weekday, $8 weekend per week block)
 // and proper week-block grouping (multiple dates in same week = single charge)
@@ -1560,75 +1645,17 @@ paymentsRouter.post(
     // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
     const isFullyComped = discount >= subtotal;
     if (total === 0 || isFullyComped) {
-      // Record redemption and create reservations
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId: req.user!.id,
-          service: 'booking',
-          orderId: `FREE-${crypto.randomUUID()}`,
-        });
-      }
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'paid',
-              status: 'active',
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-      } catch (e) {
-        if ((e as any)?.slotFull) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: (e as any).dates,
-          });
-        }
-        console.error('Failed to create ad reservations for free promo:', e);
-        return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
-      }
-      // v1.0.2 audit fix: await so financial audit trail can't silently drop.
-      // On DB failure, the user-facing response succeeds but we capture to Sentry at error level.
-      try {
-        await logTransaction({
-          transactionType: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          userId: req.user!.id,
-          subtotalCents: subtotal,
-          taxCents: 0,
-          discountCents: discount,
-          promoCode: appliedCode || undefined,
-          promoDiscountCents: discount,
-          totalCents: 0,
-          netCents: 0,
-          currency: 'usd',
-          metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-        });
-      } catch (err) {
-        console.error('[payments] Failed to log free promo transaction:', err);
-        captureException(err as Error, {
-          context: 'free_promo_transaction_log',
-          adId: String(ad_id),
-        });
-      }
-      // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
-      sendAdPaymentEmail({
+      return handleFullyCompedAdPayment({
+        res,
         userId: req.user!.id,
         adId: String(ad_id),
-        dates: isoDates,
-        totalCents: 0,
-        businessName: ad.business_name,
-        zipCode: ad.target_zip_code,
-      }).catch((err: any) =>
-        console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
-      );
-      return res.json({ free: true });
+        isoDates,
+        appliedCode,
+        subtotalCents: subtotal,
+        discountCents: discount,
+        ad,
+        transactionLogContext: 'free_promo_transaction_log',
+      });
     }
 
     const { success, cancel } = getCheckoutReturnUrls({ type: 'ad', mode: checkout_mode });
@@ -2131,74 +2158,17 @@ paymentsRouter.post(
     const total = quote.totalCents;
     const isFullyComped = discount >= subtotal;
     if (total === 0 || isFullyComped) {
-      // Free via promo — only if already approved (approval required before any charge/activation)
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId,
-          service: 'booking',
-          orderId: `FREE-${crypto.randomUUID()}`,
-        });
-      }
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'paid',
-              status: 'active',
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-      } catch (e: any) {
-        if (e?.slotFull) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: e.dates,
-          });
-        }
-        console.error('Failed to create ad reservations for free promo:', e);
-        return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
-      }
-      // v1.0.2 audit fix: await to preserve audit trail on PaymentSheet free-promo path.
-      try {
-        await logTransaction({
-          transactionType: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          userId,
-          subtotalCents: subtotal,
-          taxCents: 0,
-          discountCents: discount,
-          promoCode: appliedCode || undefined,
-          promoDiscountCents: discount,
-          totalCents: 0,
-          netCents: 0,
-          currency: 'usd',
-          metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-        });
-      } catch (err) {
-        console.error('[payments] Failed to log free promo transaction:', err);
-        captureException(err as Error, {
-          context: 'free_promo_transaction_log_pi',
-          adId: String(ad_id),
-        });
-      }
-      // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
-      sendAdPaymentEmail({
+      return handleFullyCompedAdPayment({
+        res,
         userId,
         adId: String(ad_id),
-        dates: isoDates,
-        totalCents: 0,
-        businessName: ad.business_name,
-        zipCode: ad.target_zip_code,
-      }).catch((err: any) =>
-        console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
-      );
-      return res.json({ free: true });
+        isoDates,
+        appliedCode,
+        subtotalCents: subtotal,
+        discountCents: discount,
+        ad,
+        transactionLogContext: 'free_promo_transaction_log_pi',
+      });
     }
 
     try {
