@@ -22,6 +22,7 @@ const SRC = join(process.cwd(), 'src');
 const read = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
 
 const payments = read('routes/payments.ts');
+const paymentCheckoutHelpers = read('services/payments/checkoutHelpers.ts');
 const requireOnboarded = read('middleware/requireOnboarded.ts');
 const appleAuth = read('lib/appleAuth.ts');
 const appleNotifDedup = read('lib/appleNotificationDedup.ts');
@@ -188,7 +189,8 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('web checkout success URLs include the session id and payment type for app handoff', () => {
-      const block = payments.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
+      const block =
+        paymentCheckoutHelpers.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
       expect(block).toMatch(
         /payment-success\?session_id=\{CHECKOUT_SESSION_ID\}&type=\$\{params\.type\}/
       );
