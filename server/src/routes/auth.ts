@@ -91,6 +91,19 @@ import {
 } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import {
+  appleAuthSchema,
+  CURRENT_TERMS_VERSION,
+  deleteAccountSchema,
+  googleAuthSchema,
+  loginSchema,
+  passwordChangeSchema,
+  passwordResetRequestSchema,
+  passwordResetSchema,
+  refreshSchema,
+  registerSchema,
+  upgradeToCoachSchema,
+} from '../validators/authSchemas.js';
 
 export const authRouter = Router();
 
@@ -590,27 +603,6 @@ function resolveEffectiveDob(
   });
 }
 
-const passwordRequirement = z
-  .string()
-  .min(8)
-  .refine(val => /[a-zA-Z]/.test(val) && /[0-9]/.test(val), {
-    message: 'Password must contain at least one letter and one number',
-  });
-
-// Current Terms of Service version. Stamped onto User.terms_version at
-// registration; bump when the ToS (app/settings/terms-of-service.tsx) changes
-// materially so we can tell which users accepted which version.
-const CURRENT_TERMS_VERSION = 1;
-
-const registerSchema = z.object({
-  email: z.string().trim().email(),
-  password: passwordRequirement,
-  display_name: z.string().optional(),
-  // Rookie is a coach plan, not a role
-  role: z.enum(['fan', 'coach']).optional(),
-  dob: z.string().optional(), // COPPA: reject if under 13
-});
-
 authRouter.post(
   '/register',
   asyncHandler(async (req, res) => {
@@ -816,8 +808,6 @@ authRouter.post(
   })
 );
 
-const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
-
 authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
@@ -980,8 +970,6 @@ async function serveRotatedTokenOrRevoke(
  * The old refresh token is superseded (rotation prevents reuse) but honored for
  * a short same-device grace window so a slow/aborted refresh can retry.
  */
-const refreshSchema = z.object({ refresh_token: z.string().min(32) });
-
 authRouter.post(
   '/refresh',
   refreshTokenLimiter,
@@ -1338,10 +1326,6 @@ authRouter.post(
  *
  * Response: 200 { ok: true, deleted_at, already_deleted?: true }
  */
-const deleteAccountSchema = z.object({
-  password: z.string().optional(),
-  delete_confirmation: z.string().optional(),
-});
 authRouter.post(
   '/account/delete',
   requireAuth as any,
@@ -1428,10 +1412,6 @@ authRouter.post(
     });
   })
 );
-
-const googleAuthSchema = z.object({
-  id_token: z.string().min(10),
-});
 
 authRouter.post(
   '/google',
@@ -1622,10 +1602,6 @@ authRouter.post(
     }
   })
 );
-
-const appleAuthSchema = z.object({
-  identity_token: z.string().min(1),
-});
 
 authRouter.post(
   '/apple',
@@ -1910,8 +1886,6 @@ authRouter.post(
   })
 );
 
-const passwordResetRequestSchema = z.object({ email: z.string().email() });
-
 authRouter.post(
   '/password/forgot',
   passwordResetLimiter as any,
@@ -1974,12 +1948,6 @@ authRouter.post(
     return res.json(payload);
   })
 );
-
-const passwordResetSchema = z.object({
-  email: z.string().email(),
-  code: z.string().length(6),
-  password: passwordRequirement,
-});
 
 authRouter.post(
   '/password/reset',
@@ -2069,11 +2037,6 @@ authRouter.post(
   })
 );
 
-const passwordChangeSchema = z.object({
-  current_password: z.string().min(1),
-  new_password: passwordRequirement,
-});
-
 authRouter.post(
   '/password/change',
   authLimiter,
@@ -2115,10 +2078,6 @@ authRouter.post(
 );
 
 // Upgrade a fan account to coach
-const upgradeToCoachSchema = z.object({
-  plan: z.enum(['rookie', 'veteran', 'legend']),
-});
-
 // v1.0.2: 48hr cooldown for rejected coach/org applications.
 const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
 
