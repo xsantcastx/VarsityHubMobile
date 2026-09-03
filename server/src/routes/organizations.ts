@@ -1071,6 +1071,37 @@ function sendOrganizationCreateValidationError(
   });
 }
 
+async function handleOrganizationCreateRoute(
+  req: AuthedRequest,
+  res: Response,
+  routeTag: '/' | '/create'
+) {
+  const parsed = createOrganizationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendOrganizationCreateValidationError(res, parsed.error.issues);
+  }
+
+  const applicantResult = await loadEligibleOrganizationCreateApplicant(req, res);
+  if (!applicantResult) return;
+  const { applicant, applicantPrefs } = applicantResult;
+
+  const data = parsed.data;
+  const preflight = await prepareOrganizationCreatePreflight({
+    req,
+    res,
+    data,
+    applicant,
+    applicantPrefs,
+  });
+  if (!preflight) return;
+  return handleOrganizationCreateRequest(req, res, data, {
+    applicantPrefs,
+    shouldForcePendingApproval: preflight.shouldForcePendingApproval,
+    authorizedInviteInputs: preflight.authorizedInviteInputs,
+    routeTag,
+  });
+}
+
 // Create organization
 organizationsRouter.post(
   '/',
@@ -1078,48 +1109,20 @@ organizationsRouter.post(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const parsed = createOrganizationSchema.safeParse(req.body);
-    if (!parsed.success) {
-      // v1.0.3: return the Zod issues so the client can show WHICH field
-      // failed validation. The bare "Invalid payload" response caused an
-      // entire session of "Failed to create page — something went wrong"
-      // with no way for users OR support to diagnose missing fields
-      // (most commonly: supporting_document_url null after a silent upload
-      // failure).
-      return sendOrganizationCreateValidationError(res, parsed.error.issues);
-    }
-
-    const applicantResult = await loadEligibleOrganizationCreateApplicant(req, res);
-    if (!applicantResult) return;
-    const { applicant, applicantPrefs } = applicantResult;
-
-    const data = parsed.data;
-    const preflight = await prepareOrganizationCreatePreflight({
-      req,
-      res,
-      data,
-      applicant,
-      applicantPrefs,
-    });
-    if (!preflight) return;
-    return handleOrganizationCreateRequest(req, res, parsed.data, {
-      applicantPrefs,
-      shouldForcePendingApproval: preflight.shouldForcePendingApproval,
-      authorizedInviteInputs: preflight.authorizedInviteInputs,
-      routeTag: '/',
-    });
+    // v1.0.3: return the Zod issues so the client can show WHICH field
+    // failed validation. The bare "Invalid payload" response caused an entire
+    // session of "Failed to create page — something went wrong" with no way
+    // for users OR support to diagnose missing fields.
+    return handleOrganizationCreateRoute(req, res, '/');
   })
 );
-
-// H3: zip_code aligned with ads — 5-digit US format when provided
-const createOrganizationWithTeamsSchema = createOrganizationSchema;
 
 // Enhanced create organization for onboarding
 organizationsRouter.post(
   '/create',
   requireAuth as any,
   requireVerified as any,
-  // Align with the canonical POST /organizations route (line 630). The legacy
+  // Align with the canonical POST /organizations route. The legacy
   // /create variant previously omitted requireOnboarded and relied on inline
   // role + rejection-cooldown checks in the handler body. Those inline checks
   // remain as defense-in-depth, but middleware alignment removes the asymmetric
@@ -1127,30 +1130,7 @@ organizationsRouter.post(
   // routes drift when someone updates one and not the other).
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return sendOrganizationCreateValidationError(res, parsed.error.issues);
-    }
-
-    const applicantResult = await loadEligibleOrganizationCreateApplicant(req, res);
-    if (!applicantResult) return;
-    const { applicant, applicantPrefs } = applicantResult;
-
-    const data = parsed.data;
-    const preflight = await prepareOrganizationCreatePreflight({
-      req,
-      res,
-      data,
-      applicant,
-      applicantPrefs,
-    });
-    if (!preflight) return;
-    return handleOrganizationCreateRequest(req, res, parsed.data, {
-      applicantPrefs,
-      shouldForcePendingApproval: preflight.shouldForcePendingApproval,
-      authorizedInviteInputs: preflight.authorizedInviteInputs,
-      routeTag: '/create',
-    });
+    return handleOrganizationCreateRoute(req, res, '/create');
   })
 );
 
