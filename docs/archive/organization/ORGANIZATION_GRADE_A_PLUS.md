@@ -39,8 +39,8 @@ All major code organization issues have been resolved. The codebase is now profe
 
 **Scripts Moved:**
 
-- 30+ `.sh` scripts → `scripts/moved-from-root/`
-- 3 `.mjs` scripts → `scripts/moved-from-root/`
+- 30+ `.sh` scripts → `scripts/archive/moved-from-root/`
+- 3 `.mjs` scripts → `scripts/archive/moved-from-root/`
 
 **Result:** Root directory reduced from ~80 files to ~20 essential files
 
@@ -181,14 +181,14 @@ All major code organization issues have been resolved. The codebase is now profe
 
 ### Script Execution
 
-Scripts moved to `scripts/moved-from-root/` can be run from:
+Scripts moved to `scripts/archive/moved-from-root/` can be run from:
 
 ```bash
 # From project root
-./scripts/moved-from-root/script-name.sh
+./scripts/archive/moved-from-root/script-name.sh
 
 # Or navigate to the directory
-cd scripts/moved-from-root
+cd scripts/archive/moved-from-root
 ./script-name.sh
 ```
 

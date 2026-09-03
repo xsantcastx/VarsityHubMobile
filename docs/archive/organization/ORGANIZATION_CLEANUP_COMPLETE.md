@@ -24,9 +24,9 @@
   - Created `docs/moved-from-root/README.md` for reference
 
 - **Moved Scripts:**
-  - All `.sh` scripts → `scripts/moved-from-root/`
-  - All `.mjs` scripts → `scripts/moved-from-root/`
-  - Created `scripts/moved-from-root/README.md` for reference
+  - All `.sh` scripts → `scripts/archive/moved-from-root/`
+  - All `.mjs` scripts → `scripts/archive/moved-from-root/`
+  - Created `scripts/archive/moved-from-root/README.md` for reference
 
 - **Updated `.gitignore`:**
   - Added `overnight-*/` directories
@@ -77,7 +77,7 @@
 
 - All `.md` files except `README.md` and `CHANGELOG.md`
 
-### Scripts (→ `scripts/moved-from-root/`)
+### Scripts (→ `scripts/archive/moved-from-root/`)
 
 - All `.sh` shell scripts
 - All `.mjs` JavaScript modules
@@ -140,7 +140,7 @@ The codebase is now well organized with:
 
 If scripts reference other files by relative path, you may need to:
 
-1. Run them from the project root: `./scripts/moved-from-root/script.sh`
+1. Run them from the project root: `./scripts/archive/moved-from-root/script.sh`
 2. Or update paths within the scripts if they're executed from different locations
 
 ### Documentation

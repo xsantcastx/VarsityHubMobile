@@ -34,6 +34,7 @@ This is the live documentation entry point. Keep this page short: if a document 
 ## Historical Material
 
 - [Root audit snapshots](./archive/audits/root/) - retired root-level audit and report files.
+- [Organization history](./archive/organization/) - retired cleanup and repository reorganization reports.
 - [Archived docs](./archive/) - historical implementation notes and superseded runbooks.
 - [Moved-from-root docs](./moved-from-root/) - old root docs retained for traceability.
 - [Status docs](./status/) - historical status snapshots unless linked above.

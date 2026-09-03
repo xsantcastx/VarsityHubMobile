@@ -1,23 +1,26 @@
-# Scripts Moved From Root Directory
+# Archived Scripts Moved From Root Directory
 
-This directory contains shell scripts (`.sh`) and JavaScript modules (`.mjs`) that were moved from the root directory to improve organization.
+This directory contains historical shell scripts (`.sh`) and JavaScript modules (`.mjs`) that were moved from the root directory to improve organization.
 
 **Date:** January 12, 2025  
 **Reason:** Clean up root directory clutter for better code organization
 
 ## Contents
 
-All `.sh` and `.mjs` files from the root directory have been moved here.
+All `.sh` and `.mjs` files from the old root cleanup pass were moved here.
 
 ## Usage
 
+Prefer current `npm run ...` commands before using anything in this folder. These scripts may be stale.
+
 To run these scripts, use:
+
 ```bash
 # From project root
-./scripts/moved-from-root/script-name.sh
+./scripts/archive/moved-from-root/script-name.sh
 
 # Or navigate to the directory
-cd scripts/moved-from-root
+cd scripts/archive/moved-from-root
 ./script-name.sh
 ```
 
