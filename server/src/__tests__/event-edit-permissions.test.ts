@@ -19,15 +19,25 @@ const cancelRoutePos = eventsSrc.indexOf("'/:id/cancel'");
 // Slice from a bit before the edit marker (to capture the full handler) to the cancel route
 const editHandlerStart = eventsSrc.lastIndexOf('eventsRouter.patch', editMarkerPos);
 const editHandler = eventsSrc.slice(editHandlerStart, cancelRoutePos);
+const editableHelperStart = eventsSrc.indexOf('async function loadEditableEventForAction');
+const editableHelperEnd = eventsSrc.indexOf('eventsRouter.patch', editableHelperStart);
+const editableHelper = eventsSrc.slice(editableHelperStart, editableHelperEnd);
 
 describe('PATCH /events/:id permissions', () => {
-  it('uses canManageAnyTeam (org-admin fallback included), not an inline membership query', () => {
+  it('uses the shared editable-event helper from the edit route', () => {
     expect(editMarkerPos).toBeGreaterThan(-1);
     expect(cancelRoutePos).toBeGreaterThan(editMarkerPos);
-    expect(editHandler).toMatch(/canManageAnyTeam\(/);
+    expect(editHandler).toMatch(/loadEditableEventForAction\(/);
   });
+
+  it('shared editable-event helper uses canManageAnyTeam with org-admin fallback', () => {
+    expect(editableHelperStart).toBeGreaterThan(-1);
+    expect(editableHelperEnd).toBeGreaterThan(editableHelperStart);
+    expect(editableHelper).toMatch(/canManageAnyTeam\(/);
+  });
+
   it('no longer hand-rolls the staff-role membership check', () => {
-    expect(editHandler).not.toMatch(
+    expect(`${editableHelper}\n${editHandler}`).not.toMatch(
       /role:\s*\{\s*in:\s*\['owner',\s*'manager',\s*'coach',\s*'assistant_coach'\]/
     );
   });
