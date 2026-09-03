@@ -802,49 +802,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           try {
             await prisma.$transaction(
               async tx => {
-                const adRecord = await tx.ad.findUnique({
-                  where: { id: adId },
-                  select: { target_zip_code: true, status: true, payment_status: true },
-                });
-                if (adRecord?.target_zip_code) {
-                  const fullDates = await getFullAdSlotDates(tx, {
-                    adId,
-                    targetZipCode: adRecord.target_zip_code,
-                    isoDates: piDates,
-                  });
-                  if (fullDates.length > 0) {
-                    const err = new Error('SLOT_FULL') as any;
-                    err.slotFull = true;
-                    err.dates = fullDates;
-                    throw err;
-                  }
-                }
-                if (!adRecord || (adRecord.status !== 'approved' && adRecord.status !== 'active')) {
-                  throw new Error(
-                    `AD_NOT_APPROVED: Ad ${adId} status is ${adRecord?.status}, cannot activate`
-                  );
-                }
-                if (adRecord.payment_status === 'paid') {
-                  return;
-                }
-
-                const updated = await tx.ad.updateMany({
-                  where: {
-                    id: adId,
-                    status: { in: ['approved', 'active'] },
-                    payment_status: { not: 'paid' },
-                  },
-                  data: { payment_status: 'paid', status: 'active' },
-                });
-                if (updated.count === 0) {
-                  throw new Error(
-                    `AD_NOT_APPROVED: Ad ${adId} was no longer approved at activation time`
-                  );
-                }
-                await tx.adReservation.createMany({
-                  data: piDates.map(s => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
-                  skipDuplicates: true,
-                });
+                await activateApprovedAdPaymentIntent(tx, adId, piDates);
               },
               { isolationLevel: 'Serializable' }
             );
