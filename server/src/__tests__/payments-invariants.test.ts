@@ -23,6 +23,7 @@ const read = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
 
 const payments = read('routes/payments.ts');
 const paymentCheckoutHelpers = read('services/payments/checkoutHelpers.ts');
+const googlePlayVerifier = read('services/payments/googlePlayVerifier.ts');
 const requireOnboarded = read('middleware/requireOnboarded.ts');
 const appleAuth = read('lib/appleAuth.ts');
 const appleNotifDedup = read('lib/appleNotificationDedup.ts');
@@ -295,7 +296,8 @@ describe('payments & subscriptions — structural invariants', () => {
 
   describe('Google Play purchase identity', () => {
     it('hashes purchase tokens for order_id instead of truncating them', () => {
-      const block = payments.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
+      const block =
+        googlePlayVerifier.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
       expect(block).toMatch(/crypto\.createHash\('sha256'\)/);
       expect(block).toMatch(/google_purchase:/);
     });
