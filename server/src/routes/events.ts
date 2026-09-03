@@ -1773,47 +1773,74 @@ eventsRouter.post(
   '/:id/approve',
   asyncHandler(async (req: AuthedRequest, res) => handleEventTokenReview(req, res, 'approve'))
 );
+
+async function loadAuthorizedEventReview(params: {
+  req: AuthedRequest;
+  action: 'approve' | 'reject';
+}) {
+  const { req, action } = params;
+  if (!req.user) {
+    return { ok: false as const, status: 401, body: { error: 'Unauthorized' } };
+  }
+
+  const userId = req.user.id;
+  const isAdmin = await getIsAdmin(req as any);
+  const eventId = String(req.params.id);
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) {
+    return { ok: false as const, status: 404, body: { error: 'Event not found' } };
+  }
+
+  if (!isAdmin) {
+    if (event.creator_id === userId) {
+      return {
+        ok: false as const,
+        status: 403,
+        body: { error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' },
+      };
+    }
+    const canReview = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
+    if (!canReview) {
+      return {
+        ok: false as const,
+        status: 403,
+        body: {
+          error: `Only coaches of this team or organization admins can ${action} events`,
+        },
+      };
+    }
+  }
+
+  return { ok: true as const, userId, eventId, event };
+}
+
+function eventReviewErrorMessage(action: 'approve' | 'reject', error: string) {
+  if (action === 'approve') {
+    if (error === 'Event already approved') return 'This event has already been approved.';
+    if (error === 'Event already rejected')
+      return 'This event has already been rejected. Cannot approve a rejected event.';
+    return 'Can only approve pending events.';
+  }
+
+  if (error === 'Event already approved')
+    return 'This event has already been approved. Cannot reject an approved event.';
+  if (error === 'Event already rejected') return 'This event has already been rejected.';
+  return 'Can only reject pending events.';
+}
+
 eventsRouter.put(
   '/:id/approve',
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    // req.user is guaranteed by requireVerified middleware
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
-    const userId = req.user.id;
-    const isAdmin = await getIsAdmin(req as any);
-
-    const eventId = String(req.params.id);
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-
-    // Scope approval: must be admin, or coach/admin of the event's team/org
-    if (!isAdmin) {
-      // IDOR self-action guard (parity with PUT /games/:id/approve) — a user
-      // must not approve their own submission. Audit 2026-07-14.
-      if (event.creator_id === userId) {
-        return res
-          .status(403)
-          .json({ error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' });
-      }
-      const canApprove = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
-      if (!canApprove) {
-        return res
-          .status(403)
-          .json({ error: 'Only coaches of this team or organization admins can approve events' });
-      }
-    }
+    const review = await loadAuthorizedEventReview({ req, action: 'approve' });
+    if (!review.ok) return res.status(review.status).json(review.body);
+    const { userId, eventId, event } = review;
 
     // Delegate state validation, DB write, and notifications to the approval service
     const result = await approveEventService(eventId, userId, prisma);
     if (result.error) {
-      const msg =
-        result.error === 'Event already approved'
-          ? 'This event has already been approved.'
-          : result.error === 'Event already rejected'
-            ? 'This event has already been rejected. Cannot approve a rejected event.'
-            : 'Can only approve pending events.';
+      const msg = eventReviewErrorMessage('approve', result.error);
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
@@ -1853,31 +1880,9 @@ eventsRouter.put(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    // req.user is guaranteed by requireVerified middleware
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
-    const userId = req.user.id;
-    const isAdmin = await getIsAdmin(req as any);
-
-    const eventId = String(req.params.id);
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-
-    // Scope rejection: must be admin, or coach/admin of the event's team/org
-    if (!isAdmin) {
-      // IDOR self-action guard (parity with games) — no reviewing your own event.
-      if (event.creator_id === userId) {
-        return res
-          .status(403)
-          .json({ error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' });
-      }
-      const canReject = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
-      if (!canReject) {
-        return res
-          .status(403)
-          .json({ error: 'Only coaches of this team or organization admins can reject events' });
-      }
-    }
+    const review = await loadAuthorizedEventReview({ req, action: 'reject' });
+    if (!review.ok) return res.status(review.status).json(review.body);
+    const { userId, eventId, event } = review;
 
     const parsed = rejectEventSchema.safeParse(req.body);
     const reason = parsed.success ? parsed.data.reason : undefined;
@@ -1885,12 +1890,7 @@ eventsRouter.put(
     // Delegate state validation, DB write, and notifications to the approval service
     const result = await rejectEventService(eventId, userId, prisma, { reason });
     if (result.error) {
-      const msg =
-        result.error === 'Event already approved'
-          ? 'This event has already been approved. Cannot reject an approved event.'
-          : result.error === 'Event already rejected'
-            ? 'This event has already been rejected.'
-            : 'Can only reject pending events.';
+      const msg = eventReviewErrorMessage('reject', result.error);
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
@@ -1956,49 +1956,69 @@ const COACH_EDITABLE_FIELDS = [
   'away_team_name',
 ];
 
+async function loadEditableEventForAction(params: {
+  req: AuthedRequest;
+  cancelledError: string;
+  permissionMessage: string;
+}) {
+  const { req, cancelledError, permissionMessage } = params;
+  const eventId = String(req.params.id);
+  const userId = req.user?.id;
+  if (!userId) {
+    return { ok: false as const, status: 401, body: { error: 'Unauthorized' } };
+  }
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      game: { select: { id: true, home_team_id: true, away_team_id: true } },
+    },
+  });
+
+  if (!event) return { ok: false as const, status: 404, body: { error: 'Event not found' } };
+  if (event.status === 'cancelled') {
+    return { ok: false as const, status: 400, body: { error: cancelledError } };
+  }
+
+  const isCreator = event.creator_id === userId;
+  const linkedTeamIds: Array<string | null | undefined> = [
+    event.game?.home_team_id ?? null,
+    event.game?.away_team_id ?? null,
+    (event as any).team_id ?? null,
+  ];
+  const canManageLinkedTeam = linkedTeamIds.some(Boolean)
+    ? await canManageAnyTeam(userId, linkedTeamIds)
+    : false;
+  const isAdmin = await getIsAdmin(req as any);
+
+  if (!isCreator && !canManageLinkedTeam && !isAdmin) {
+    return {
+      ok: false as const,
+      status: 403,
+      body: {
+        error: 'Permission denied',
+        message: permissionMessage,
+      },
+    };
+  }
+
+  return { ok: true as const, eventId, userId, event, isCreator, canManageLinkedTeam, isAdmin };
+}
+
 eventsRouter.patch(
   '/:id',
   requireAuth as any,
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const eventId = String(req.params.id);
-    const userId = req.user!.id;
-
-    const event = await prisma.event.findUnique({
-      where: { id: eventId },
-      include: {
-        game: { select: { id: true, home_team_id: true, away_team_id: true } },
-      },
+    const editable = await loadEditableEventForAction({
+      req,
+      cancelledError: 'Cannot edit cancelled event',
+      permissionMessage:
+        'Only the event creator, team staff, or a league admin can edit this event.',
     });
-
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.status === 'cancelled') {
-      return res.status(400).json({ error: 'Cannot edit cancelled event' });
-    }
-
-    // Permission: creator OR any team staff (including org admin fallback)
-    // for any team linked to this event — same rule as /:id/cancel below.
-    // Previously this used an inline membership query without the org-admin
-    // fallback, so league owners couldn't edit events in their own league
-    // (2026-07-13 audit; the cancel handler had already been fixed).
-    const isCreator = event.creator_id === userId;
-    const linkedTeamIds: Array<string | null | undefined> = [
-      event.game?.home_team_id ?? null,
-      event.game?.away_team_id ?? null,
-      (event as any).team_id ?? null,
-    ];
-    const canManageLinkedTeam = linkedTeamIds.some(Boolean)
-      ? await canManageAnyTeam(userId, linkedTeamIds)
-      : false;
-    const isAdmin = await getIsAdmin(req as any);
-
-    if (!isCreator && !canManageLinkedTeam && !isAdmin) {
-      return res.status(403).json({
-        error: 'Permission denied',
-        message: 'Only the event creator, team staff, or a league admin can edit this event.',
-      });
-    }
+    if (!editable.ok) return res.status(editable.status).json(editable.body);
+    const { eventId, userId, event, isCreator, canManageLinkedTeam, isAdmin } = editable;
 
     const parsed = updateEventSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -2192,44 +2212,14 @@ eventsRouter.patch(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const eventId = String(req.params.id);
-    const userId = req.user!.id;
-
-    const event = await prisma.event.findUnique({
-      where: { id: eventId },
-      include: {
-        game: { select: { id: true, home_team_id: true, away_team_id: true } },
-      },
+    const editable = await loadEditableEventForAction({
+      req,
+      cancelledError: 'Event already cancelled',
+      permissionMessage:
+        'Only the event creator, team staff, or a league admin can cancel this event.',
     });
-
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.status === 'cancelled') {
-      return res.status(400).json({ error: 'Event already cancelled' });
-    }
-
-    // Permission: creator OR any team staff (including org admin fallback)
-    // for any team linked to this event. Previously this check accepted only
-    // role='owner' and skipped the org-admin fallback — league owners
-    // couldn't cancel events in their own league, and team coaches couldn't
-    // cancel events they scheduled. `canManageAnyTeam` consolidates the
-    // same rule used by team update / game approval / chat creation.
-    const isCreator = event.creator_id === userId;
-    const linkedTeamIds: Array<string | null | undefined> = [
-      event.game?.home_team_id ?? null,
-      event.game?.away_team_id ?? null,
-      (event as any).team_id ?? null,
-    ];
-    const canManageLinkedTeam = linkedTeamIds.some(Boolean)
-      ? await canManageAnyTeam(userId, linkedTeamIds)
-      : false;
-
-    const isAdmin = await getIsAdmin(req as any);
-    if (!isCreator && !canManageLinkedTeam && !isAdmin) {
-      return res.status(403).json({
-        error: 'Permission denied',
-        message: 'Only the event creator, team staff, or a league admin can cancel this event.',
-      });
-    }
+    if (!editable.ok) return res.status(editable.status).json(editable.body);
+    const { eventId, userId, event } = editable;
 
     // Update event status
     const updated = await prisma.event.update({
