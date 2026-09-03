@@ -143,6 +143,29 @@ describe('useRequireTeamManagement', () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it('reuses a recent membership probe for the same user across guarded screens', async () => {
+    const user = { id: 'fan-cache-manager', role: 'fan', preferences: { role: 'fan' } };
+    mockManaged.mockResolvedValue([{ id: 'team_cache_1' }]);
+    mockReviewSummaries.mockResolvedValue([]);
+    mockUseAuth.mockReturnValue({ loading: false, user });
+
+    const first = renderHook(() => useRequireTeamManagement());
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    expect(first.result.current.canManage).toBe(true);
+    expect(mockManaged).toHaveBeenCalledTimes(1);
+    expect(mockReviewSummaries).toHaveBeenCalledTimes(1);
+    first.unmount();
+
+    mockManaged.mockClear();
+    mockReviewSummaries.mockClear();
+
+    const second = renderHook(() => useRequireTeamManagement());
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+    expect(second.result.current.canManage).toBe(true);
+    expect(mockManaged).not.toHaveBeenCalled();
+    expect(mockReviewSummaries).not.toHaveBeenCalled();
+  });
+
   it('fails closed and reports when the membership probe errors', async () => {
     mockManaged.mockRejectedValue(new Error('network down'));
     mockReviewSummaries.mockRejectedValue(new Error('network down'));
