@@ -2,6 +2,8 @@ import express from 'express';
 import { z } from 'zod';
 import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { approveCoach, rejectCoach } from '../lib/approvalService.js';
+import { grantEventPostAccess, revokeEventPostAccess } from '../lib/eventPostAccess.js';
+import { sendError } from '../lib/http/sendError.js';
 import { renderReviewPage, renderResultPage } from '../lib/reviewPage.js';
 import { sendAccountModerationEmail } from '../lib/email.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
@@ -1035,6 +1037,100 @@ adminRouter.post(
     }
 
     return res.json({ ok: true, banned: false });
+  })
+);
+
+// Grant / revoke a user's manual post + story access to a specific event page.
+// The repeatable, audited replacement for the grant-event-post-access one-off
+// script (owner note: "one of one case that may be used again"). Writes the same
+// EventPostingUnlock + EventDesignatedPoster rows the discovery/geofencing layer
+// reads; idempotent, so re-granting just refreshes the 7-day window.
+const eventPostAccessGrantSchema = z.object({
+  user_id: z.string().min(1, 'user_id is required'),
+  // Optional ledger anchor (defaults to now); access lasts 7 days from here.
+  unlocked_at: z.string().datetime({ message: 'unlocked_at must be an ISO-8601 datetime' }).optional(),
+});
+const eventPostAccessRevokeSchema = z.object({
+  user_id: z.string().min(1, 'user_id is required'),
+});
+
+adminRouter.post(
+  '/events/:id/post-access',
+  requireVerified as any,
+  requireAdminMiddleware as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const parsed = eventPostAccessGrantSchema.safeParse(req.body ?? {});
+    if (!parsed.success)
+      return sendError(res, 400, 'Invalid payload', { details: parsed.error.issues });
+
+    const outcome = await grantEventPostAccess(prisma, {
+      eventId: req.params.id,
+      userId: parsed.data.user_id,
+      grantedBy: req.user.id,
+      unlockedAt: parsed.data.unlocked_at ? new Date(parsed.data.unlocked_at) : undefined,
+    });
+    if (!outcome.ok) {
+      return outcome.reason === 'event_not_found'
+        ? sendError(res, 404, 'Event not found')
+        : sendError(res, 404, 'User not found');
+    }
+
+    await logAdminActivityFromReq(
+      req,
+      'Grant Event Post Access',
+      'event',
+      req.params.id,
+      `Granted 7-day post + story access to @${outcome.user.username ?? outcome.user.id} for "${outcome.event.title}"`,
+      {
+        user_id: outcome.user.id,
+        unlocked_at: outcome.unlockedAt.toISOString(),
+        expires_at: outcome.expiresAt.toISOString(),
+      }
+    );
+
+    return res.json({
+      ok: true,
+      grant: {
+        event: outcome.event,
+        user: outcome.user,
+        unlocked_at: outcome.unlockedAt.toISOString(),
+        expires_at: outcome.expiresAt.toISOString(),
+      },
+    });
+  })
+);
+
+adminRouter.delete(
+  '/events/:id/post-access',
+  requireVerified as any,
+  requireAdminMiddleware as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const parsed = eventPostAccessRevokeSchema.safeParse(req.body ?? {});
+    if (!parsed.success)
+      return sendError(res, 400, 'Invalid payload', { details: parsed.error.issues });
+
+    const outcome = await revokeEventPostAccess(prisma, {
+      eventId: req.params.id,
+      userId: parsed.data.user_id,
+    });
+    if (!outcome.ok) {
+      return outcome.reason === 'event_not_found'
+        ? sendError(res, 404, 'Event not found')
+        : sendError(res, 404, 'User not found');
+    }
+
+    await logAdminActivityFromReq(
+      req,
+      'Revoke Event Post Access',
+      'event',
+      req.params.id,
+      `Revoked post + story access for @${outcome.user.username ?? outcome.user.id} on "${outcome.event.title}"`,
+      { user_id: outcome.user.id }
+    );
+
+    return res.json({ ok: true, revoked: true });
   })
 );
 
