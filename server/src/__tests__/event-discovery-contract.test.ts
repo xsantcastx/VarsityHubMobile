@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { listEventDiscoveryItems } from '../lib/eventDiscovery.js';
+import { EVENT_POSTING_UNLOCK_DURATION_MS } from '../lib/geofencing.js';
 
 describe('event discovery contract', () => {
   it('returns game-backed and event-only fixtures through one payload', async () => {
@@ -209,46 +210,28 @@ describe('event discovery contract', () => {
     );
   });
 
-  it('explicit past-date map surface can return event-only pages before media exists', async () => {
+  it('explicit past-date map surface still requires media for viewers without upload access', async () => {
     const now = new Date('2026-09-02T19:30:00.000Z');
-    const eventDate = new Date('2026-08-29T17:05:00.000Z');
     const db: any = {
       game: { findMany: jest.fn(async () => []) },
-      event: {
-        findMany: jest.fn(async () => [
-          {
-            id: 'yankees-event',
-            title: 'Red Sox at Yankees',
-            date: eventDate,
-            location: 'Yankee Stadium, Bronx, New York',
-            latitude: 40.8296,
-            longitude: -73.9262,
-            banner_url: null,
-            status: 'approved',
-            game_id: null,
-            exclusive_poster_id: null,
-            live_window_hours_after_start: 4,
-            team_id: null,
-            team: null,
-            proHomeTeam: { league: 'mlb', primary_color: '#0c2340' },
-            proAwayTeam: null,
-          },
-        ]),
-      },
+      event: { findMany: jest.fn(async () => []) },
       eventDesignatedPoster: { findMany: jest.fn(async () => []) },
       eventPostingUnlock: { findMany: jest.fn(async () => []) },
     };
 
-    const result = await listEventDiscoveryItems(db, {
+    await listEventDiscoveryItems(db, {
       surface: 'map',
       now,
       from: new Date('2026-08-29T00:00:00.000Z'),
       to: new Date('2026-08-29T23:59:59.999Z'),
     });
 
+    // Owner rule (2026-09): a past map date only keeps pages that have media.
+    // The old explicit-date bypass is gone — a picked past date gets the same
+    // media gate as the default load for anonymous/regular viewers.
     expect(db.event.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.not.objectContaining({
+        where: expect.objectContaining({
           OR: [
             { date: { gte: now } },
             { posts: { some: { media_url: { not: null }, deleted_at: null } } },
@@ -256,13 +239,58 @@ describe('event discovery contract', () => {
         }),
       })
     );
-    expect(result.items).toEqual([
+  });
+
+  it('explicit past-date map surface still surfaces an empty page to a viewer with active upload access', async () => {
+    const now = new Date('2026-09-02T19:30:00.000Z');
+    const db: any = {
+      game: { findMany: jest.fn(async () => []) },
+      event: { findMany: jest.fn(async () => []) },
+      eventDesignatedPoster: { findMany: jest.fn(async () => []) },
+      eventPostingUnlock: { findMany: jest.fn(async () => []) },
+    };
+
+    await listEventDiscoveryItems(db, {
+      surface: 'map',
+      now,
+      viewerId: 'superfan-user',
+      from: new Date('2026-08-29T00:00:00.000Z'),
+      to: new Date('2026-08-29T23:59:59.999Z'),
+    });
+
+    // The narrow exception (notes 2/3): a viewer who can upload to a specific
+    // past event still sees it before its first media post — via a scoped
+    // upload-access branch, never a blanket explicit-date bypass. Only an
+    // exclusive poster, or a designated poster whose 7-day unlock is still
+    // active, qualifies.
+    expect(db.event.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'yankees-event',
-        title: 'Red Sox at Yankees',
-        map_visibility: expect.objectContaining({ visible: true }),
-      }),
-    ]);
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            {
+              OR: [
+                { exclusive_poster_id: 'superfan-user' },
+                {
+                  AND: [
+                    { designatedPosters: { some: { user_id: 'superfan-user' } } },
+                    {
+                      postingUnlocks: {
+                        some: {
+                          user_id: 'superfan-user',
+                          unlocked_at: {
+                            gte: new Date(now.getTime() - EVENT_POSTING_UNLOCK_DURATION_MS),
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ]),
+        }),
+      })
+    );
   });
 
   it('keeps standalone sports-league events in sport-filtered discovery', async () => {

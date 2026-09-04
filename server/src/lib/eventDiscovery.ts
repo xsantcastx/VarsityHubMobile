@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { serializeGameCard, serializeEventCard, type SerializeCtx } from './eventCardSerializer.js';
 import { getViewerTeamScopeDetails } from './viewerTeamScope.js';
 import { normalizeSportToSlug } from './sportsTaxonomy.js';
+import { EVENT_POSTING_UNLOCK_DURATION_MS } from './geofencing.js';
 
 type Db = PrismaClient;
 type DiscoverySurface = 'feed' | 'map' | 'all';
@@ -56,6 +57,72 @@ function clampWindow(surface: DiscoverySurface, requestedFrom: Date, requestedTo
     return { from, to: new Date(from.getTime() + MAX_DISCOVERY_RANGE_MS) };
   }
   return { from, to };
+}
+
+function mapPastMediaGate(now: Date, viewerId: string | null | undefined) {
+  const mediaPost = { posts: { some: { media_url: { not: null }, deleted_at: null } } };
+  const activeUnlock = viewerId
+    ? {
+        user_id: viewerId,
+        unlocked_at: { gte: new Date(now.getTime() - EVENT_POSTING_UNLOCK_DURATION_MS) },
+      }
+    : null;
+  const viewerCanUploadToEvent = viewerId
+    ? {
+        OR: [
+          { exclusive_poster_id: viewerId },
+          {
+            AND: [
+              { designatedPosters: { some: { user_id: viewerId } } },
+              { postingUnlocks: { some: activeUnlock } },
+            ],
+          },
+        ],
+      }
+    : null;
+
+  return {
+    OR: [
+      { date: { gte: now } },
+      mediaPost,
+      ...(viewerCanUploadToEvent ? [viewerCanUploadToEvent] : []),
+    ],
+  };
+}
+
+function mapPastGameMediaGate(now: Date, viewerId: string | null | undefined) {
+  const activeUnlock = viewerId
+    ? {
+        user_id: viewerId,
+        unlocked_at: { gte: new Date(now.getTime() - EVENT_POSTING_UNLOCK_DURATION_MS) },
+      }
+    : null;
+  const viewerCanUploadToLinkedEvent = viewerId
+    ? {
+        events: {
+          some: {
+            OR: [
+              { exclusive_poster_id: viewerId },
+              {
+                AND: [
+                  { designatedPosters: { some: { user_id: viewerId } } },
+                  { postingUnlocks: { some: activeUnlock } },
+                ],
+              },
+            ],
+          },
+        },
+      }
+    : null;
+
+  return {
+    OR: [
+      { date: { gte: now } },
+      { posts: { some: { media_url: { not: null }, deleted_at: null } } },
+      { events: { some: { posts: { some: { media_url: { not: null }, deleted_at: null } } } } },
+      ...(viewerCanUploadToLinkedEvent ? [viewerCanUploadToLinkedEvent] : []),
+    ],
+  };
 }
 
 async function loadViewerState(
@@ -200,6 +267,10 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
 
   const dateWhere = { gte: from, lte: to };
   const queryLimit = Math.min(limit * 2, MAX_LIMIT);
+  const mapPastGate =
+    surface === 'map' ? mapPastMediaGate(now, params.viewerId) : null;
+  const mapPastGameGate =
+    surface === 'map' ? mapPastGameMediaGate(now, params.viewerId) : null;
   const followingTeamIdList = followingTeamIds ? [...followingTeamIds] : [];
   const managedTeamIdList = managedTeamIds ? [...managedTeamIds] : [];
   const followingGameTeamScope =
@@ -242,6 +313,7 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
           approval_status: 'approved',
           opponent_approval_status: { in: ['not_required', 'approved'] },
           date: dateWhere,
+          ...(mapPastGameGate ? mapPastGameGate : {}),
         };
 
   const [games, events] = await Promise.all([
@@ -269,18 +341,10 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
         game_id: null,
         date: dateWhere,
         ...(scope === 'following' ? { team_id: { in: followingTeamIdList } } : {}),
-        // Default map load: a past event page only earns a map pin if it has
-        // media; otherwise old event-only pages are noise. Explicit date-picker
-        // loads are different: users with event upload access need the past
-        // event to surface before the first media post exists.
-        ...(surface === 'map' && !explicitWindow
-          ? {
-              OR: [
-                { date: { gte: now } },
-                { posts: { some: { media_url: { not: null }, deleted_at: null } } },
-              ],
-            }
-          : {}),
+        // On the map, old event pages only earn pins when they have media.
+        // A specific viewer with active upload access still sees their empty
+        // past event so they can add the first post/story.
+        ...(mapPastGate ? mapPastGate : {}),
       },
       orderBy: { date: 'asc' },
       take: queryLimit,
