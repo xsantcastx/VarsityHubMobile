@@ -1,69 +1,44 @@
 /**
- * Event-page post grid — the "scrapbook" layout plan.
+ * Event-page post grid — the collage (masonry) layout plan.
  *
  * The event page's post PREVIEW (not the feed — the feed is deliberately
- * single-column hero cards, see app/feed.tsx) mixes 2-across and 3-across rows
- * so it reads like a scrapbook page rather than a uniform 2-up grid. Landscape
- * posts take a wider cell in their row to complement that rhythm.
+ * single-column hero cards, see app/feed.tsx) is a Pinterest-style masonry: a
+ * few balanced columns of tiles with varied heights, so it reads like a collage
+ * rather than a uniform grid of same-size squares (owner decision 2026-09:
+ * "rows of three looks boxy — it should look like a collage").
  *
- * This module is the whole layout decision: posts + seed in, row plan out. The
- * renderer is dumb — it draws what the plan says. Same shape as
- * `buildProgramDisplayPlan` in constants/programs.ts.
+ * This module is the whole layout decision: posts + seed in, columns out. The
+ * renderer is dumb — it draws the tiles the plan places, at the height the plan
+ * gives them. Same shape as `buildProgramDisplayPlan` in constants/programs.ts.
  */
 
 /** The preview shows at most this many posts; the rest live behind "View All Posts". */
 export const EVENT_POST_PREVIEW_CAP = 12;
 
-/**
- * width/height at or above this reads as "horizontal" and earns a wider cell.
- * 1.2 (not 1.0) so near-square posts stay square instead of drifting wide.
- */
-const LANDSCAPE_ASPECT_MIN = 1.2;
-
-/** A landscape cell claims this many portrait cells' worth of its row. */
-const LANDSCAPE_WEIGHT = 1.5;
-const DEFAULT_WEIGHT = 1;
+/** Default number of masonry columns (matches the empty-state placeholder grid). */
+const DEFAULT_COLUMNS = 2;
 
 /**
- * Row-size rotations. Every rotation is a mix of 2s and 3s — the seed picks
- * which one, so different events (and different days) open on a different
- * rhythm without any of them degrading into a uniform grid.
+ * Tile heights the plan draws from. A spread of values (not multiples of one
+ * base) gives the columns an uneven, collage-like rhythm. The estimated gap
+ * between stacked tiles keeps the shortest-column packing honest.
  */
-const ROW_PATTERNS: number[][] = [
-  [2, 3, 3, 2],
-  [3, 2, 2, 3],
-  [2, 2, 3, 3],
-  [3, 3, 2, 2],
-];
+const TILE_HEIGHTS = [150, 176, 202, 168, 232, 190, 214, 158];
+const TILE_GAP = 10;
 
-/** Row height by column count. Fewer columns => taller cells. */
-const ROW_HEIGHTS: Record<number, number> = {
-  1: 260,
-  2: 240,
-  3: 170,
-};
-
-export type ScrapbookInput = {
+export type MasonryInput = {
   id: string;
-  /** Pixel dimensions when known. Most posts have neither — see mediaAspect(). */
-  media_width?: number | null;
-  media_height?: number | null;
 };
 
-export type ScrapbookCell<T> = {
+export type MasonryCell<T> = {
   post: T;
-  /** Fraction of the row's width, 0..1. Cells in a row always sum to 1. */
-  widthRatio: number;
-  isLandscape: boolean;
-};
-
-export type ScrapbookRow<T> = {
-  cells: ScrapbookCell<T>[];
+  /** The tile's rendered pixel height. */
   height: number;
 };
 
-export type ScrapbookPlan<T> = {
-  rows: ScrapbookRow<T>[];
+export type MasonryPlan<T> = {
+  /** Balanced columns of tiles, left-to-right. */
+  columns: MasonryCell<T>[][];
   /** How many posts the plan actually placed (<= cap). */
   shownCount: number;
   /** True when posts were held back — i.e. "View All Posts" reveals more. */
@@ -111,22 +86,6 @@ export function eventScrapbookSeed(eventId: string | number | null | undefined, 
   return `${String(eventId ?? 'event')}:${day}`;
 }
 
-function mediaAspect(post: ScrapbookInput): number | null {
-  const w = post.media_width;
-  const h = post.media_height;
-  // Most rows carry neither (they predate the columns, or the provider didn't
-  // report them). Unknown aspect is NOT landscape — phone clips are portrait by
-  // default, so guessing wide would be wrong far more often than right.
-  if (typeof w !== 'number' || typeof h !== 'number') return null;
-  if (!(w > 0) || !(h > 0)) return null;
-  return w / h;
-}
-
-export function isLandscapePost(post: ScrapbookInput): boolean {
-  const aspect = mediaAspect(post);
-  return aspect !== null && aspect >= LANDSCAPE_ASPECT_MIN;
-}
-
 /**
  * Order posts by hash(seed + post id) rather than shuffling the array.
  *
@@ -135,7 +94,7 @@ export function isLandscapePost(post: ScrapbookInput): boolean {
  * without reordering everything else. A plain seeded array shuffle would
  * rearrange the entire grid every time the query refetched.
  */
-function stableShuffle<T extends ScrapbookInput>(posts: T[], seed: string): T[] {
+function stableShuffle<T extends MasonryInput>(posts: T[], seed: string): T[] {
   return (
     [...posts]
       .map(post => ({ post, key: hashSeed(`${seed}|${post.id}`) }))
@@ -145,54 +104,47 @@ function stableShuffle<T extends ScrapbookInput>(posts: T[], seed: string): T[] 
   );
 }
 
+/** A post's tile height — deterministic from its id + the seed. */
+function tileHeight(post: MasonryInput, seed: string): number {
+  return TILE_HEIGHTS[hashSeed(`${seed}|h|${post.id}`) % TILE_HEIGHTS.length];
+}
+
 /**
- * Build the event-page preview grid: shuffle stably, cap at 12, then lay the
- * survivors into a mix of 2-across and 3-across rows with landscape posts
- * taking the wider share of their row.
+ * Build the event-page preview collage: shuffle stably, cap at 12, assign each
+ * survivor a deterministic height, then pack them into balanced columns
+ * (shortest column first). Every tile keeps its own height, so the columns are
+ * uneven — a masonry, not a uniform grid.
  */
-export function buildEventScrapbookPlan<T extends ScrapbookInput>(
+export function buildEventMasonryPlan<T extends MasonryInput>(
   posts: T[],
   seed: string,
-  options: { cap?: number } = {}
-): ScrapbookPlan<T> {
+  options: { cap?: number; columns?: number } = {}
+): MasonryPlan<T> {
   const cap = options.cap ?? EVENT_POST_PREVIEW_CAP;
+  const columnCount = Math.max(1, options.columns ?? DEFAULT_COLUMNS);
   const all = Array.isArray(posts) ? posts.filter(Boolean) : [];
+  const columns: MasonryCell<T>[][] = Array.from({ length: columnCount }, () => []);
   if (all.length === 0 || cap <= 0) {
-    return { rows: [], shownCount: 0, hasMore: all.length > 0 };
+    return { columns, shownCount: 0, hasMore: all.length > 0 };
   }
 
   const ordered = stableShuffle(all, seed).slice(0, cap);
-  const pattern = ROW_PATTERNS[hashSeed(seed) % ROW_PATTERNS.length];
+  const columnHeights = new Array(columnCount).fill(0);
 
-  const rows: ScrapbookRow<T>[] = [];
-  let cursor = 0;
-  let rowIndex = 0;
-
-  while (cursor < ordered.length) {
-    const remaining = ordered.length - cursor;
-    // A trailing 1 is fine (it renders as a full-width end cap) but a trailing
-    // row should never be *emptier* than it needs to be.
-    const size = Math.min(pattern[rowIndex % pattern.length], remaining);
-    const slice = ordered.slice(cursor, cursor + size);
-
-    const weights = slice.map(post => (isLandscapePost(post) ? LANDSCAPE_WEIGHT : DEFAULT_WEIGHT));
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-
-    rows.push({
-      cells: slice.map((post, i) => ({
-        post,
-        widthRatio: weights[i] / totalWeight,
-        isLandscape: weights[i] === LANDSCAPE_WEIGHT,
-      })),
-      height: ROW_HEIGHTS[size] ?? ROW_HEIGHTS[2],
-    });
-
-    cursor += size;
-    rowIndex += 1;
+  for (const post of ordered) {
+    const height = tileHeight(post, seed);
+    // Place into the currently-shortest column; ties go to the leftmost, so the
+    // packing is fully deterministic for a given seed.
+    let target = 0;
+    for (let i = 1; i < columnCount; i += 1) {
+      if (columnHeights[i] < columnHeights[target]) target = i;
+    }
+    columns[target].push({ post, height });
+    columnHeights[target] += height + TILE_GAP;
   }
 
   return {
-    rows,
+    columns,
     shownCount: ordered.length,
     hasMore: all.length > ordered.length,
   };

@@ -22,7 +22,7 @@ import {
   isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
 import { recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
-import { buildEventScrapbookPlan, eventScrapbookSeed } from '@/utils/eventPostGrid';
+import { buildEventMasonryPlan, eventScrapbookSeed } from '@/utils/eventPostGrid';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
@@ -461,14 +461,15 @@ const GameDetailsScreen = () => {
     ? `${postsCount} highlight${postsCount === 1 ? '' : 's'}`
     : 'No highlights yet';
 
-  // Scrapbook preview: a stable-shuffled mix of 2-across and 3-across rows,
-  // capped at 12 (the rest are behind "View All Posts"). The seed is per
-  // event+day, so the arrangement is fresh on a new day but never reshuffles
-  // under the user's thumb — scrolling, refetching, or returning from
-  // post-detail all rebuild the identical plan. See utils/eventPostGrid.ts.
+  // Collage preview: a stable-shuffled masonry of tiles with varied heights,
+  // packed into balanced columns and capped at 12 (the rest are behind "View
+  // All Posts"). The seed is per event+day, so the arrangement is fresh on a
+  // new day but never reshuffles under the user's thumb — scrolling, refetching,
+  // or returning from post-detail all rebuild the identical plan. See
+  // utils/eventPostGrid.ts.
   const scrapbookSeed = useMemo(() => eventScrapbookSeed(vm?.gameId), [vm?.gameId]);
-  const scrapbookPlan = useMemo(
-    () => buildEventScrapbookPlan(Array.isArray(vm?.posts) ? vm.posts : [], scrapbookSeed),
+  const masonryPlan = useMemo(
+    () => buildEventMasonryPlan(Array.isArray(vm?.posts) ? vm.posts : [], scrapbookSeed),
     [vm?.posts, scrapbookSeed]
   );
 
@@ -2691,10 +2692,10 @@ const GameDetailsScreen = () => {
                   </Pressable>
                 </View>
                 {postsCount > 0 ? (
-                  <View style={styles.postsGridContainer}>
-                    {scrapbookPlan.rows.map((row, rowIndex) => (
-                      <View key={`row-${rowIndex}`} style={styles.scrapbookRow}>
-                        {row.cells.map(({ post, widthRatio }) => {
+                  <View style={styles.postsMasonryGrid}>
+                    {masonryPlan.columns.map((column, columnIndex) => (
+                      <View key={`col-${columnIndex}`} style={styles.masonryColumn}>
+                        {column.map(({ post, height }) => {
                           const mediaUrl = post.media_url || post.mediaUrl || null;
                           const previewUrl =
                             post.preview_url || post.thumbnail_url || post.previewUrl || null;
@@ -2710,19 +2711,7 @@ const GameDetailsScreen = () => {
                           return (
                             <Pressable
                               key={post.id}
-                              style={[
-                                styles.masonryItem,
-                                // widthRatio is the cell's share of the row: an
-                                // even split unless a landscape post is claiming
-                                // the wider half. flexGrow can't express that.
-                                // flexShrink absorbs the row gap (RN defaults it
-                                // to 0, so bases summing to 100% would overflow).
-                                {
-                                  height: row.height,
-                                  flexBasis: `${widthRatio * 100}%`,
-                                  flexShrink: 1,
-                                },
-                              ]}
+                              style={[styles.masonryItem, { height }]}
                               onPress={() => {
                                 const allPosts = vm?.posts || [];
                                 const postIds = allPosts.map((p: any) => String(p.id)).join(',');
@@ -4408,18 +4397,13 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       width: '0%',
     },
     // Posts Grid Styles
-    postsGridContainer: {
-      marginTop: 12,
-    },
+    // The collage: balanced columns of varied-height tiles (see
+    // utils/eventPostGrid.ts). Used for both the populated preview and the
+    // empty-state placeholder.
     postsMasonryGrid: {
       flexDirection: 'row',
       gap: 8,
-    },
-    // One scrapbook row: 2 or 3 cells whose widths come from the row plan.
-    scrapbookRow: {
-      flexDirection: 'row',
-      gap: 8,
-      marginBottom: 8,
+      marginTop: 12,
     },
     masonryColumn: {
       flex: 1,

@@ -212,7 +212,6 @@ const FeedCard = memo(
     registerVideo,
     insets,
     size,
-    colorScheme,
     meInfo,
   }: {
     post: FeedPost;
@@ -232,11 +231,25 @@ const FeedCard = memo(
     registerVideo: (id: string, player: any | null) => void;
     insets: { top: number; bottom: number };
     size: { width: number; height: number };
-    colorScheme: 'light' | 'dark';
     meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
   }) => {
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
+    // An option that opens a system sheet (native Share) must fire only after
+    // the options modal has fully dismissed — on iOS, presenting the share sheet
+    // while the modal is still animating out silently no-ops (the "Share Post
+    // does nothing" bug). We stash the action and run it from the modal's
+    // onDismiss. Android has no such restriction, so it runs immediately.
+    const pendingMenuActionRef = useRef<(() => void) | null>(null);
+    const runAfterMenuClose = useCallback((action: () => void) => {
+      if (Platform.OS === 'ios') {
+        pendingMenuActionRef.current = action;
+        setShowOptionsMenu(false);
+      } else {
+        setShowOptionsMenu(false);
+        action();
+      }
+    }, []);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -590,65 +603,49 @@ const FeedCard = memo(
           </Pressable>
         </View>
 
-        {/* Options Menu Modal */}
-        <Modal visible={showOptionsMenu} transparent animationType="fade">
+        {/* Options Menu Modal. The menu is a fixed dark surface (it floats over
+            the always-dark immersive feed), so its text/icons use fixed light
+            colors — never the device-theme text color, which rendered dark-on-
+            dark and invisible in light mode. */}
+        <Modal
+          visible={showOptionsMenu}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowOptionsMenu(false)}
+          onDismiss={() => {
+            const action = pendingMenuActionRef.current;
+            pendingMenuActionRef.current = null;
+            action?.();
+          }}
+        >
           <Pressable style={styles.modalOverlay} onPress={() => setShowOptionsMenu(false)}>
             <View style={styles.optionsMenu}>
-              <Pressable
-                onPress={() => {
-                  setShowOptionsMenu(false);
-                  onSharePost();
-                }}
-                style={styles.optionButton}
-              >
-                <Ionicons name="share-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
-                  Share Post
-                </Text>
+              <Pressable onPress={() => runAfterMenuClose(onSharePost)} style={styles.optionButton}>
+                <Ionicons name="share-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Share Post</Text>
+              </Pressable>
+              <Pressable onPress={() => runAfterMenuClose(onCopyLink)} style={styles.optionButton}>
+                <Ionicons name="link-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Copy Link</Text>
               </Pressable>
               <Pressable
-                onPress={() => {
-                  setShowOptionsMenu(false);
-                  onCopyLink();
-                }}
+                onPress={() => runAfterMenuClose(onReportPost)}
                 style={styles.optionButton}
               >
-                <Ionicons name="link-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
-                  Copy Link
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setShowOptionsMenu(false);
-                  onReportPost();
-                }}
-                style={styles.optionButton}
-              >
-                <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
-                  Report Post
-                </Text>
+                <Ionicons name="flag-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Report Post</Text>
               </Pressable>
               {isAuthor && (
                 <>
                   <Pressable
-                    onPress={() => {
-                      setShowOptionsMenu(false);
-                      handleEditPost();
-                    }}
+                    onPress={() => runAfterMenuClose(handleEditPost)}
                     style={styles.optionButton}
                   >
-                    <Ionicons name="pencil-outline" size={20} color={Colors[colorScheme].text} />
-                    <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
-                      Edit Post
-                    </Text>
+                    <Ionicons name="pencil-outline" size={20} color="#fff" />
+                    <Text style={styles.optionText}>Edit Post</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => {
-                      setShowOptionsMenu(false);
-                      handleDeletePost();
-                    }}
+                    onPress={() => runAfterMenuClose(handleDeletePost)}
                     style={styles.optionButton}
                   >
                     <Ionicons name="trash-outline" size={20} color="#dc2626" />
@@ -1521,7 +1518,6 @@ function GameVerticalFeedScreen({
         registerVideo={registerVideo}
         insets={{ top: insets.top, bottom: insets.bottom }}
         size={viewport}
-        colorScheme={colorScheme}
         meInfo={meInfo}
       />
     ),
@@ -1543,7 +1539,6 @@ function GameVerticalFeedScreen({
       insets.top,
       openComments,
       registerVideo,
-      colorScheme,
       meInfo,
     ]
   );

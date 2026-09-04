@@ -1,6 +1,10 @@
 import { cleanup, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import EventMap, { resolveMarkerColor } from '../EventMap';
+import EventMap, {
+  resolveMarkerColor,
+  GAME_MARKER_COLOR,
+  SPORT_TEAM_MARKER_COLOR,
+} from '../EventMap';
 import type { EventMapProps } from '../EventMap.types';
 
 const flushPromises = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -94,14 +98,8 @@ describe('EventMap', () => {
     expect(markers.length).toBe(1);
   });
 
-  it('resolves an MMA marker color for UFC events', () => {
-    expect(resolveMarkerColor({ sport: 'mma' }, '#000000')).toBe('#B91C1C');
-  });
-
-  it('resolves marker colors for expanded league sports', () => {
-    expect(resolveMarkerColor({ sport: 'water_polo' }, '#000000')).toBe('#2563EB');
-    expect(resolveMarkerColor({ sport: 'auto_racing' }, '#000000')).toBe('#111827');
-    expect(resolveMarkerColor({ sport: 'beach_volleyball' }, '#000000')).toBe('#0EA5E9');
+  it('colors game pins with the game category color', () => {
+    expect(resolveMarkerColor({ type: 'game' })).toBe(GAME_MARKER_COLOR);
   });
 
   it('does not render native markers for invalid coordinates', async () => {
@@ -234,11 +232,17 @@ describe('EventMap', () => {
     expect(await findAllByTestId('Marker')).toHaveLength(1);
   });
 
-  it('prefers marker/team colors, then sport colors, then type colors', () => {
-    expect(resolveMarkerColor({ marker_color: '#111111' }, '#000000')).toBe('#111111');
-    expect(resolveMarkerColor({ pro_home_color: '#222222' }, '#000000')).toBe('#222222');
-    expect(resolveMarkerColor({ pro_away_color: '#333333' }, '#000000')).toBe('#333333');
-    expect(resolveMarkerColor({ sport: 'football' }, '#000000')).toBe('#2563EB');
-    expect(resolveMarkerColor({ type: 'event' }, '#000000')).toBe('#4ECDC4');
+  it('collapses every non-game pin to the single sport/team color, ignoring brand and sport colors', () => {
+    // Owner rule (2026-09): the legend has exactly three categories, so a pin's
+    // color comes only from its category. Custom marker/pro-team brand colors and
+    // per-sport colors no longer change a pin's color — that mismatch was the bug.
+    expect(resolveMarkerColor({ type: 'event' })).toBe(SPORT_TEAM_MARKER_COLOR);
+    expect(resolveMarkerColor({ type: 'post' })).toBe(SPORT_TEAM_MARKER_COLOR);
+    expect(
+      resolveMarkerColor({ type: 'event', marker_color: '#111111', sport: 'mma' } as any)
+    ).toBe(SPORT_TEAM_MARKER_COLOR);
+    expect(resolveMarkerColor({ type: 'event', pro_home_color: '#222222' } as any)).toBe(
+      SPORT_TEAM_MARKER_COLOR
+    );
   });
 });

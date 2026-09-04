@@ -35,7 +35,19 @@ describe('GameVerticalFeedScreen rail actions', () => {
     expect(source).toContain('Share Post');
     expect(source).toContain('Copy Link');
     expect(source).toContain('Report Post');
-    expect(source).toMatch(/setShowOptionsMenu\(false\);\s*onSharePost\(\);/);
+    // Share is wired through the options menu's share action.
+    expect(source).toMatch(/runAfterMenuClose\(onSharePost\)/);
+  });
+
+  it('defers the native share sheet until the options modal has dismissed (iOS)', () => {
+    // Presenting the share sheet synchronously while the modal animates out
+    // silently no-ops on iOS ("Share Post does nothing"). The action must run
+    // from the modal's onDismiss, not inline with setShowOptionsMenu(false).
+    expect(source).toMatch(/runAfterMenuClose/);
+    expect(source).toMatch(/onDismiss=\{/);
+    expect(source).toMatch(/pendingMenuActionRef/);
+    // The old inline "close then share" pattern (the bug) must be gone.
+    expect(source).not.toMatch(/setShowOptionsMenu\(false\);\s*onSharePost\(\);/);
   });
 
   it('falls back to copying the link when native post sharing fails', () => {

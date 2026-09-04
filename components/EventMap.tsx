@@ -30,65 +30,26 @@ import { EventMapData, EventMapProps } from './EventMap.types';
 
 export type { EventMapData, EventMapProps } from './EventMap.types';
 
-const SPORT_MARKER_COLORS: Record<string, string> = {
-  football: '#2563EB',
-  basketball: '#EA580C',
-  beach_volleyball: '#0EA5E9',
-  bowling: '#7E22CE',
-  baseball: '#16A34A',
-  softball: '#84CC16',
-  soccer: '#059669',
-  ice_hockey: '#0891B2',
-  water_polo: '#2563EB',
-  skiing: '#0369A1',
-  fencing: '#475569',
-  field_hockey: '#0D9488',
-  lacrosse: '#7C3AED',
-  mma: '#B91C1C',
-  auto_racing: '#111827',
-  stunt: '#E11D48',
-  acrobatics_tumbling: '#BE123C',
-  volleyball: '#DB2777',
-  wrestling: '#B45309',
-  tennis: '#65A30D',
-  golf: '#15803D',
-  track_field: '#DC2626',
-  cross_country: '#9333EA',
-  swimming: '#0284C7',
-  cheerleading: '#E11D48',
-  dance: '#C026D3',
-  gymnastics: '#BE123C',
-  crew: '#0F766E',
-  esports: '#4F46E5',
-};
+// Map pins use exactly the three categories shown in the legend — game,
+// sport/team, and multiple (cluster). Owner rule (2026-09): the old per-sport /
+// per-team-brand color system was dropped because it made the legend inaccurate
+// (30+ possible pin colors described by 3 swatches). A pin's color now derives
+// only from its category, so the legend is correct by construction.
+export const GAME_MARKER_COLOR = '#FF6B6B';
+export const SPORT_TEAM_MARKER_COLOR = '#2563EB';
 
 const SINGLE_EVENT_REGION_DELTA = 0.35;
 
-function isHexColor(value?: string | null): value is string {
-  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim());
-}
-
-export function resolveMarkerColor(
-  event: Pick<
-    EventMapData,
-    'marker_color' | 'pro_home_color' | 'pro_away_color' | 'sport' | 'type'
-  >,
-  fallback: string
-): string {
-  if (isHexColor(event.marker_color)) return event.marker_color;
-  if (isHexColor(event.pro_home_color)) return event.pro_home_color;
-  if (isHexColor(event.pro_away_color)) return event.pro_away_color;
-  if (event.sport && SPORT_MARKER_COLORS[event.sport]) return SPORT_MARKER_COLORS[event.sport];
-  switch (event.type) {
-    case 'game':
-      return '#FF6B6B';
-    case 'event':
-      return '#4ECDC4';
-    case 'post':
-      return '#95E1D3';
-    default:
-      return fallback;
-  }
+/**
+ * A single map pin's color, from its category alone (see the legend). A "game"
+ * fixture is one color; every other single pin (event pages, sport/team pages)
+ * is the sport/team color. Clusters of many pins are colored separately with the
+ * theme tint ("Multiple — tap to choose"). Custom marker_color, pro-team brand
+ * colors, and per-sport colors are intentionally NOT used here — that is what
+ * made the 3-swatch legend inaccurate.
+ */
+export function resolveMarkerColor(event: Pick<EventMapData, 'type'>): string {
+  return event.type === 'game' ? GAME_MARKER_COLOR : SPORT_TEAM_MARKER_COLOR;
 }
 
 function formatPreviewDate(date?: string | null): string | null {
@@ -341,8 +302,7 @@ export default function EventMap({
     }, 1100);
   };
 
-  const getMarkerColor = (event: EventMapData) =>
-    resolveMarkerColor(event, Colors[colorScheme].tint);
+  const getMarkerColor = (event: EventMapData) => resolveMarkerColor(event);
 
   const openEventFromMarker = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
     const now = Date.now();
@@ -528,26 +488,11 @@ export default function EventMap({
       {eventsWithCoordinates.length > 0 && (
         <View style={[styles.legend, { backgroundColor: Colors[colorScheme].background }]}>
           <View style={styles.legendRow}>
-            <View
-              style={[
-                styles.legendDot,
-                { backgroundColor: resolveMarkerColor({ type: 'game' }, Colors[colorScheme].tint) },
-              ]}
-            />
+            <View style={[styles.legendDot, { backgroundColor: GAME_MARKER_COLOR }]} />
             <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Game</Text>
           </View>
           <View style={styles.legendRow}>
-            <View
-              style={[
-                styles.legendDot,
-                {
-                  backgroundColor: resolveMarkerColor(
-                    { sport: 'football' },
-                    Colors[colorScheme].tint
-                  ),
-                },
-              ]}
-            />
+            <View style={[styles.legendDot, { backgroundColor: SPORT_TEAM_MARKER_COLOR }]} />
             <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>
               Sport/team
             </Text>
