@@ -1,7 +1,7 @@
 {
   "checkedAt": "2026-09-05T21:19:55.601844+00:00",
   "baselineCommit": "3334afd9e53e4da6b2a881752fc1309412a01aae",
-  "publication": "pending",
+  "publication": "API, OTA and website verified",
   "before": {
     "unavailableStatus": 202,
     "expiredDownloadStatus": 200,
@@ -116,5 +116,13 @@
     "No complete new full-server sweep in this step.",
     "Full client first run had two timeouts; both affected suites passed targeted reruns. Final export screen has seven passing cases.",
     "Three moderate server dependency audit entries remain outside the XML-parser fix."
-  ]
+  ],
+  "sourceCommit": "cab5b1339feadf4db5c06466fb4022f53e23912d",
+  "runtimeGate": {
+    "exitCode": 0,
+    "evidence": "data-export-api-verification.json"
+  },
+  "deliveredSourceCommit": "cab5b1339feadf4db5c06466fb4022f53e23912d",
+  "otaGroup": "7e09e4a5-4dd3-4437-bf3b-a32535ab96e1",
+  "webDeployment": "dpl_3b6PfEGQVob7BzvTGE9ziFe3Zh1F"
 }

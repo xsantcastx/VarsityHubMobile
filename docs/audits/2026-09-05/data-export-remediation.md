@@ -3,7 +3,7 @@
 The code defects in the advertised ZIP export flow have fixes and local regression
 evidence. **Production export activation remains blocked on private storage
 configuration.** This does not close physical iPhone download/save acceptance or
-the wider A+ audit. Publication identifiers will be recorded below after deployment.
+the wider A+ audit. The verified publication identifiers are recorded below.
 
 ## Reproduced baseline
 
@@ -62,8 +62,7 @@ The focused server suites include real authenticated HTTP tests and pause an upl
 to test cancellation races. Child Node test processes avoid the repository's Jest
 VM module-linker collision; child assertions still determine the suite result.
 Seven rendered screen cases cover unavailable service, load/retry, account isolation,
-duplicate taps/503 and bounded polling. Full counts and release gates are recorded
-in `data-export-verification.json` after final checks.
+duplicate taps/503 and bounded polling. Exact counts and first-run/rerun results are recorded in [the verification record](data-export-verification.json).
 
 Keep first-run failures in the evidence: the default local database lacked the new
 ad-hold table, the org-manager verifier initially paired the isolated DB with an
@@ -113,7 +112,16 @@ private archives through media storage.
 
 ## Release and rollback
 
-Publication pending final gates. Preserve the earlier session, role, privacy and
+Published product source: `cab5b1339feadf4db5c06466fb4022f53e23912d`.
+
+- API: Railway `fc1e39a0-aced-4016-8e61-0c2f5cdbf6f6`, SUCCESS; runtime gate passed, zero pending migrations.
+- OTA: production `7e09e4a5-4dd3-4437-bf3b-a32535ab96e1`, iOS/Android runtime 1.0.5; both served manifests verified and Sentry source maps uploaded.
+- Website: Vercel `dpl_3b6PfEGQVob7BzvTGE9ziFe3Zh1F`, READY; both public aliases serve matching export bytes. Ten guest route/theme checks pass with no page errors or attempted API writes.
+- [Publication record](data-export-publication.json), [API evidence](data-export-api-verification.json), [OTA evidence](data-export-ota-delivery.json), [web evidence](data-export-web-verification.json).
+
+Production `dataExportStorage=false` remains the explicit activation blocker; no production authenticated export or physical iPhone ZIP save is claimed. PR #281 remains open in the original repository; this fork branch was deployed directly. No EAS native build or submission was run.
+
+Preserve the earlier session, role, privacy and
 ad-booking fixes already deployed on this branch. Rollback is a normal source
 revert, not a database rollback. Do not roll back to pre-ad-hold checkout writers.
 Do not restore the broken 5.7.1 XML parser if reverting unrelated export UI code.

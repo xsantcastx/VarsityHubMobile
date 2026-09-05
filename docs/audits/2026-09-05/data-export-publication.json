@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-09-05T21:32:27.483943+00:00",
+  "productSource": "cab5b1339feadf4db5c06466fb4022f53e23912d",
+  "api": {
+    "deployment": "fc1e39a0-aced-4016-8e61-0c2f5cdbf6f6",
+    "status": "SUCCESS",
+    "runtimeGatePassed": true,
+    "migrationsPending": false
+  },
+  "ota": {
+    "group": "7e09e4a5-4dd3-4437-bf3b-a32535ab96e1",
+    "runtime": "1.0.5",
+    "platforms": ["ios", "android"],
+    "servedManifestsVerified": true,
+    "sentrySourceMapsUploaded": true
+  },
+  "web": {
+    "deployment": "dpl_3b6PfEGQVob7BzvTGE9ziFe3Zh1F",
+    "url": "https://varsityhub-3k4xxy74r-emilmancero-devs-projects.vercel.app",
+    "status": "READY",
+    "publicAliases": ["varsityhub.app", "www.varsityhub.app"],
+    "entrySha256": "70e7ad5835d5236677b7fc3202698a602bbb35b9a673d846280fa0eab38d4258",
+    "guestCasesPassed": 10,
+    "apiWritesAttempted": 0
+  },
+  "activation": "BLOCKED: dedicated private export storage is unconfigured",
+  "physicalIPhoneArchiveAcceptance": "NOT RUN",
+  "nativeBuildOrSubmission": false,
+  "pr": {
+    "number": 281,
+    "state": "OPEN",
+    "url": "https://github.com/xsantcastx/VarsityHubMobile/pull/281"
+  }
+}

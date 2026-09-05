@@ -1,5 +1,7 @@
 # September 5 remediation release verification
 
+Latest follow-up: [data-export remediation](data-export-remediation.md), published from `cab5b133` to API `fc1e39a0`, OTA `7e09e4a5` (runtime 1.0.5) and the matching website. Code/delivery checks pass; private storage activation and physical iPhone archive handling remain open. [Matrix verification ledger](matrix-verification-ledger.md).
+
 ## Latest follow-up: session recovery
 
 Current production product source is `8b8543e3`: API Railway `54143be0`, production OTA `1795b001` for iOS/Android runtime 1.0.5, and the matching website. The [session release record](session-restoration-remediation.md) includes 217 client suites / 1,534 assertions, six focused server suites / 38 assertions, five passing iPhone simulator scenarios, both public OTA delivery checks and eight public website checks. The owner's physical weekly logout remains unconfirmed. No new migration or native build was needed.

@@ -1,0 +1,8 @@
+{
+  "deployment": "fc1e39a0-aced-4016-8e61-0c2f5cdbf6f6",
+  "messages": [
+    "No pending migrations to apply.",
+    "[Scheduler] Added job: data-export-cleanup (*/15 * * * *)"
+  ],
+  "readExit": 0
+}
