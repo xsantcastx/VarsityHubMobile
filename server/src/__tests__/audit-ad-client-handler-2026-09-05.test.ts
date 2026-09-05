@@ -47,8 +47,12 @@ function setup(platform: string, response: unknown = { free: true }) {
     Alert: { alert: jest.fn() },
     captureBreadcrumb: jest.fn(),
     __DEV__: false,
-    getConfig: () => ({ stripePublishableKey: '' }),
+    getConfig: jest.fn(() => ({ stripePublishableKey: '' })),
     Payments: { getConfig: jest.fn(async () => ({ stripe_publishable_key: '' })) },
+    initStripe: jest.fn(async (_options: { publishableKey: string }) => {}),
+    initPaymentSheet: jest.fn(async () => ({})),
+    presentPaymentSheet: jest.fn(async () => ({})),
+    globalThis: { location: { assign: jest.fn() } },
     purchaseAd: jest.fn(async () => ({ ok: true })),
     router: { replace: jest.fn() },
     totalCents: 0,
@@ -69,6 +73,7 @@ describe('ad checkout acceptance from actual ad calendar payment handler', () =>
       expect.objectContaining({ promo_code: 'FULLCOMP' })
     );
     expect(deps.Alert.alert).not.toHaveBeenCalled();
+    expect(deps.initStripe).not.toHaveBeenCalled();
     expect(deps.router.replace).toHaveBeenCalledWith(
       expect.objectContaining({
         pathname: '/ad-confirmation',
@@ -81,10 +86,88 @@ describe('ad checkout acceptance from actual ad calendar payment handler', () =>
     const { deps, handler } = setup('ios');
     await handler();
     expect(deps.Payments.getConfig).not.toHaveBeenCalled();
+    expect(deps.initStripe).not.toHaveBeenCalled();
     expect(deps.purchaseAd).toHaveBeenCalled();
     expect(deps.Alert.alert).not.toHaveBeenCalled();
     expect(deps.router.replace).toHaveBeenCalledWith(
       expect.objectContaining({ pathname: '/ad-confirmation' })
     );
+  });
+
+  it('Android dispatches SDK configuration with the fallback key before creating an intent', async () => {
+    const { deps, handler } = setup('android', {
+      paymentIntent: 'pi_fixture_secret',
+      amount_cents: 499,
+    });
+    deps.Payments.getConfig.mockResolvedValue({ stripe_publishable_key: 'pk_live_fixture' });
+    let releaseSdkCall!: () => void;
+    deps.initStripe.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          releaseSdkCall = resolve;
+        })
+    );
+    const pending = handler();
+    await Promise.resolve();
+    expect(deps.initStripe).toHaveBeenCalledWith({ publishableKey: 'pk_live_fixture' });
+    expect(deps.httpPost).not.toHaveBeenCalled();
+    releaseSdkCall();
+    await pending;
+    expect(deps.httpPost).toHaveBeenCalledWith(
+      '/payments/create-payment-sheet',
+      expect.objectContaining({ ad_id: deps.adId })
+    );
+    expect(deps.initPaymentSheet).toHaveBeenCalled();
+    expect(deps.presentPaymentSheet).toHaveBeenCalled();
+    expect(deps.Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('Android SDK configuration failure surfaces before any intent or sheet is created', async () => {
+    const { deps, handler } = setup('android', { paymentIntent: 'pi_fixture_secret' });
+    deps.Payments.getConfig.mockResolvedValue({ stripe_publishable_key: 'pk_live_fixture' });
+    deps.initStripe.mockRejectedValue(new Error('Stripe initialization unavailable'));
+    await handler();
+    expect(deps.httpPost).not.toHaveBeenCalled();
+    expect(deps.initPaymentSheet).not.toHaveBeenCalled();
+    expect(deps.Alert.alert).toHaveBeenCalledWith('Error', 'Stripe initialization unavailable');
+    expect(deps.setSubmitting).toHaveBeenLastCalledWith(false);
+  });
+
+  it.each(['missing key', 'configuration request failed'])(
+    'Android fails closed for %s',
+    async failure => {
+      const { deps, handler } = setup('android', { paymentIntent: 'pi_fixture_secret' });
+      if (failure === 'configuration request failed')
+        deps.Payments.getConfig.mockRejectedValue(new Error('offline'));
+      await handler();
+      expect(deps.initStripe).not.toHaveBeenCalled();
+      expect(deps.httpPost).not.toHaveBeenCalled();
+      expect(deps.Alert.alert).toHaveBeenCalledWith('Payments Not Ready', expect.any(String));
+    }
+  );
+
+  it('Android with a bundled key keeps the normal provider and PaymentSheet path', async () => {
+    const { deps, handler } = setup('android', {
+      paymentIntent: 'pi_fixture_secret',
+      amount_cents: 499,
+    });
+    deps.getConfig.mockReturnValue({ stripePublishableKey: 'pk_live_bundled_fixture' });
+    await handler();
+    expect(deps.Payments.getConfig).not.toHaveBeenCalled();
+    expect(deps.initStripe).not.toHaveBeenCalled();
+    expect(deps.initPaymentSheet).toHaveBeenCalled();
+    expect(deps.presentPaymentSheet).toHaveBeenCalled();
+    expect(deps.Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('paid web checkout follows the server URL without native Stripe initialization', async () => {
+    const { deps, handler } = setup('web', { url: 'https://checkout.stripe.com/fixture' });
+    await handler();
+    expect(deps.globalThis.location.assign).toHaveBeenCalledWith(
+      'https://checkout.stripe.com/fixture'
+    );
+    expect(deps.Payments.getConfig).not.toHaveBeenCalled();
+    expect(deps.initStripe).not.toHaveBeenCalled();
+    expect(deps.initPaymentSheet).not.toHaveBeenCalled();
   });
 });

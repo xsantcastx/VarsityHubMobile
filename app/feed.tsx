@@ -86,7 +86,6 @@ function FullBleedCardImage({ uri }: { uri: string }) {
 type FeedItem =
   | { _t: 'email_reminder' }
   | { _t: 'location_prompt' }
-  | { _t: 'seed_banner' }
   | { _t: 'game'; data: GameItem; idx: number }
   | { _t: 'pinned_game'; data: GameItem; idx: number }
   | { _t: 'ad'; ad: any | null; idx: number }
@@ -519,7 +518,6 @@ export default function FeedScreen() {
   const [rsvpSummaries, setRsvpSummaries] = useState<
     Record<string, { going: boolean; count: number }>
   >({});
-  const [showSeedBanner, setShowSeedBanner] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
@@ -767,34 +765,13 @@ export default function FeedScreen() {
         ]);
 
         const upcomingPage = normalizeGamesPage(upcomingData);
-        let cursor = upcomingPage.cursor;
+        const cursor = upcomingPage.cursor;
         const gameRows = [
           ...normalizeGamesPage(pastGamesData).games,
           ...upcomingPage.games,
           ...normalizeGamesPage(marqueeGamesData).games,
         ];
-        let normalizedGames = dedupeFeedEntities(mergeFeedGames(gameRows));
-
-        // If no games exist, seed sample games as real DB records (stories/polls work)
-        if ((!normalizedGames || normalizedGames.length === 0) && upcomingData !== null) {
-          try {
-            const { httpPost } = await import('@/api/http');
-            await httpPost('/games/seed-samples', {});
-            // Re-fetch games now that seeds exist
-            const seeded = await Game.list(
-              queryPlan.upcoming.sort,
-              queryPlan.upcoming.options
-            ).catch(() => ({ games: [] }));
-            const seededPage = normalizeGamesPage(seeded);
-            if (seededPage.games.length > 0) {
-              normalizedGames = seededPage.games;
-              cursor = seededPage.cursor;
-              if (isCurrentRequest()) setShowSeedBanner(true);
-            }
-          } catch (seedErr: any) {
-            if (__DEV__) console.warn('[feed] seed-samples failed:', seedErr?.message);
-          }
-        }
+        const normalizedGames = dedupeFeedEntities(mergeFeedGames(gameRows));
 
         if (isCurrentRequest()) {
           setGames(normalizedGames);
@@ -1555,11 +1532,6 @@ export default function FeedScreen() {
       items.push({ _t: 'location_prompt' });
     }
 
-    // Add seed banner if showing
-    if (showSeedBanner) {
-      items.push({ _t: 'seed_banner' });
-    }
-
     // Add upcoming games and ads. Every game renders as a full-width hero
     // card, one per row — never a 2-up grid (product decision 2026-07-14:
     // "Feed page should always look like this", single-column hero layout).
@@ -1629,7 +1601,6 @@ export default function FeedScreen() {
     locationPromptDismissed,
     hasDeviceLocation,
     sponsoredAds.length,
-    showSeedBanner,
     pinnedEvents,
     spotlightProEvents,
     upcomingWithAds,
@@ -1783,8 +1754,6 @@ export default function FeedScreen() {
         return 'email_reminder';
       case 'location_prompt':
         return 'location_prompt';
-      case 'seed_banner':
-        return 'seed_banner';
       case 'game':
         return `game-${item.data.id}`;
       case 'pinned_game':
@@ -1836,54 +1805,6 @@ export default function FeedScreen() {
 
         case 'location_prompt':
           return renderLocationPrompt();
-
-        case 'seed_banner':
-          return (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: colorScheme === 'dark' ? '#1e3a5f' : '#EFF6FF',
-                borderWidth: 1,
-                borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE',
-                borderRadius: 8,
-                padding: 10,
-                marginHorizontal: 16,
-                marginBottom: 12,
-                gap: 8,
-              }}
-            >
-              <MaterialIcons
-                name="info-outline"
-                size={18}
-                color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'}
-              />
-              <Text
-                style={{
-                  flex: 1,
-                  fontSize: 12,
-                  color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF',
-                  lineHeight: 17,
-                }}
-              >
-                These are example games to help you explore VarsityHub. Real games will appear once
-                coaches in your area sign up.
-              </Text>
-              <Pressable
-                testID="feed-dismiss-seed-banner"
-                onPress={() => setShowSeedBanner(false)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Dismiss sample content notice"
-              >
-                <MaterialIcons
-                  name="close"
-                  size={16}
-                  color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'}
-                />
-              </Pressable>
-            </View>
-          );
 
         case 'game': {
           return (

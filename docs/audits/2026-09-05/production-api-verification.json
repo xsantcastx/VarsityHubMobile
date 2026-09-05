@@ -1,0 +1,91 @@
+{
+  "sourceCommit": "6bb32c40740c492efa9c28ccbb7d7f23c3546cb8",
+  "apiUrl": "https://api-production-8ac3.up.railway.app",
+  "deployments": [
+    {
+      "id": "44e31b96-696a-4c2a-a150-e87e4e01f607",
+      "status": "SUCCESS",
+      "createdAt": "2026-09-05T15:12:15.461Z"
+    },
+    {
+      "id": "083bbc8d-2655-496b-afed-558bb35f67bc",
+      "status": "REMOVED",
+      "createdAt": "2026-09-04T19:26:23.993Z"
+    }
+  ],
+  "cutover": "Previous writer deployment was stopped and verified REMOVED before railway up of the new writer.",
+  "healthObservations": [
+    {
+      "utc": "2026-09-05T15:13:18.727229+00:00",
+      "http": 404,
+      "status": null
+    },
+    {
+      "utc": "2026-09-05T15:13:28.895101+00:00",
+      "http": 404,
+      "status": null
+    },
+    {
+      "utc": "2026-09-05T15:13:39.066351+00:00",
+      "http": 404,
+      "status": null
+    },
+    {
+      "utc": "2026-09-05T15:13:49.236935+00:00",
+      "http": 404,
+      "status": null
+    },
+    {
+      "utc": "2026-09-05T15:13:59.403144+00:00",
+      "http": 404,
+      "status": null
+    },
+    {
+      "utc": "2026-09-05T15:14:09.876756+00:00",
+      "http": 200,
+      "status": "ok"
+    }
+  ],
+  "healthTimingLimit": "Monitoring began after the old deployment was stopped. These observations do not measure the entire outage.",
+  "migration": {
+    "name": "20260905000000_ad_purchase_holds",
+    "finishedAt": "2026-09-05T15:13:57.53431Z"
+  },
+  "inventoryPostflight": {
+    "holds": 0,
+    "pendingPurchases": 0,
+    "expiredHolds": 0,
+    "oversoldFutureSlots": 0,
+    "historicalPaidReservationsPreserved": 5
+  },
+  "backupSchemaPostflight": {
+    "AdSlotHold": true,
+    "AdReservation.purchase_reference": true,
+    "credentialsOrUrlsChanged": false
+  },
+  "runtimeGate": {
+    "command": "npm run release:verify:runtime",
+    "exitCode": 0,
+    "criticalEmailTemplatesConfigured": 32,
+    "criticalEmailTemplatesTotal": 32,
+    "actualTestEmailSent": false
+  },
+  "grants": {
+    "readBackAfterDeployment": true,
+    "count": 3,
+    "newGrantsApplied": false,
+    "details": "notes-remediation.md and grants-readonly.json"
+  },
+  "paymentProviderConfig": {
+    "payments_enabled": true,
+    "stripe_configured": true,
+    "has_webhook_secret": true,
+    "publishableKeyPresent": true,
+    "publishableKeyLive": true
+  },
+  "limits": [
+    "No live test charge",
+    "No actual email/push delivery test",
+    "No production backup restore drill"
+  ]
+}

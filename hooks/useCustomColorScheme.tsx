@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { Platform, useColorScheme as useSystemColorScheme } from 'react-native';
 import { useAuth } from '@/context/AuthProvider';
+import { useHydrated } from './useHydrated';
 
 type ColorScheme = 'light' | 'dark' | 'system';
 type ActualColorScheme = 'light' | 'dark';
@@ -54,6 +55,7 @@ async function setStoredTheme(key: string, theme: ColorScheme): Promise<void> {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useSystemColorScheme();
+  const hydrated = useHydrated();
   const { user } = useAuth();
   const [themePreference, setThemePreferenceState] = useState<ColorScheme>('system');
   const currentStorageKey = useRef<string>(storageKeyForUser(null));
@@ -89,7 +91,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Calculate actual color scheme based on preference
   const colorScheme: ActualColorScheme =
-    themePreference === 'system' ? (systemColorScheme ?? 'light') : themePreference;
+    Platform.OS === 'web' && !hydrated
+      ? 'light'
+      : themePreference === 'system'
+        ? (systemColorScheme ?? 'light')
+        : themePreference;
 
   // Save theme preference to storage when changed
   const setThemePreference = useCallback(async (theme: ColorScheme) => {
@@ -120,7 +126,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useCustomColorScheme(): ActualColorScheme {
   const systemColorScheme = useSystemColorScheme();
+  const hydrated = useHydrated();
   const context = useContext(ThemeContext);
+  if (Platform.OS === 'web' && !hydrated) return 'light';
   if (context === undefined) {
     // Fallback if used outside provider
     return systemColorScheme ?? 'light';

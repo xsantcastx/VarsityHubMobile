@@ -73,6 +73,12 @@ Then finish the operator tasks in:
 - [PENDING_OPERATOR_ACTIONS.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/release/PENDING_OPERATOR_ACTIONS.md)
 - [EMAIL_GO_LIVE_CHECKLIST.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/release/EMAIL_GO_LIVE_CHECKLIST.md)
 
+### Production client publication
+
+After the code/build gates and authorized API deployment/runtime checks, publish installed clients with `npm run update:production`. It requires a clean committed tree and loads the EAS production environment, public defaults from the production build profile, and the existing API's public Stripe configuration when needed. The shared launcher validates remote API settings, production mode, Sentry DSN and a live Stripe publishable key before export. It disables local dotenv loading so workstation settings cannot replace the production export configuration.
+
+For the static website, run `eas env:exec production 'bash scripts/deploy-web-static.sh' --non-interactive` after OTA completes; both exports use `dist`. The script uses the same launcher and updates both custom domain aliases. Record and verify the actual OTA group/runtime/platforms and website deployment; successful export alone is not publication. These commands do not build or submit native binaries.
+
 ### Phase 4: Device UAT
 
 Required minimum accounts:

@@ -140,7 +140,7 @@ New code composes with these single patterns; never stack a parallel mechanism:
 - Don't change Railway env vars casually. Sensitive vars like `JWT_SECRET`, OAuth keys, and Apple signing keys have production blast radius; rotate/change them only when the task explicitly requires it and after understanding impact.
 - **Don't run `git stash apply` directly** — use `npm run stash:apply`. A bare stash apply leaves conflict markers silently; the script scans and reports them immediately.
 - **Don't `git add -A` when the working tree has unresolved conflicts** — always stage files explicitly by path after verifying each one.
-- **Don't assume a code fix is live.** Pushing to `main` deploys the server only (Railway). Client-side fixes require `eas update --branch production` to reach installed apps. Always remind the user to run this after any client fix.
+- **Don't assume a code fix is live.** Pushing to `main` deploys the server only (Railway). Publish client fixes with `npm run update:production`, which guards the clean tree, validates the production client environment, runs `eas update --branch production` and uploads source maps. Static web export uses the same production environment launcher. If publication is not already authorized and completed, remind the user to run the guarded command.
 
 ## Post-mapper Consistency Rule
 

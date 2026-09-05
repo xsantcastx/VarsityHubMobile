@@ -5,10 +5,10 @@ import {
   StyleSheet,
   Text,
   TextStyle,
-  useColorScheme,
   ViewStyle,
 } from 'react-native';
 import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 type Variant = 'default' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg' | 'icon';

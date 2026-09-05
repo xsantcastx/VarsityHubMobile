@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/hooks/useCustomColorScheme';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { ComponentProps } from 'react';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -27,6 +28,7 @@ export function WebThemeToggle() {
   const colorScheme = useColorScheme() ?? 'light';
   const { themePreference, setThemePreference } = useThemePreference();
   const { width } = useWindowDimensions();
+  const hydrated = useHydrated();
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -37,7 +39,7 @@ export function WebThemeToggle() {
 
   if (Platform.OS !== 'web') return null;
 
-  if (dismissed || width < MIN_FLOATING_WIDTH) return null;
+  if (!hydrated || dismissed || width < MIN_FLOATING_WIDTH) return null;
 
   const palette = Colors[colorScheme];
   const selectedTheme = themePreference === 'system' ? colorScheme : themePreference;

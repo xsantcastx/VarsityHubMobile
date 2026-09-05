@@ -1118,9 +1118,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // BUG FIX: Only mark as done once firstSegment is non-empty — if we mark it
     // done while firstSegment==='' (nav not yet restored), the actual sign-in
     // restoration fires after the flag is already set and gets skipped.
+    // A web URL is an explicit destination, including a fresh /sign-in visit.
+    // Only native navigation restoration should replace that auth entry.
     if (!startupSignInRestoreCheckedRef.current && firstSegment !== '') {
       startupSignInRestoreCheckedRef.current = true;
       if (
+        Platform.OS !== 'web' &&
         !user &&
         !pendingVerificationEmail &&
         (firstSegment === 'sign-in' || firstSegment === 'sign-up')

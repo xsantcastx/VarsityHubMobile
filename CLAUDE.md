@@ -127,7 +127,7 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Any native module added after the current App Store binary MUST be dynamically imported with try-catch (see `OfflineBanner.tsx` pattern for `@react-native-community/netinfo`)
 - `fallbackToCacheTimeout: 0` means updates download in background, apply on next cold start — users need two app opens to see changes
 - Always verify the App Store binary's runtime version matches what `eas update` is publishing
-- **A code fix is NOT live until `eas update` is run.** Committing and pushing to main deploys the server (Railway auto-deploys) but does NOT update the client app. Every client-side fix requires an explicit `eas update --branch production` to reach users. Always remind the user to run this after any client fix.
+- **Don't assume a code fix is live.** Pushing to `main` deploys the server only (Railway). Publish client fixes with `npm run update:production`, which guards the clean tree, validates the production client environment, runs `eas update --branch production` and uploads source maps. Static web export uses the same production environment launcher. If publication is not already authorized and completed, remind the user to run the guarded command.
 
 ## Post-mapper Consistency Rule
 

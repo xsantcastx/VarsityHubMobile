@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { View } from 'react-native';
 
 type Deferred<T> = {
@@ -19,6 +19,8 @@ const createDeferred = <T,>(): Deferred<T> => {
 };
 
 const mockRouterPush = jest.fn();
+let mockUser: any = null;
+const mockHttpPost = jest.fn().mockResolvedValue({});
 let capturedFocusEffect: null | (() => void | (() => void)) = null;
 let authDeferred: Deferred<any>;
 let firstGameDeferred: Deferred<any>;
@@ -85,7 +87,12 @@ jest.mock('@/api/entities', () => ({
     votesSummaryBatch: jest.fn(async () => ({})),
   },
   Feed: {
-    bundle: jest.fn(async () => null),
+    bundle: jest.fn(async () => ({
+      posts: { items: [], nextCursor: null },
+      posts_followed_teams: { items: [], nextCursor: null },
+      ads: { ads: [] },
+      errors: [],
+    })),
   },
   Highlights: {
     fetch: jest.fn(async () => null),
@@ -107,12 +114,12 @@ jest.mock('@/api/entities', () => ({
 }));
 
 jest.mock('@/api/http', () => ({
-  httpPost: jest.fn().mockRejectedValue(new Error('Sample seeding disabled in this test')),
+  httpPost: (...args: any[]) => mockHttpPost(...args),
 }));
 
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
-    user: null,
+    user: mockUser,
     checkAuth: mockCheckAuth,
   }),
 }));
@@ -194,6 +201,7 @@ describe('Feed startup performance', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUser = null;
     mockEventFilter.mockReset().mockResolvedValue([]);
     // FeedScreen reads games through the shared singleton queryClient; clear it
     // so each test starts with an empty cache and the 30s staleTime math isn't
@@ -308,5 +316,36 @@ describe('Feed startup performance', () => {
       events.resolve([]);
     });
     await waitFor(() => expect(screen.getByText('No posts yet')).toBeTruthy());
+  });
+
+  it.each([
+    ['guest', null],
+    ['verified admin', { id: 'audit-admin', is_admin: true, email_verified: true }],
+  ])('keeps a confirmed empty feed read-only for a %s', async (_persona, user) => {
+    mockUser = user;
+    const screen = render(<FeedScreen />);
+    await act(async () => {
+      firstGameDeferred.resolve(EMPTY_GAMES_PAGE);
+      authDeferred.resolve(user);
+    });
+    await waitFor(() => expect(screen.getByText('No posts yet')).toBeTruthy());
+    expect(mockHttpPost).not.toHaveBeenCalled();
+    expect(mockGameList).toHaveBeenCalledTimes(GAME_LIST_CALLS_PER_LOAD);
+  });
+
+  it('retries a failed read into a confirmed empty feed without creating sample records', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    const screen = render(<FeedScreen />);
+    await act(async () => {
+      firstGameDeferred.reject({ status: 0, isNetworkError: true });
+    });
+    await waitFor(() => expect(screen.getByTestId('feed-retry-button')).toBeTruthy());
+    expect(screen.queryByText('No posts yet')).toBeNull();
+    expect(mockHttpPost).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByTestId('feed-retry-button'));
+    await waitFor(() => expect(screen.getByText('No posts yet')).toBeTruthy());
+    expect(screen.queryByTestId('feed-retry-button')).toBeNull();
+    expect(mockHttpPost).not.toHaveBeenCalled();
   });
 });

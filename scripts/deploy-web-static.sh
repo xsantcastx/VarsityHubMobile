@@ -45,7 +45,7 @@ fi
 cd "$ROOT_DIR"
 
 echo "Exporting static web bundle..."
-npx expo export --platform web
+node scripts/with-production-client-env.js npx expo export --platform web
 
 echo "Preparing static-only Vercel deployment..."
 mkdir -p "$DEPLOY_DIR/.vercel"

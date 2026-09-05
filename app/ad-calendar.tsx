@@ -31,7 +31,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { Advertisement, Payments } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import { captureBreadcrumb } from '@/utils/sentry';
-import { usePaymentSheet } from '@/utils/stripe';
+import { initStripe, usePaymentSheet } from '@/utils/stripe';
 
 const weekdayRate = 4.99; // Per week (Mon-Thu slot)
 const weekendRate = 7.99; // Per week (Fri-Sun slot)
@@ -757,7 +757,8 @@ function AdCalendarScreen() {
 
       // Stripe must be configured — try build-time config first, then fetch from server
       let stripeKey = getConfig().stripePublishableKey;
-      if (!stripeKey || !stripeKey.startsWith('pk_')) {
+      const needsRuntimeStripeConfiguration = !stripeKey || !stripeKey.startsWith('pk_');
+      if (needsRuntimeStripeConfiguration) {
         try {
           const serverCfg = await Payments.getConfig();
           stripeKey = serverCfg?.stripe_publishable_key || '';
@@ -773,6 +774,12 @@ function AdCalendarScreen() {
         setSubmitting(false);
         setDirty(selected.size > 0);
         return;
+      }
+
+      if (needsRuntimeStripeConfiguration) {
+        // A fetched key must reach the SDK; the mounted provider still has the
+        // missing bundled key. Dispatch configuration before creating an intent.
+        await initStripe({ publishableKey: stripeKey });
       }
 
       // Android / non-iOS: use Stripe PaymentSheet
