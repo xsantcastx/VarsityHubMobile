@@ -146,6 +146,9 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const authCheckGeneration = React.useRef(0);
+  const signingOut = React.useRef(false);
+  const [sessionRestorePending, setSessionRestorePending] = useState(false);
   const preferenceQueue = React.useRef<Promise<unknown>>(Promise.resolve());
   const preferenceSession = React.useRef(0);
   const preferenceUserId = React.useRef<string | null>(null);
@@ -459,6 +462,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   const clearLocalAuthState = useCallback(
     (options?: { abortInflight?: boolean }) => {
+      authCheckGeneration.current += 1;
+      setSessionRestorePending(false);
       if (pushTokenTimeoutRef.current) {
         clearTimeout(pushTokenTimeoutRef.current);
         pushTokenTimeoutRef.current = null;
@@ -529,9 +534,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       replaceSession?: boolean;
       forceRefresh?: boolean;
     }) => {
+      if (signingOut.current) return null;
+      let generation = ++authCheckGeneration.current;
+      const isCurrentCheck = () => generation === authCheckGeneration.current;
       try {
         // If pending verification flag is set, store email and don't try to fetch user
         if (options?.pendingVerification && options?.email) {
+          setSessionRestorePending(false);
           setHasSession(true);
           setPendingVerificationEmail(options.email);
           resetPreferenceSession(null);
@@ -545,10 +554,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // false, leaving redirects permanently suppressed.
         if (!healthOk) {
           await checkHealth();
+          if (!isCurrentCheck()) return null;
         }
 
         // Try to fetch current user only if we have a token
         const token = await auth.getToken();
+        if (!isCurrentCheck()) return null;
         if (!token) {
           // Startup/bootstrap can legitimately race with auth-establishing
           // requests like sign-in/sign-up on web. Clearing local auth state is
@@ -564,6 +575,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           // in-memory identity first so user A cannot bleed into user B if the
           // subsequent /me refresh fails or resolves slowly.
           clearLocalAuthState();
+          generation = authCheckGeneration.current;
         }
         setHasSession(true);
 
@@ -574,6 +586,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           options?.forceRefresh === true || options?.replaceSession === true;
         const preferenceRevisionAtRead = preferenceRevision.current;
         const me: any = await User.me(shouldForceRefresh ? { force: true } : undefined);
+        if (!isCurrentCheck()) return null;
         setHealthOk(true);
         setHealthError(null);
 
@@ -590,27 +603,36 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         const serverComplete = isOnboardingComplete(me);
 
-        // Sync local onboarding flag BEFORE setUser to prevent routing race condition.
-        // The routing effect fires when `user` changes — if hasCompletedOnboarding is
-        // stale from a different account, needsOnboarding evaluates wrong for one cycle.
-        if (serverComplete) {
-          setHasCompletedOnboarding(true);
-          await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
-          await AsyncStorage.setItem(ONBOARDING_COMPLETE_USER_KEY, me.id);
-        } else {
-          // Server says incomplete — clear local flag regardless of who it belonged to
-          setHasCompletedOnboarding(false);
-          await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
-          await AsyncStorage.removeItem(ONBOARDING_COMPLETE_USER_KEY);
+        // Routing uses the server-confirmed in-memory flag. Its disk cache must
+        // not turn a valid /me response into an apparently logged-out session.
+        setHasCompletedOnboarding(serverComplete);
+        try {
+          if (serverComplete) {
+            await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+            if (!isCurrentCheck()) return null;
+            await AsyncStorage.setItem(ONBOARDING_COMPLETE_USER_KEY, me.id);
+          } else {
+            await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+            if (!isCurrentCheck()) return null;
+            await AsyncStorage.removeItem(ONBOARDING_COMPLETE_USER_KEY);
+          }
+        } catch (storageErr) {
+          if (!isCurrentCheck()) return null;
+          captureException(storageErr, { tags: { context: 'auth_onboarding_cache_write' } });
         }
+        if (!isCurrentCheck()) return null;
 
         // Clear stale onboarding context data whenever the authed identity does
         // not match the last identity that touched onboarding storage. Runs
         // regardless of serverComplete because the keys are user-scoped — a
         // returning fan should never inherit a previous coach's draft, even if
         // the new account is already onboarded and never opens /onboarding.
+        // Unlike the completion-flag cache above, this identity boundary must
+        // settle before adopting a different account. A transient failure is
+        // retried by initial restoration without deleting stored credentials.
         if (me?.id) {
           const lastUserId = await AsyncStorage.getItem(LAST_ONBOARDING_USER_KEY);
+          if (!isCurrentCheck()) return null;
           if (lastUserId && lastUserId !== me.id) {
             if (__DEV__)
               console.log('[AuthProvider] Account changed — clearing stale onboarding data');
@@ -619,8 +641,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
               'onboarding_progress',
               'onboarding_reducer_state',
             ]);
+            if (!isCurrentCheck()) return null;
           }
           await AsyncStorage.setItem(LAST_ONBOARDING_USER_KEY, me.id);
+          if (!isCurrentCheck()) return null;
         }
 
         if (options?.replaceSession && previousUserId && previousUserId !== me.id) {
@@ -629,6 +653,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           // the prior account's drafts, settings caches, or onboarding state.
           analytics.reset();
           await clearUserScopedStorage();
+          if (!isCurrentCheck()) return null;
         }
 
         if (preferenceUserId.current !== me.id) resetPreferenceSession(me.id);
@@ -638,6 +663,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
         // NOW set user — routing effect will fire with correct hasCompletedOnboarding
         setUser(me);
+        setSessionRestorePending(false);
         setSentryUser({ id: me.id, email: me.email, username: me.username });
         analytics.identify(me.id, {
           email: me.email,
@@ -678,8 +704,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         return me;
       } catch (err: any) {
+        if (!isCurrentCheck()) return null;
         if (options?.replaceSession) {
           clearLocalAuthState();
+          if (err?.status !== 401) setSessionRestorePending(true);
           throw err;
         }
         // Only clear auth state on explicit unauthorized responses.
@@ -690,6 +718,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
         if (__DEV__)
           console.error('[AuthProvider] checkAuth transient error (session preserved):', err);
+        if (!preferenceUserId.current) setSessionRestorePending(true);
         return null; // Don't crash the app on transient network/server errors
       }
     },
@@ -808,19 +837,26 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   // Sign out
   const signOut = useCallback(async () => {
+    if (signingOut.current) return;
     const userBeforeSignOut = user;
+    signingOut.current = true;
+    authCheckGeneration.current += 1;
     resetPreferenceSession(null);
     try {
       await auth.logout();
     } catch (error) {
       if (__DEV__) console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
-      clearLocalAuthState();
-      await clearUserScopedStorage();
-      // Wipe the persisted react-query cache so one account's feed/profile
-      // data can never rehydrate into the next session on a shared device.
-      await clearPersistedQueryCache();
-      redirectWithTelemetry(unauthenticatedEntryRoute, 'sign_out', userBeforeSignOut);
+      try {
+        clearLocalAuthState();
+        await clearUserScopedStorage();
+        // Wipe the persisted react-query cache so one account's feed/profile
+        // data can never rehydrate into the next session on a shared device.
+        await clearPersistedQueryCache();
+        redirectWithTelemetry(unauthenticatedEntryRoute, 'sign_out', userBeforeSignOut);
+      } finally {
+        signingOut.current = false;
+      }
     }
   }, [
     clearLocalAuthState,
@@ -854,8 +890,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         currentPath === 'sign-up' ||
         currentPath.startsWith('sign-up/');
       clearLocalAuthState();
+      const expiryGeneration = authCheckGeneration.current;
       await clearUserScopedStorage();
+      if (expiryGeneration !== authCheckGeneration.current) return;
       await clearPersistedQueryCache();
+      if (expiryGeneration !== authCheckGeneration.current) return;
       // Only surface a message if the user was actually signed in — a
       // missing refresh token during a background bootstrap doesn't need
       // a toast ("you were never really signed in").
@@ -924,6 +963,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     if (__DEV__) console.log('[AuthProvider] Starting auth bootstrap');
 
     (async () => {
+      const bootstrapGeneration = authCheckGeneration.current;
       // Clear stale tokens and probe backend health in parallel so startup doesn't
       // serialize SecureStore/AsyncStorage work ahead of the first network check.
       if (__DEV__) console.log('[AuthProvider] Checking backend health...');
@@ -936,13 +976,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       if (__DEV__) console.log('[AuthProvider] Health check result:', healthy);
 
       if (!mounted) return;
-
-      // If backend is down, we can't authenticate.
-      if (!healthy) {
-        if (__DEV__) console.log('[AuthProvider] Backend unhealthy, stopping initialization');
+      if (bootstrapGeneration !== authCheckGeneration.current) {
         setLoading(false);
         setInitializing(false);
-        // Don't redirect - let user see offline banner
         return;
       }
 
@@ -975,6 +1011,22 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       await import('@/api/auth')
         .then(({ migrateKeychainAccessibility }) => migrateKeychainAccessibility())
         .catch(() => {});
+      if (!mounted) return;
+      if (bootstrapGeneration !== authCheckGeneration.current) {
+        setLoading(false);
+        setInitializing(false);
+        return;
+      }
+
+      // Credential cleanup must settle before deferred restoration is allowed.
+      // The existing health-recovery interval will resume this initial auth
+      // check once connectivity returns, without requiring another foreground.
+      if (!healthy) {
+        setSessionRestorePending(true);
+        setLoading(false);
+        setInitializing(false);
+        return;
+      }
 
       if (__DEV__) console.log('[AuthProvider] Checking authentication...');
       try {
@@ -1027,15 +1079,22 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // OfflineBanner Retry button, or the app coming to the foreground — on a
   // congested venue network none of those may fire for a while, leaving the
   // "unable to connect" banner stuck long after the API is reachable again.
-  // Runs every ~20s and stops itself the moment healthOk flips true; inert
-  // (no timer at all) whenever healthOk is already true.
+  // The same interval also retries an initial session restore interrupted by
+  // health or transient credential-storage failure. Established sessions do
+  // not acquire an extra auth poller.
   useEffect(() => {
-    if (healthOk) return;
+    if (healthOk && !sessionRestorePending) return;
     const interval = setInterval(() => {
-      checkHealth().catch(() => {});
+      if (sessionRestorePending) {
+        checkAuthRef
+          .current()
+          .catch(e => captureException(e, { tags: { context: 'initial_session_restore_retry' } }));
+      } else {
+        checkHealth().catch(() => {});
+      }
     }, 20000);
     return () => clearInterval(interval);
-  }, [healthOk, checkHealth]);
+  }, [healthOk, checkHealth, sessionRestorePending]);
 
   // Safety timeout - force initialization complete after 5 seconds
   useEffect(() => {

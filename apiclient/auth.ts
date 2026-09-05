@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import {
   clearAuthToken,
   getAuthToken,
+  getAuthTokenRevision,
   httpGet,
   httpPost,
   httpPostLongTimeout,
@@ -270,26 +271,41 @@ async function saveRefreshToken(token: string | null) {
   }
 }
 
+function credentialStorageUnavailable(cause: unknown): Error {
+  // An iOS Keychain read can fail temporarily. Only a successful read returning
+  // null proves absence; treating an unreadable token as missing signs out a
+  // valid session and deletes the credentials needed for recovery.
+  return Object.assign(new Error('Saved session temporarily unavailable. Please try again.'), {
+    code: 'AUTH_STORAGE_UNAVAILABLE',
+    isTransientAuthError: true,
+    cause,
+  });
+}
+
 async function loadRefreshToken(): Promise<string | null> {
   try {
     if (Platform.OS === 'web') return readWebToken(REFRESH_TOKEN_KEY);
     return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
   } catch (error) {
     if (__DEV__) console.error('[auth] Failed to load refresh token from secure storage:', error);
-    return null;
+    throw credentialStorageUnavailable(error);
   }
 }
 
 export async function loadToken(): Promise<string | null> {
   const cached = getAuthToken();
   if (cached) return cached;
+  const revision = getAuthTokenRevision();
   let t: string | null = null;
   try {
     if (Platform.OS === 'web') t = readWebToken(TOKEN_KEY);
     else t = await SecureStore.getItemAsync(TOKEN_KEY);
   } catch (error) {
+    if (revision !== getAuthTokenRevision()) return getAuthToken();
     if (__DEV__) console.error('[auth] Failed to load token from secure storage:', error);
+    throw credentialStorageUnavailable(error);
   }
+  if (revision !== getAuthTokenRevision()) return getAuthToken();
   if (t) setAuthToken(t);
   return t;
 }
@@ -481,10 +497,10 @@ export const auth = {
     return httpPost('/auth/account/delete', payload || {});
   },
   async refreshToken(): Promise<RefreshTokenResult> {
-    const stored = await loadRefreshToken();
-    if (!stored) return { accessToken: null, reason: 'missing' };
-
     try {
+      const stored = await loadRefreshToken();
+      if (!stored) return { accessToken: null, reason: 'missing' };
+
       const response = parseAuthTokenResponse(
         await httpPostWithOptions(
           '/auth/refresh',

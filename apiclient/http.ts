@@ -34,10 +34,17 @@ const DEFAULT_MUTATION_TIMEOUT_MS = 15_000;
 const LONG_POST_TIMEOUT_MS = 180_000; // 3 minutes — heavy uploads / report generation
 
 let tokenCache: string | null = null;
+let tokenRevision = 0;
+/** Invalidates persisted reads that started before a login or local teardown. */
+export function getAuthTokenRevision(): number {
+  return tokenRevision;
+}
 export function setAuthToken(token: string | null) {
+  tokenRevision += 1;
   tokenCache = token || null;
 }
 export function clearAuthToken() {
+  tokenRevision += 1;
   tokenCache = null;
   // The cached refresh result belongs to the previous identity — if user A's
   // refresh is still cached when user B signs in, user B's first 401 would

@@ -895,8 +895,8 @@ authRouter.post(
  *       double-refresh that lost the rotation race, OR
  *   (b) genuine reuse/theft: a stolen, already-rotated token replayed later or
  *       from a different device.
- * Within the grace window AND from the same device we treat it as (a): mint a
- * fresh pair, do NOT revoke. Outside the window or from a different device we
+ * Within the grace window and without an enforced device mismatch, treat it
+ * as (a): mint a fresh pair, do NOT revoke. Outside the window or from a different device we
  * treat it as (b): revoke every session (theft response) and return
  * TOKEN_REUSED. The superseded row is left intact so repeated retries inside
  * the window keep working.
@@ -927,7 +927,7 @@ async function serveRotatedTokenOrRevoke(
   const withinGrace = Date.now() - rotatedAtMs <= REFRESH_ROTATION_GRACE_MS;
   const fingerprint = verifyStoredSessionFingerprint(stored.device_info, req);
 
-  if (withinGrace && fingerprint.matches) {
+  if (withinGrace && (fingerprint.matches || !fingerprint.enforce)) {
     // Slow/aborted refresh (or concurrent race loser) retrying — reissue a
     // fresh pair against the user's current epoch. No revoke.
     const { raw: newRawRefresh, keyId: newKeyId, secret: newSecret } = generateRefreshTokenV2();
@@ -940,7 +940,10 @@ async function serveRotatedTokenOrRevoke(
         hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
         user_id: user.id,
         expires_at: newExpiry,
-        device_info: buildSessionFingerprint(req),
+        device_info:
+          fingerprint.reason === 'device_id_missing'
+            ? stored.device_info
+            : buildSessionFingerprint(req),
       },
     });
     const access_token = signAccessTokenForSession(user.id, (user as any).session_epoch ?? 0);
@@ -1142,18 +1145,31 @@ authRouter.post(
           hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
           user_id: user.id,
           expires_at: newExpiry,
-          device_info: buildSessionFingerprint(req),
+          device_info:
+            fingerprintCheck.reason === 'device_id_missing'
+              ? stored.device_info
+              : buildSessionFingerprint(req),
         },
       });
 
       // Refresh rotates tokens WITHIN an existing session — it doesn't start a
       // new one — so we don't bump session_epoch here. Mint the new access
-      // token against the user's current epoch so it stays valid until the
-      // user logs in again on any device (which is what bumps the epoch).
+      // token against the user's current epoch. Explicit security revocation
+      // bumps that epoch; signing in on another device preserves it.
       const access_token = signAccessTokenForSession(user.id, (user as any).session_epoch ?? 0);
       return res.json({ access_token, refresh_token: newRawRefresh });
     } catch (err) {
-      return res.status(401).json({ error: 'Invalid refresh token' });
+      // Explicit credential failures above remain 401. An unavailable DB or
+      // failed rotation must not tell clients to erase a valid refresh token.
+      const error = err instanceof Error ? err : new Error('Unexpected refresh failure');
+      console.error('[auth] Refresh temporarily unavailable', {
+        name: error.name,
+        code: typeof (err as any)?.code === 'string' ? (err as any).code : undefined,
+      });
+      captureException(error, { context: 'auth_refresh_failed' });
+      return sendError(res, 503, 'Service temporarily unavailable. Please try again.', {
+        code: 'AUTH_REFRESH_UNAVAILABLE',
+      });
     }
   })
 );
