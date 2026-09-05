@@ -43,6 +43,11 @@ describeDb('Export lifecycle regression scenarios', () => {
           preferences: {
             theme: 'dark',
             position: 'Pitcher',
+            notifications: {
+              team_updates: false,
+              messages_notifications: true,
+              push_token: 'nested-fixture-secret',
+            },
             plan: 'rookie',
             apple_original_transaction_id: 'fixture-payment-secret',
             push_token: 'fixture-push-secret',
@@ -99,7 +104,11 @@ describeDb('Export lifecycle regression scenarios', () => {
       expect(read('MANIFEST.json').domains_failed).toEqual([]);
       expect(archive.domainsIncluded).toHaveLength(26);
       expect(read('profile.json').email).toContain('@fixture.invalid');
-      expect(read('preferences.json')).toEqual({ theme: 'dark', position: 'Pitcher' });
+      expect(read('preferences.json')).toEqual({
+        theme: 'dark',
+        position: 'Pitcher',
+        notifications: { team_updates: false, messages_notifications: true },
+      });
       expect(read('billing_summary.json').plan).toBe('legend');
       expect(read('comments.json')[0].content).toBe('OWNED_COMMENT');
       expect(read('posts.json').map((p: any) => p.content)).toEqual(['OWNED_EXPORT_POST']);
@@ -107,6 +116,7 @@ describeDb('Export lifecycle regression scenarios', () => {
       for (const forbidden of [
         'fixture-payment-secret',
         'fixture-push-secret',
+        'nested-fixture-secret',
         'OTHER_PRIVATE_POST',
         'password_hash',
       ]) {

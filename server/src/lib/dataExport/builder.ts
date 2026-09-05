@@ -79,9 +79,29 @@ export function exportPreferences(value: unknown): Record<string, unknown> {
     'accolades',
     'primary_sport',
     'zip_code',
-    'notification_preferences',
+    'is_parent',
   ];
-  return Object.fromEntries(keys.filter(key => key in prefs).map(key => [key, prefs[key]]));
+  const result = Object.fromEntries(keys.filter(key => key in prefs).map(key => [key, prefs[key]]));
+  if (
+    prefs.notifications &&
+    typeof prefs.notifications === 'object' &&
+    !Array.isArray(prefs.notifications)
+  ) {
+    const notifications = prefs.notifications as Record<string, unknown>;
+    const notificationKeys = [
+      'game_event_reminders',
+      'team_updates',
+      'comments_upvotes',
+      'follows_notifications',
+      'messages_notifications',
+    ];
+    result.notifications = Object.fromEntries(
+      notificationKeys
+        .filter(key => typeof notifications[key] === 'boolean')
+        .map(key => [key, notifications[key]])
+    );
+  }
+  return result;
 }
 
 // ─── Domain extractors ───────────────────────────────────────────────────────
