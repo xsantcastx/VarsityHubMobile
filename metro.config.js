@@ -80,14 +80,6 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === 'web' && moduleName === '@react-native-community/datetimepicker') {
     return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/datetimepicker.js') };
   }
-  if (
-    platform === 'web' &&
-    (moduleName === '@expo/vector-icons' ||
-      moduleName === '@expo/vector-icons/MaterialIcons' ||
-      moduleName === '@expo/vector-icons/Ionicons')
-  ) {
-    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/expo-vector-icons.js') };
-  }
   if (originalResolveRequest) {
     try {
       return originalResolveRequest(context, moduleName, platform);
