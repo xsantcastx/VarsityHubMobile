@@ -1,6 +1,5 @@
 /**
  * GDPR / right-to-access data export ZIP builder.
- * audit-allow unbounded-file
  *
  * Given a user ID, enumerates every domain the user directly owns or
  * authored, queries the DB for their rows, strips secrets/third-party
@@ -36,13 +35,62 @@ interface DomainExtractor {
   extract: (userId: string) => Promise<unknown>;
 }
 
+const EXPORT_ROW_LIMIT = 50_000;
+
+function assertWithinRowLimit(value: unknown): void {
+  if (Array.isArray(value)) {
+    if (value.length > EXPORT_ROW_LIMIT) throw new Error('export_size_limit');
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) assertWithinRowLimit(child);
+  }
+}
+
+// Explicit allowlist: preferences also holds provider receipts, tokens and
+// internal moderation state. Unknown keys must not silently enter an archive.
+export function exportPreferences(value: unknown): Record<string, unknown> {
+  const prefs =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const keys = [
+    'theme',
+    'affiliation',
+    'sports_interests',
+    'personalization_goals',
+    'primary_intents',
+    'season_start',
+    'season_end',
+    'location_enabled',
+    'notifications_enabled',
+    'messaging_policy_accepted',
+    'profile_private',
+    'comment_permission',
+    'dm_policy',
+    'location',
+    'header_image_url',
+    'header_image_focus_y',
+    'theme_color',
+    'position',
+    'jersey_number',
+    'grade_level',
+    'graduation_year',
+    'accolades',
+    'primary_sport',
+    'zip_code',
+    'notification_preferences',
+  ];
+  return Object.fromEntries(keys.filter(key => key in prefs).map(key => [key, prefs[key]]));
+}
+
 // ─── Domain extractors ───────────────────────────────────────────────────────
 
 const DOMAINS: DomainExtractor[] = [
   {
     filename: 'profile.json',
     extract: async userId => {
-      const u = (await prisma.user.findUnique({
+      const u = await prisma.user.findUnique({
         where: { id: userId },
         select: {
           id: true,
@@ -51,15 +99,12 @@ const DOMAINS: DomainExtractor[] = [
           username: true,
           avatar_url: true,
           bio: true,
-          location: true,
-          header_image_url: true,
-          theme_color: true,
-          position: true,
-          jersey_number: true,
-          grade_level: true,
-          graduation_year: true,
-          accolades: true,
-          primary_sport: true,
+          role: true,
+          onboarding_completed: true,
+          terms_accepted_at: true,
+          terms_version: true,
+          coach_agreement_accepted_at: true,
+          coach_agreement_version: true,
           date_of_birth: true,
           created_at: true,
           email_verified: true,
@@ -70,8 +115,8 @@ const DOMAINS: DomainExtractor[] = [
           parent_email: true,
           parental_consent_status: true,
           parental_consent_at: true,
-        } as any,
-      })) as any;
+        },
+      });
       return u ?? null;
     },
   },
@@ -82,7 +127,7 @@ const DOMAINS: DomainExtractor[] = [
         where: { id: userId },
         select: { preferences: true },
       });
-      return u?.preferences ?? null;
+      return exportPreferences(u?.preferences);
     },
   },
   {
@@ -90,16 +135,20 @@ const DOMAINS: DomainExtractor[] = [
     extract: async userId => {
       // Derived summary only — no raw Stripe objects. Source of truth is
       // User.subscription_* fields plus preferences.plan / apple_* metadata.
-      const u = (await prisma.user.findUnique({
+      const u = await prisma.user.findUnique({
         where: { id: userId },
         select: {
           subscription_tier: true,
           subscription_status: true,
           max_teams: true,
           paid_by_owner: true,
+          plan: true,
+          pending_plan: true,
+          payment_pending: true,
+          payment_approved: true,
           preferences: true,
-        } as any,
-      })) as any;
+        },
+      });
       if (!u) return null;
       const prefs = (u.preferences ?? {}) as Record<string, unknown>;
       const billing = getCanonicalBillingState(u);
@@ -122,7 +171,8 @@ const DOMAINS: DomainExtractor[] = [
     filename: 'teams_owned.json',
     extract: async userId =>
       prisma.team.findMany({
-        where: { coach_id: userId } as any,
+        take: EXPORT_ROW_LIMIT + 1,
+        where: { memberships: { some: { user_id: userId, role: 'owner', status: 'active' } } },
         select: {
           id: true,
           name: true,
@@ -130,62 +180,67 @@ const DOMAINS: DomainExtractor[] = [
           created_at: true,
           city: true,
           state: true,
-          country_code: true,
           organization_id: true,
           is_private: true,
-        } as any,
+        },
       }),
   },
   {
     filename: 'team_memberships.json',
     extract: async userId =>
       prisma.teamMembership.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
         select: {
           team_id: true,
           role: true,
           status: true,
           custom_position: true,
-          joined_at: true,
-        } as any,
+          created_at: true,
+        },
       }),
   },
   {
     filename: 'team_follows.json',
     extract: async userId =>
       prisma.teamFollow.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
-        select: { team_id: true, created_at: true } as any,
+        select: { team_id: true, created_at: true },
       }),
   },
   {
     filename: 'program_follows.json',
     extract: async userId =>
       prisma.programFollow.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
-        select: { program_id: true, created_at: true } as any,
+        select: { program_id: true, created_at: true },
       }),
   },
   {
     filename: 'organization_memberships.json',
     extract: async userId =>
       prisma.organizationMembership.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
-        select: { organization_id: true, role: true, status: true, joined_at: true } as any,
+        select: { organization_id: true, role: true, status: true, created_at: true },
       }),
   },
   {
     filename: 'organization_follows.json',
     extract: async userId =>
       prisma.organizationFollow.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
-        select: { organization_id: true, created_at: true } as any,
+        select: { organization_id: true, created_at: true },
       }),
   },
   {
     filename: 'organization_join_requests.json',
     extract: async userId =>
       prisma.organizationJoinRequest.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
         select: {
           organization_id: true,
@@ -193,13 +248,14 @@ const DOMAINS: DomainExtractor[] = [
           message: true,
           created_at: true,
           reviewed_at: true,
-        } as any,
+        },
       }),
   },
   {
     filename: 'posts.json',
     extract: async userId =>
       prisma.post.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { author_id: userId },
         select: {
           id: true,
@@ -209,37 +265,40 @@ const DOMAINS: DomainExtractor[] = [
           team_id: true,
           deleted_at: true,
           upvotes_count: true,
-        } as any,
+        },
       }),
   },
   {
     filename: 'comments.json',
     extract: async userId =>
       prisma.comment.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { author_id: userId },
         select: {
           id: true,
           post_id: true,
           content: true,
           created_at: true,
-          parent_comment_id: true,
-        } as any,
+          parent_id: true,
+        },
       }),
   },
   {
     filename: 'post_upvotes.json',
     extract: async userId =>
       prisma.postUpvote.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
-        select: { post_id: true, created_at: true } as any,
+        select: { post_id: true, created_at: true },
       }),
   },
   {
     filename: 'post_bookmarks.json',
     extract: async userId =>
       prisma.postBookmark.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
-        select: { post_id: true, created_at: true } as any,
+        select: { post_id: true, created_at: true },
       }),
   },
   {
@@ -247,12 +306,14 @@ const DOMAINS: DomainExtractor[] = [
     extract: async userId => {
       const [following, followers] = await Promise.all([
         prisma.follows.findMany({
+          take: EXPORT_ROW_LIMIT + 1,
           where: { follower_id: userId },
-          select: { following_id: true, created_at: true, status: true } as any,
+          select: { following_id: true, created_at: true, status: true },
         }),
         prisma.follows.findMany({
+          take: EXPORT_ROW_LIMIT + 1,
           where: { following_id: userId },
-          select: { follower_id: true, created_at: true, status: true } as any,
+          select: { follower_id: true, created_at: true, status: true },
         }),
       ]);
       return { following, followers };
@@ -264,8 +325,9 @@ const DOMAINS: DomainExtractor[] = [
       // Only blocks the user INITIATED. Blocks against them are others'
       // data and deliberately excluded from this export.
       prisma.blockedUser.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { blocker_id: userId },
-        select: { blocked_id: true, created_at: true } as any,
+        select: { blocked_id: true, created_at: true },
       }),
   },
   {
@@ -275,6 +337,7 @@ const DOMAINS: DomainExtractor[] = [
       // message, we include minimal counterparty identity (user_id,
       // display_name, avatar_url) — NOT email, phone, DOB, or auth data.
       const raw = await prisma.message.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: {
           OR: [{ sender_id: userId }, { recipient_id: userId }],
         },
@@ -288,7 +351,6 @@ const DOMAINS: DomainExtractor[] = [
           created_at: true,
         },
         orderBy: { created_at: 'asc' },
-        take: 50_000,
       });
       // Batch-lookup counterparties once.
       const counterpartyIds = new Set<string>();
@@ -298,6 +360,7 @@ const DOMAINS: DomainExtractor[] = [
       }
       const counterparties = counterpartyIds.size
         ? await prisma.user.findMany({
+            take: EXPORT_ROW_LIMIT + 1,
             where: { id: { in: Array.from(counterpartyIds) } },
             select: { id: true, display_name: true, avatar_url: true },
           })
@@ -306,6 +369,8 @@ const DOMAINS: DomainExtractor[] = [
         messages: raw.map(m => ({
           id: m.id,
           conversation_id: m.conversation_id,
+          sender_id: m.sender_id,
+          recipient_id: m.recipient_id,
           direction: m.sender_id === userId ? 'sent' : 'received',
           content: m.content,
           read: m.read,
@@ -319,47 +384,50 @@ const DOMAINS: DomainExtractor[] = [
     filename: 'group_chat_memberships.json',
     extract: async userId =>
       prisma.groupChatMember.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
-        select: { chat_id: true, joined_at: true, role: true } as any,
+        select: { chat_id: true, joined_at: true },
       }),
   },
   {
     filename: 'group_chat_messages.json',
     extract: async userId =>
       prisma.groupChatMessage.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { sender_id: userId },
         select: {
           id: true,
           chat_id: true,
           content: true,
           created_at: true,
-        } as any,
+        },
       }),
   },
   {
     filename: 'events_created.json',
     extract: async userId =>
       prisma.event.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { creator_id: userId },
         select: {
           id: true,
           title: true,
           description: true,
           date: true,
-          location: true,
           team_id: true,
           game_id: true,
           status: true,
           created_at: true,
-        } as any,
+        },
       }),
   },
   {
     filename: 'event_rsvps.json',
     extract: async userId =>
       prisma.eventRsvp.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
-        select: { event_id: true, status: true, created_at: true } as any,
+        select: { event_id: true, created_at: true },
       }),
   },
   {
@@ -368,6 +436,7 @@ const DOMAINS: DomainExtractor[] = [
       // Stories present at export time. Most expire after 24h so typical
       // exports will have 0-3 here.
       prisma.story.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
         select: {
           id: true,
@@ -376,13 +445,14 @@ const DOMAINS: DomainExtractor[] = [
           caption: true,
           created_at: true,
           expires_at: true,
-        } as any,
+        },
       }),
   },
   {
     filename: 'ads.json',
     extract: async userId =>
       prisma.ad.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
         select: {
           id: true,
@@ -395,13 +465,14 @@ const DOMAINS: DomainExtractor[] = [
           payment_status: true,
           created_at: true,
           updated_at: true,
-        } as any,
+        },
       }),
   },
   {
     filename: 'reports_submitted.json',
     extract: async userId =>
       prisma.abuseReport.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { reporter_id: userId },
         select: {
           id: true,
@@ -409,7 +480,7 @@ const DOMAINS: DomainExtractor[] = [
           message: true,
           status: true,
           created_at: true,
-        } as any,
+        },
       }),
   },
   {
@@ -418,6 +489,7 @@ const DOMAINS: DomainExtractor[] = [
       // Received notifications. Actor id is included (the actor is a public
       // on-platform identity), but not the actor's email/DOB/auth data.
       prisma.notification.findMany({
+        take: EXPORT_ROW_LIMIT + 1,
         where: { user_id: userId },
         select: {
           id: true,
@@ -426,28 +498,24 @@ const DOMAINS: DomainExtractor[] = [
           post_id: true,
           comment_id: true,
           message_id: true,
-          meta: true,
           created_at: true,
           read_at: true,
-        } as any,
-        take: 10_000,
+        },
       }),
   },
   {
     filename: 'parental_consent_history.json',
     extract: async userId =>
-      // Consent actions ON the requesting user's account. Admin identity
-      // redacted — we expose actor_admin_id only (opaque), not email, since
-      // the admin is not a party to this export.
+      // Consent transitions only. Internal reasons and admin identity are excluded.
       prisma.parentalConsentAudit.findMany({
-        where: { user_id: userId } as any,
+        take: EXPORT_ROW_LIMIT + 1,
+        where: { user_id: userId },
         select: {
           id: true,
-          action: true,
-          reason: true,
-          actor_admin_id: true,
+          from_state: true,
+          to_state: true,
           created_at: true,
-        } as any,
+        },
       }),
   },
 ];
@@ -456,9 +524,8 @@ const DOMAINS: DomainExtractor[] = [
 
 /**
  * Build the ZIP archive of a user's data. Returns a Buffer containing the
- * full ZIP plus a manifest of which domains were included and any domains
- * that failed (the partial-failure path — a single bad extractor should not
- * kill the whole export; it gets recorded as an error entry in the ZIP).
+ * complete ZIP and its manifest. Any extraction failure aborts the build;
+ * callers must never advertise a partial archive as ready.
  */
 export async function buildUserDataExportArchive(userId: string): Promise<{
   zipBuffer: Buffer;
@@ -474,6 +541,7 @@ export async function buildUserDataExportArchive(userId: string): Promise<{
     archive.on('error', reject);
   });
 
+  let uncompressedBytes = 0;
   const domainsIncluded: string[] = [];
   const domainsFailed: string[] = [];
   const errors: Record<string, string> = {};
@@ -481,15 +549,26 @@ export async function buildUserDataExportArchive(userId: string): Promise<{
   for (const domain of DOMAINS) {
     try {
       const payload = await domain.extract(userId);
+      assertWithinRowLimit(payload);
       const json = JSON.stringify(payload, null, 2);
+      uncompressedBytes += Buffer.byteLength(json);
+      if (uncompressedBytes > 32 * 1024 * 1024) throw new Error('export_size_limit');
       archive.append(json, { name: domain.filename });
       domainsIncluded.push(domain.filename);
     } catch (err) {
       domainsFailed.push(domain.filename);
       // Category only — never raw stack in the archive, it could leak
       // internal schema/path details.
-      errors[domain.filename] = (err as any)?.code || 'extract_failed';
+      errors[domain.filename] =
+        err instanceof Error && err.message === 'export_size_limit'
+          ? 'export_size_limit'
+          : 'extract_failed';
     }
+  }
+
+  if (domainsFailed.length) {
+    archive.abort();
+    throw new Error(`Data export incomplete: ${domainsFailed.join(', ')}`);
   }
 
   // Always emit a manifest so users can tell at a glance what the archive

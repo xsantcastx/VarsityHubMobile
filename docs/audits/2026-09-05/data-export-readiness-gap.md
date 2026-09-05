@@ -1,5 +1,7 @@
 # Data export readiness follow-up — 2026-09-05
 
+Follow-up: [current remediation and activation dependency](data-export-remediation.md). The source trace below remains the before-fix evidence.
+
 Read-only review of deployed API source `8b8543e3`, deployment `54143be0-d7ae-4a40-bfb0-2b830bf44384`. No production export request, account/token use, storage request, email, environment mutation, or source edit was performed. This is a source trace plus production configuration-presence evidence, not an end-to-end export test.
 
 ## Result

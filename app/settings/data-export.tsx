@@ -1,7 +1,9 @@
 import { DataExport } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
-import { useFocusEffect } from '@react-navigation/native';
+import { useIsFocused } from '@react-navigation/native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthProvider';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -125,93 +127,98 @@ export default function DataExportScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
-  const [rows, setRows] = useState<DataExportRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { user } = useAuth();
+  const userId = user?.id;
+  const ownerRef = useRef(userId);
+  ownerRef.current = userId;
+  const queryClient = useQueryClient();
+  const focused = useIsFocused();
+  const queryKey = useMemo(() => ['data-exports', userId], [userId]);
   const [requesting, setRequesting] = useState(false);
+  const requestingRef = useRef(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Tracks whether the screen is currently focused so the polling effect
-  // can stop when the user navigates away. Cleared in the focus-effect
-  // cleanup below to avoid running queries against a backgrounded screen.
-  const focusedRef = useRef(false);
-
-  const load = useCallback(async (mode: 'initial' | 'refresh' | 'silent' = 'initial') => {
-    if (mode === 'refresh') setRefreshing(true);
-    if (mode === 'initial') setLoading(true);
-    setError(null);
-    try {
-      const result = await DataExport.list();
-      setRows(Array.isArray(result) ? result : []);
-    } catch (e: any) {
-      const message = e?.data?.error || e?.message || 'Failed to load exports.';
-      setError(message);
-      captureBreadcrumb('data export load failed', 'data-export', {
-        action: 'load',
-        status: e?.status,
-      });
-      captureException(e instanceof Error ? e : new Error(String(message)), {
-        action: 'load',
-        screen: 'settings-data-export',
-        status: e?.status,
-        server_error: e?.data?.error,
-      });
-    } finally {
-      if (mode === 'initial') setLoading(false);
-      if (mode === 'refresh') setRefreshing(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      focusedRef.current = true;
-      void load('initial');
-      return () => {
-        focusedRef.current = false;
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    ownerRef.current = userId;
+    requestingRef.current = false;
+    setRequesting(false);
+    setBusyId(null);
+    setRefreshing(false);
+    return () => {
+      ownerRef.current = undefined;
+    };
+  }, [userId]);
+  const exportsQuery = useQuery({
+    queryKey,
+    enabled: !!userId && focused,
+    queryFn: async () => {
+      const [rows, availability] = await Promise.all([
+        DataExport.list(),
+        DataExport.availability(),
+      ]);
+      if (!Array.isArray(rows)) throw new Error('Unable to load exports. Please try again.');
+      return {
+        rows: rows as DataExportRow[],
+        availability: availability as { available: boolean; retention_days: number },
       };
-    }, [load])
+    },
+    refetchOnMount: 'always',
+    refetchInterval: query => {
+      const active = query.state.data?.rows.find(
+        row => row.status === 'pending' || row.status === 'building'
+      );
+      return focused &&
+        active &&
+        Date.now() - new Date(active.requested_at).getTime() < POLL_MAX_DURATION_MS
+        ? POLL_INTERVAL_MS
+        : false;
+    },
+  });
+  const rows = useMemo(() => exportsQuery.data?.rows ?? [], [exportsQuery.data?.rows]);
+  const loading = exportsQuery.isPending && !!userId;
+  const error = exportsQuery.isError ? 'Unable to load exports. Pull down to try again.' : null;
+  const available = exportsQuery.data?.availability.available === true && !exportsQuery.isError;
+  const load = useCallback(
+    async (mode: 'refresh' | 'silent' = 'silent') => {
+      if (mode === 'refresh') setRefreshing(true);
+      try {
+        await queryClient.invalidateQueries({ queryKey, exact: true });
+      } finally {
+        if (ownerRef.current === userId) setRefreshing(false);
+      }
+    },
+    [queryClient, queryKey, userId]
   );
 
-  const latestReady = useMemo(() => rows.find(row => row.status === 'ready'), [rows]);
+  const latestReady = useMemo(() => rows.find(row => !!row.completed_at), [rows]);
   const inFlight = useMemo(
     () => rows.find(row => row.status === 'pending' || row.status === 'building'),
     [rows]
   );
 
-  // Poll in the background while an export is active. Bounded so a stuck
-  // worker does not keep the client spinning forever.
-  useEffect(() => {
-    if (!inFlight) return undefined;
-    const startedAt = Date.now();
-    const interval = setInterval(() => {
-      if (!focusedRef.current) return;
-      if (Date.now() - startedAt > POLL_MAX_DURATION_MS) {
-        clearInterval(interval);
-        return;
-      }
-      void load('silent');
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [inFlight, load]);
   const rateLimitedForSeconds = useMemo(() => {
     if (!latestReady?.requested_at) return 0;
     const unlockAt = new Date(latestReady.requested_at).getTime() + 24 * 60 * 60 * 1000;
     return Math.max(0, Math.ceil((unlockAt - Date.now()) / 1000));
   }, [latestReady?.requested_at]);
 
-  const requestDisabled = requesting || !!inFlight || rateLimitedForSeconds > 0;
+  const requestDisabled =
+    !available || !userId || requesting || !!inFlight || rateLimitedForSeconds > 0;
 
   const requestExport = useCallback(async () => {
+    if (requestDisabled || requestingRef.current) return;
+    requestingRef.current = true;
     setRequesting(true);
     try {
-      const row = await DataExport.request();
+      await DataExport.request();
+      if (ownerRef.current !== userId) return;
       Alert.alert(
         'Export Requested',
         'Your archive is queued. This screen will refresh automatically while it builds.'
       );
-      setRows(current => [row as DataExportRow, ...current]);
       void load('silent');
     } catch (e: any) {
+      if (ownerRef.current !== userId) return;
       const serverError = e?.data?.error || e?.message || '';
       if (e?.status === 409 && serverError === 'EXPORT_IN_FLIGHT') {
         Alert.alert(
@@ -226,6 +233,8 @@ export default function DataExportScreen() {
             ? `You can request one export every 24 hours. Try again in about ${retry}.`
             : 'You can request one export every 24 hours.'
         );
+      } else if (e?.status === 503) {
+        Alert.alert('Exports Temporarily Unavailable', 'Please try again later.');
       } else {
         Alert.alert('Unable to Request Export', serverError || 'Please try again later.');
         captureBreadcrumb('data export request failed', 'data-export', {
@@ -244,42 +253,46 @@ export default function DataExportScreen() {
       }
       void load('silent');
     } finally {
-      setRequesting(false);
+      if (ownerRef.current === userId) {
+        requestingRef.current = false;
+        setRequesting(false);
+      }
     }
-  }, [load]);
+  }, [load, requestDisabled, userId]);
 
   const downloadExport = useCallback(
     async (row: DataExportRow) => {
       setBusyId(row.id);
       try {
         const result: any = await DataExport.download(row.id);
+        if (ownerRef.current !== userId) return;
         if (!result?.url) {
           throw new Error('Download URL missing');
         }
         await Linking.openURL(result.url);
         void load('silent');
       } catch (e: any) {
-        const errorCode = e?.data?.error || e?.message || '';
+        if (ownerRef.current !== userId) return;
         if (e?.status === 409) {
           Alert.alert('Export Not Ready', 'This archive is still being built.');
         } else if (e?.status === 410) {
           Alert.alert('Export Expired', 'This archive has expired. Request a new export.');
         } else if (e?.status === 503) {
           Alert.alert(
-            'Export Failed',
-            e?.data?.error_category
-              ? `The export failed (${e.data.error_category}). Request a new one.`
-              : 'This export failed. Request a new one.'
+            'Download Temporarily Unavailable',
+            'Please try again later. You can request a new export if this attempt has failed.'
           );
         } else {
-          Alert.alert('Download Failed', errorCode || 'Unable to open the archive.');
+          Alert.alert('Download Failed', 'Unable to open the archive. Please try again.');
           captureBreadcrumb('data export download failed', 'data-export', {
             action: 'download',
             export_id: row.id,
             status: e?.status,
           });
           captureException(
-            e instanceof Error ? e : new Error(String(errorCode || 'download_failed')),
+            // Linking errors can contain the complete signed URL. It is a
+            // bearer credential, so never send that error message to Sentry.
+            new Error('Data export download failed'),
             {
               action: 'download',
               screen: 'settings-data-export',
@@ -292,10 +305,10 @@ export default function DataExportScreen() {
         }
         void load('silent');
       } finally {
-        setBusyId(null);
+        if (ownerRef.current === userId) setBusyId(null);
       }
     },
-    [load]
+    [load, userId]
   );
 
   const deleteExport = useCallback(
@@ -303,7 +316,7 @@ export default function DataExportScreen() {
       Alert.alert(
         row.status === 'ready' ? 'Delete Archive?' : 'Dismiss Export?',
         row.status === 'ready'
-          ? 'This will expire the archive immediately and remove its download link.'
+          ? 'This removes access to new download links. A link you already opened can remain valid for up to five minutes.'
           : 'This will clear the current export attempt from your active list.',
         [
           { text: 'Cancel', style: 'cancel' },
@@ -311,22 +324,13 @@ export default function DataExportScreen() {
             text: row.status === 'ready' ? 'Delete' : 'Dismiss',
             style: 'destructive',
             onPress: async () => {
+              if (ownerRef.current !== userId) return;
               setBusyId(row.id);
               try {
                 await DataExport.delete(row.id);
-                setRows(current =>
-                  current.map(item =>
-                    item.id === row.id
-                      ? {
-                          ...item,
-                          status: 'expired',
-                          expires_at: item.expires_at ?? new Date().toISOString(),
-                        }
-                      : item
-                  )
-                );
                 void load('silent');
               } catch (e: any) {
+                if (ownerRef.current !== userId) return;
                 Alert.alert(
                   'Delete Failed',
                   e?.data?.error || e?.message || 'Unable to update this export.'
@@ -347,14 +351,14 @@ export default function DataExportScreen() {
                   }
                 );
               } finally {
-                setBusyId(null);
+                if (ownerRef.current === userId) setBusyId(null);
               }
             },
           },
         ]
       );
     },
-    [load]
+    [load, userId]
   );
 
   return (
@@ -390,9 +394,20 @@ export default function DataExportScreen() {
                 account data currently tied to you.
               </Text>
               <Text style={[styles.heroFootnote, { color: palette.mutedText }]}>
-                Archives expire after 7 days. You can request one export every 24 hours.
+                Archives expire after {exportsQuery.data?.availability.retention_days ?? 7} days.
+                You can request one export every 24 hours.
               </Text>
+              {!available && !error ? (
+                <Text
+                  accessibilityRole="alert"
+                  style={[styles.heroFootnote, { color: palette.mutedText }]}
+                >
+                  Data exports are temporarily unavailable. Please try again later.
+                </Text>
+              ) : null}
               <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: requestDisabled }}
                 onPress={() => void requestExport()}
                 disabled={requestDisabled}
                 style={[
@@ -404,11 +419,13 @@ export default function DataExportScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.primaryButtonText}>
-                    {inFlight
-                      ? 'Export In Progress'
-                      : rateLimitedForSeconds > 0
-                        ? `Available In ${formatRetryWindow(rateLimitedForSeconds)}`
-                        : 'Request New Export'}
+                    {!available
+                      ? 'Temporarily Unavailable'
+                      : inFlight
+                        ? 'Export In Progress'
+                        : rateLimitedForSeconds > 0
+                          ? `Available In ${formatRetryWindow(rateLimitedForSeconds)}`
+                          : 'Request New Export'}
                   </Text>
                 )}
               </Pressable>
@@ -433,11 +450,12 @@ export default function DataExportScreen() {
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: palette.text }]}>Recent Exports</Text>
               <Text style={[styles.sectionSubtitle, { color: palette.mutedText }]}>
-                Active exports refresh automatically. Pull down any time to force a sync.
+                Active exports refresh automatically for five minutes. Pull down any time to check
+                again.
               </Text>
             </View>
 
-            {rows.length === 0 ? (
+            {rows.length === 0 && !error ? (
               <View
                 style={[
                   styles.emptyCard,
@@ -483,7 +501,8 @@ export default function DataExportScreen() {
                     ) : null}
                     {row.status === 'failed' && row.error_category ? (
                       <Text style={[styles.detailText, { color: isDark ? '#FCA5A5' : '#B91C1C' }]}>
-                        Failure reason: {row.error_category.replace(/_/g, ' ')}
+                        We couldn’t finish this archive. Try again later, or contact support if it
+                        keeps failing.
                       </Text>
                     ) : null}
                     {row.last_downloaded_at ? (

@@ -181,6 +181,8 @@ npm run verify:error-envelope
 
 ## Security Invariants (Do Not Break)
 
+- **Private data exports:** use only dedicated private `DATA_EXPORT_S3_*` storage, never the public media bucket. All ZIP sections must succeed. Request/worker transitions are atomic; cancellation is terminal; signed URLs cannot outlive archive expiry. Failed deletion retains its key for scheduled retry. The BullMQ scheduler owns cleanup; do not also start the legacy cron wrapper.
+
 - **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
 - **Backend validation is law** — frontend validation is UX only
 - **IDOR guard on self-action** — users must never approve/reject their own pending requests

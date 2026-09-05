@@ -93,6 +93,16 @@ function withJobTags(jobName: string, context: Record<string, any> = {}) {
 
 const SCHEDULED_JOBS: ScheduledJob[] = [
   {
+    name: 'data-export-cleanup',
+    cron: '*/15 * * * *',
+    description: 'Expire private export archives, retry deletion and reap abandoned builds',
+    handler: async () => {
+      const { runDataExportCleanupSweep } = await import('../lib/dataExport/cleanup.js');
+      const result = await runDataExportCleanupSweep();
+      console.log('[data-export-cleanup]', result);
+    },
+  },
+  {
     name: 'game-reminders-12hr',
     cron: '0 * * * *', // Every hour at minute 0
     description: 'Send 12-hour game reminders',

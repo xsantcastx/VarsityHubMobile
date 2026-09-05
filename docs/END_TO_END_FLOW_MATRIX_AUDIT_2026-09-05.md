@@ -1,5 +1,7 @@
 # VarsityHub tab-by-tab scenario audit — September 5, 2026
 
+Current execution evidence and stricter closure rules: [matrix verification ledger](audits/2026-09-05/matrix-verification-ledger.md). This report remains the historical audit of its pinned source.
+
 > Historical before-fix audit. Current corrections and release evidence are tracked in [release verification](audits/2026-09-05/release-verification.md) and the [latest PDF notes ledger](audits/2026-09-05/notes-remediation.md). Keep the reproduced findings below as the original evidence.
 
 **The current app does not pass a complete security/functionality sign-off.** Ordinary coach/team and organization-owner app permissions hold in the exercised scenarios, and ordinary organization owners do not acquire founder admin access. However, real database/HTTP scenarios reproduce privacy leaks, organization email authorization/replay failures, and paid-ad/subscription recovery defects. Settings also has reproducible persistence and appearance failures. The September 1 matrix and older “all fixed” notes are incomplete for this version.

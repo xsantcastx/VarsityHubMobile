@@ -11,7 +11,6 @@ import {
   hardDeleteAnonymizedUsers,
   ANONYMIZED_USER_RETENTION_DAYS_DEFAULT,
 } from '../lib/accountDeletion.js';
-import { getObjectStorageAdapter, ObjectStorageNotConfiguredError } from '../lib/objectStorage.js';
 
 export async function recoverSlotFullRefundReleaseFailures(referenceTime = new Date()) {
   const cutoff = new Date(referenceTime.getTime() - 60 * 60 * 1000);
@@ -657,71 +656,8 @@ export function startAnonymizedUserPurge() {
  *
  * Both sweeps are bounded — this is defensive cleanup, not bulk batch.
  */
-export async function runDataExportCleanupSweep(): Promise<{
-  expiredCleaned: number;
-  stuckReaped: number;
-  storageDeleteFailed: number;
-}> {
-  const p = prisma as any;
-  const now = new Date();
-  const storage = getObjectStorageAdapter();
-
-  // ── Sweep 1: expire ready archives ────────────────────────────────
-  const expired = await p.dataExport.findMany({
-    where: {
-      status: 'ready',
-      expires_at: { not: null, lt: now },
-    },
-    select: { id: true, storage_key: true },
-    take: 500,
-    orderBy: { expires_at: 'asc' },
-  });
-
-  let expiredCleaned = 0;
-  let storageDeleteFailed = 0;
-  for (const row of expired) {
-    if (row.storage_key) {
-      try {
-        if (storage.isConfigured()) {
-          await storage.deleteObject(row.storage_key);
-        }
-      } catch (err) {
-        // Keep going — we still flip status to 'expired' so the row
-        // doesn't get reprocessed every run. Orphan object is a sunk
-        // cost; operator can sweep externally.
-        if (!(err instanceof ObjectStorageNotConfiguredError)) {
-          storageDeleteFailed += 1;
-          captureException(err instanceof Error ? err : new Error(String(err)), {
-            extra: {
-              context: 'data_export_cleanup_storage_delete_failed',
-            },
-          });
-        }
-      }
-    }
-    await p.dataExport.update({
-      where: { id: row.id },
-      data: { status: 'expired', storage_key: null, size_bytes: null },
-    });
-    expiredCleaned += 1;
-  }
-
-  // ── Sweep 2: reap stuck builds ────────────────────────────────────
-  const stuckCutoff = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-  const stuckReaped = await p.dataExport.updateMany({
-    where: {
-      status: 'building',
-      started_at: { not: null, lt: stuckCutoff },
-    },
-    data: { status: 'failed', error_category: 'stuck_build_reaped' },
-  });
-
-  return {
-    expiredCleaned,
-    stuckReaped: stuckReaped.count,
-    storageDeleteFailed,
-  };
-}
+export { runDataExportCleanupSweep } from '../lib/dataExport/cleanup.js';
+import { runDataExportCleanupSweep } from '../lib/dataExport/cleanup.js';
 
 /**
  * Data export cleanup — runs daily at 5:00 AM. Thin scheduler wrapper around

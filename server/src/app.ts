@@ -498,7 +498,8 @@ if (!isTest) {
  *  - startStripeSubscriptionReconciliation — can cancel/downgrade live subs.
  *  - startPostUpvoteReconciliation — rewrites denormalized upvote counts.
  *  - startRefreshTokenCleanup / startNotificationCleanup — bulk deletes.
- *  - startDataExportCleanup — reaps export jobs + their stored artifacts.
+ *  - startDataExportCleanup — legacy cron wrapper; the reviewed export sweep
+ *    is now scheduled through the existing BullMQ scheduler (2026-09-05).
  *
  * Listed (not deleted) so cron-wiring.test.ts still fails for any NEW starter
  * that is neither wired nor consciously deferred. Owner decision pending.

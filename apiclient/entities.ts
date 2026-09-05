@@ -234,6 +234,7 @@ export const User = {
 };
 
 export const DataExport = {
+  availability: () => httpGet('/me/data-export-availability'),
   request: () => httpPost('/me/data-export', {}),
   list: () => httpGet('/me/data-exports'),
   get: (id: string) => httpGet(`/me/data-export/${encodeURIComponent(id)}`),

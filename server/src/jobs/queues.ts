@@ -293,8 +293,14 @@ export async function queueDataExport(job: DataExportJob): Promise<string | null
     });
     return null;
   }
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const added = await dataExportQueue.add('build', job);
+    const added = await Promise.race([
+      dataExportQueue.add('build', job, { jobId: job.exportId }),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Export enqueue timeout')), 2000);
+      }),
+    ]);
     return added.id || null;
   } catch (err) {
     // BullMQ add() can throw on Redis network loss, OOM, or malformed
@@ -306,6 +312,35 @@ export async function queueDataExport(job: DataExportJob): Promise<string | null
       extra: { context: 'queue_data_export_add_failed', exportId: job.exportId },
     });
     return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Live consumer discovery uses BullMQ's existing Redis connection metadata,
+ * so a healthy worker on any replica can satisfy the request. Fail closed. */
+export async function isDataExportWorkerAvailable(): Promise<boolean> {
+  if (queueDataExportOverride) return true;
+  if (!process.env.REDIS_URL) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      (async () => {
+        if (!queuesInitialized) await initializeQueues();
+        return !!dataExportQueue && (await dataExportQueue.getWorkersCount()) > 0;
+      })(),
+      new Promise<false>(resolve => {
+        timer = setTimeout(() => resolve(false), 2000);
+      }),
+    ]);
+  } catch (error) {
+    const { captureException } = await import('../lib/sentry.js');
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      extra: { context: 'data_export_worker_availability' },
+    });
+    return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -372,7 +407,14 @@ export async function getQueueStats(): Promise<Record<string, any>> {
 export async function shutdownQueues(): Promise<void> {
   console.log('[Jobs] Shutting down queues...');
 
-  const queues = [notificationQueue, emailQueue, analyticsQueue, mediaQueue, schedulerQueue];
+  const queues = [
+    notificationQueue,
+    emailQueue,
+    analyticsQueue,
+    mediaQueue,
+    schedulerQueue,
+    dataExportQueue,
+  ];
 
   await Promise.all(queues.filter(Boolean).map(q => q!.close()));
 

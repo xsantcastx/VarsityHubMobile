@@ -77,7 +77,7 @@ describeDb('GDPR data export — worker', () => {
     expect(fake.puts.length).toBe(0);
   });
 
-  it('flips to failed with job_user_mismatch when payload user does not match row', async () => {
+  it('leaves the row untouched when payload user does not match', async () => {
     const { fake, userId, row } = await setupExportJob(true);
 
     await processExportJob({
@@ -87,8 +87,8 @@ describeDb('GDPR data export — worker', () => {
     const after = await (prisma as any).dataExport.findUnique({
       where: { id: row.id },
     });
-    expect(after.status).toBe('failed');
-    expect(after.error_category).toBe('job_user_mismatch');
+    expect(after.status).toBe('pending');
+    expect(after.error_category).toBeNull();
     expect(fake.puts.length).toBe(0);
   });
 

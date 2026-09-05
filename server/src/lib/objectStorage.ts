@@ -38,7 +38,7 @@ export interface ObjectStorageAdapter {
    * The URL is single-purpose — callers should not log it (it grants read
    * access). Throws if not configured.
    */
-  getSignedDownloadUrl(key: string, ttlSeconds?: number): Promise<string>;
+  getSignedDownloadUrl(key: string, ttlSeconds?: number, signingDate?: Date): Promise<string>;
 
   /**
    * Delete an object. Safe to call on a key that doesn't exist — idempotent.
@@ -91,43 +91,69 @@ class S3CompatibleAdapter implements ObjectStorageAdapter {
       credentials: { accessKeyId: e.accessKeyId, secretAccessKey: e.secretAccessKey },
       // R2 requires path-style to work with custom endpoints
       forcePathStyle: Boolean(e.endpoint),
+      maxAttempts: 1,
     });
     return this.lazyClient;
   }
 
   async putObject(key: string, body: Buffer | Readable, contentType: string): Promise<void> {
+    const { runWithBreaker } = await import('./circuitBreaker.js');
     const client = await this.getClient();
     const { PutObjectCommand } = await import('@aws-sdk/client-s3');
     const e = this.env();
-    await client.send(
-      new PutObjectCommand({
-        Bucket: e.bucket,
-        Key: key,
-        Body: body as any,
-        ContentType: contentType,
-        // Opportunistic SSE — R2 applies by default, AWS honors this hint.
-        ServerSideEncryption: 'AES256',
-      })
+    await runWithBreaker(
+      'data-export-storage',
+      () =>
+        client.send(
+          new PutObjectCommand({
+            Bucket: e.bucket,
+            Key: key,
+            Body: body as any,
+            ContentType: contentType,
+            // R2 encrypts at rest automatically and does not accept the S3 SSE
+            // header. AWS endpoints support explicitly requesting AES256.
+            ...(!e.endpoint ? { ServerSideEncryption: 'AES256' as const } : {}),
+            CacheControl: 'private, no-store',
+            ContentDisposition: 'attachment; filename="varsityhub-data.zip"',
+          }),
+          { abortSignal: AbortSignal.timeout(25_000) }
+        ),
+      { timeout: 30_000 }
     );
   }
 
-  async getSignedDownloadUrl(key: string, ttlSeconds?: number): Promise<string> {
+  async getSignedDownloadUrl(
+    key: string,
+    ttlSeconds?: number,
+    signingDate = new Date()
+  ): Promise<string> {
     const client = await this.getClient();
     const { GetObjectCommand } = await import('@aws-sdk/client-s3');
     const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
     const e = this.env();
-    const ttl = Math.max(30, ttlSeconds ?? e.defaultTtl);
+    const ttl = Math.floor(ttlSeconds ?? e.defaultTtl);
+    if (!Number.isFinite(ttl) || ttl < 1 || ttl > 300)
+      throw new Error('Invalid export URL lifetime');
     return getSignedUrl(client, new GetObjectCommand({ Bucket: e.bucket, Key: key }), {
       expiresIn: ttl,
+      signingDate,
     });
   }
 
   async deleteObject(key: string): Promise<void> {
+    const { runWithBreaker } = await import('./circuitBreaker.js');
     const client = await this.getClient();
     const { DeleteObjectCommand } = await import('@aws-sdk/client-s3');
     const e = this.env();
     try {
-      await client.send(new DeleteObjectCommand({ Bucket: e.bucket, Key: key }));
+      await runWithBreaker(
+        'data-export-storage',
+        () =>
+          client.send(new DeleteObjectCommand({ Bucket: e.bucket, Key: key }), {
+            abortSignal: AbortSignal.timeout(25_000),
+          }),
+        { timeout: 30_000 }
+      );
     } catch (err: any) {
       // S3/R2 return 204 for deletes regardless of existence, so this path
       // is rare. Swallow NoSuchKey for idempotency; re-throw anything else.

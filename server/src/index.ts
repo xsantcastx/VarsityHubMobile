@@ -5,6 +5,7 @@ import { captureException, captureMessage } from './lib/sentry.js';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
 import { initializeQueues, shutdownQueues } from './jobs/queues.js';
+import { startDataExportWorker, stopDataExportWorker } from './workers/dataExportWorker.js';
 import { setupScheduler, startSchedulerWorker } from './jobs/scheduler.js';
 import { env } from './lib/env.js';
 import { APP_REVIEW_EMAIL } from './lib/appReviewFixture.js';
@@ -254,10 +255,12 @@ void (async () => {
 })();
 
 // Initialize job queues (async, non-blocking)
-initializeQueues().catch(error => {
-  console.error('[startup] Failed to initialize queues:', error);
-  captureException(error, { context: 'queue_initialization' });
-});
+initializeQueues()
+  .then(() => startDataExportWorker())
+  .catch(error => {
+    console.error('[startup] Failed to initialize queues:', error);
+    captureException(error, { context: 'queue_initialization' });
+  });
 
 // Start scheduler (BullMQ with Redis, falls back to setInterval without it).
 // Reconfiguring the repeatable jobs is a remove-all-then-re-add sequence, so it
@@ -310,6 +313,7 @@ const HOST: string = env.HOST || '0.0.0.0';
 const shutdown = async (signal: string) => {
   debugLog(`\n[shutdown] Received ${signal}, shutting down gracefully...`);
   try {
+    await stopDataExportWorker();
     await shutdownQueues();
     debugLog('[shutdown] Queues closed');
     // Disconnect Prisma to release DB connection pool slots
