@@ -87,6 +87,7 @@ Check env vars, Railway logs, and build configs — not just source code.
 
 - Role escalation: owner role blocked on all generic membership/invite endpoints
 - Ad booking horizon: 56-day max from today
+- Ad inventory uses the single `server/src/lib/adInventory.ts` adapter: `AdReservation` stores paid dates, `AdSlotHold` stores expiring purchase-scoped holds, and settlement/refund/cancellation match purchase references. Run Again must preserve existing paid delivery. The September 5 migration requires an explicit old-writer stop before the new adapter starts; rollback must retain compatibility with live holds.
 - Checkout holds: fatal on failure — no partial bookings
 - Team creation enforced inside `$transaction` (race-condition safe)
 - Rate limiting requires `DISABLE_RATE_LIMITING=1` to disable (never set in Railway)

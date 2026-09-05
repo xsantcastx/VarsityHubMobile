@@ -1412,6 +1412,28 @@ export default function ProfileScreen() {
     [openPostGridViewer, theme.card, theme.mutedText, theme.text]
   );
 
+  const activeContentQuery =
+    activeTab === 'posts' ? postsQuery : activeTab === 'replies' ? repliesQuery : upvotesQuery;
+  const renderContentError = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>
+        {`Unable to load ${activeTab}`}
+      </Text>
+      <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
+        Check your connection and try again.
+      </Text>
+      <Button
+        onPress={() =>
+          void (activeContentQuery.isFetchNextPageError
+            ? activeContentQuery.fetchNextPage()
+            : activeContentQuery.refetch())
+        }
+      >
+        <Text style={{ color: '#fff' }}>Retry</Text>
+      </Button>
+    </View>
+  );
+
   const renderPostGridList = ({
     data,
     keyPrefix,
@@ -1436,7 +1458,13 @@ export default function ProfileScreen() {
       columnWrapperStyle={styles.gridRow}
       keyExtractor={keyExtractor}
       ListHeaderComponent={renderHeader}
-      ListEmptyComponent={emptyComponent}
+      ListEmptyComponent={
+        !isRestrictedProfile && activeContentQuery.isPending
+          ? null
+          : !isRestrictedProfile && activeContentQuery.isError
+            ? renderContentError()
+            : emptyComponent
+      }
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />
       }
@@ -1446,7 +1474,13 @@ export default function ProfileScreen() {
       renderItem={({ item, index }) =>
         renderPostGridTile({ item, index, sourceItems: data, unwrapSource: unwrapItems })
       }
-      ListFooterComponent={loading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+      ListFooterComponent={
+        loading ? (
+          <ActivityIndicator style={{ marginVertical: 16 }} />
+        ) : data.length > 0 && activeContentQuery.isError ? (
+          renderContentError()
+        ) : null
+      }
     />
   );
 

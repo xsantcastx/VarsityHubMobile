@@ -51,6 +51,7 @@ jest.mock('../game-details/GameVerticalFeedScreen', () =>
 const mockScreenSummary = jest.fn();
 const mockProgramSummary = jest.fn();
 const mockProgramFollow = jest.fn();
+const mockTeamFollow = jest.fn();
 const mockProgramUnfollow = jest.fn();
 jest.mock('@/api/entities', () => ({
   __esModule: true,
@@ -58,7 +59,7 @@ jest.mock('@/api/entities', () => ({
     screenSummary: (...args: any[]) => mockScreenSummary(...args),
     get: jest.fn(),
     list: jest.fn().mockResolvedValue([]),
-    follow: jest.fn(),
+    follow: (...args: any[]) => mockTeamFollow(...args),
     unfollow: jest.fn(),
     members: jest.fn().mockResolvedValue([]),
   },
@@ -97,6 +98,7 @@ beforeEach(() => {
   mockProgramSummary
     .mockReset()
     .mockResolvedValue({ program: { id: 'prog1' }, levels: [], counts: {} });
+  mockTeamFollow.mockReset().mockResolvedValue({});
   mockProgramFollow.mockReset().mockResolvedValue({});
   mockProgramUnfollow.mockReset().mockResolvedValue({});
   mockParams = { id: 'team1' };
@@ -162,12 +164,112 @@ describe('team-page is the canonical sport page (no redirect)', () => {
       </QueryWrapper>
     );
 
-    const followBtn = await screen.findByTestId('team-page-follow-button');
+    const followBtn = await screen.findByLabelText('Follow sport');
     await act(async () => {
       fireEvent.press(followBtn);
     });
     await waitFor(() => expect(mockProgramFollow).toHaveBeenCalledWith('prog1'));
   });
+
+  it('waits for delayed program metadata before allowing follow, then follows the whole sport', async () => {
+    let resolveProgram!: (value: any) => void;
+    mockScreenSummary.mockResolvedValue({
+      team: { ...baseTeam, program_id: 'prog1' },
+      members: [],
+      games: [],
+      permissions: { can_manage: false },
+    });
+    mockProgramSummary.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveProgram = resolve;
+        })
+    );
+    render(
+      <QueryWrapper>
+        <TeamScreen />
+      </QueryWrapper>
+    );
+    const button = await screen.findByTestId('team-page-follow-button');
+    await waitFor(() => expect(mockProgramSummary).toHaveBeenCalledWith('prog1'));
+    expect(button.props.accessibilityState.disabled).toBe(true);
+    fireEvent.press(button);
+    // Invoke the component callback directly too: the handler must guard the
+    // race independently of the native disabled-button behavior.
+    const followPressable = screen.UNSAFE_root.findAll(
+      (element: { props: { testID?: string; onPress?: () => Promise<void> } }) =>
+        element.props.testID === 'team-page-follow-button' &&
+        typeof element.props.onPress === 'function'
+    )[0];
+    expect(followPressable).toBeTruthy();
+    await act(async () => {
+      await followPressable.props.onPress();
+    });
+    expect(mockTeamFollow).not.toHaveBeenCalled();
+    expect(mockProgramFollow).not.toHaveBeenCalled();
+    await act(async () =>
+      resolveProgram({
+        program: { id: 'prog1', is_following: false },
+        levels: [
+          { level: 'varsity', team: { id: 'team1', gender: 'boys' }, games: [] },
+          { level: 'jv', team: { id: 'team2', gender: 'boys' }, games: [] },
+        ],
+        counts: {},
+      })
+    );
+    fireEvent.press(await screen.findByLabelText('Follow sport'));
+    await waitFor(() => expect(mockProgramFollow).toHaveBeenCalledWith('prog1'));
+    expect(mockTeamFollow).not.toHaveBeenCalled();
+  });
+
+  it('retries failed program metadata before allowing a single-level team follow', async () => {
+    mockScreenSummary.mockResolvedValue({
+      team: { ...baseTeam, program_id: 'prog1' },
+      members: [],
+      games: [],
+      permissions: { can_manage: false },
+    });
+    mockProgramSummary.mockRejectedValue(new Error('Program unavailable'));
+    render(
+      <QueryWrapper>
+        <TeamScreen />
+      </QueryWrapper>
+    );
+    const retry = await screen.findByLabelText('Retry follow status');
+    expect(screen.getByText('Could not load follow status. Tap to retry.')).toBeTruthy();
+    expect(mockTeamFollow).not.toHaveBeenCalled();
+    mockProgramSummary.mockResolvedValue({
+      program: { id: 'prog1', is_following: false },
+      levels: [{ level: 'varsity', team: { id: 'team1', gender: 'boys' }, games: [] }],
+      counts: {},
+    });
+    fireEvent.press(retry);
+    fireEvent.press(await screen.findByLabelText('Follow team'));
+    await waitFor(() => expect(mockTeamFollow).toHaveBeenCalledWith('team1'));
+    expect(mockProgramFollow).not.toHaveBeenCalled();
+  });
+
+  it.each([{ program: { id: 'prog1' } }, { program: { id: 'wrong-program' }, levels: [] }])(
+    'retries malformed program metadata without falling through to Team.follow',
+    async payload => {
+      mockScreenSummary.mockResolvedValue({
+        team: { ...baseTeam, program_id: 'prog1' },
+        members: [],
+        games: [],
+        permissions: { can_manage: false },
+      });
+      mockProgramSummary.mockResolvedValue(payload);
+      render(
+        <QueryWrapper>
+          <TeamScreen />
+        </QueryWrapper>
+      );
+      fireEvent.press(await screen.findByLabelText('Retry follow status'));
+      await waitFor(() => expect(mockProgramSummary.mock.calls.length).toBeGreaterThan(1));
+      expect(mockTeamFollow).not.toHaveBeenCalled();
+      expect(mockProgramFollow).not.toHaveBeenCalled();
+    }
+  );
 
   it('an ungrouped team (no program_id) renders a plain team page, no picker, no redirect', async () => {
     mockScreenSummary.mockResolvedValue({

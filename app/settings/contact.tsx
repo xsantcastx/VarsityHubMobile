@@ -3,7 +3,8 @@ import { Input } from '@/components/ui/input';
 import Textarea from '@/components/ui/textarea';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Alert, useColorScheme } from 'react-native';
+import { Alert } from 'react-native';
+import { useColorScheme } from '@/hooks/useColorScheme';
 // @ts-ignore JS exports
 import { Support } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';

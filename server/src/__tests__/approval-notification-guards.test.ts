@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import ts from 'typescript';
 
 const approvalService = readFileSync(
   join(process.cwd(), 'src', 'lib', 'approvalService.ts'),
@@ -17,9 +18,13 @@ const events = readFileSync(join(process.cwd(), 'src', 'routes', 'events.ts'), '
 const games = readFileSync(join(process.cwd(), 'src', 'routes', 'games.ts'), 'utf8');
 
 const extractFunctionBody = (source: string, name: string): string => {
-  const match = source.match(new RegExp(`export async function ${name}[\\s\\S]*?^\\}`, 'm'));
-  if (!match) throw new Error(`Could not locate function ${name}`);
-  return match[0];
+  const file = ts.createSourceFile('module.ts', source, ts.ScriptTarget.Latest, true);
+  const declaration = file.statements.find(
+    (node): node is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(node) && node.name?.text === name
+  );
+  if (!declaration?.body) throw new Error(`Could not locate function ${name}`);
+  return declaration.body.getText(file);
 };
 
 describe('approval notification guards', () => {
@@ -51,13 +56,29 @@ describe('approval notification guards', () => {
     expect(organizationJoinRequests).toMatch(/function reportApprovalNotificationFailure/);
     expect(organizationJoinRequests).toMatch(/coach_join_request_approved_email_failed/);
     expect(organizationJoinRequests).toMatch(/join_request_approval_push_failed/);
-    expect(organizationJoinRequests).toMatch(/join_request_approval_notification_failed/);
   });
 
-  it('join-request denial captures in-app notification failures to Sentry', () => {
-    expect(organizationJoinRequests).toMatch(
-      /JOIN_REQUEST_DENIED[\s\S]*?captureException\(notifErr as Error,\s*\{[\s\S]*?context:\s*'join_request_denial_notification_failed'/
+  it('join-request approval and denial await the same transactional in-app notification and audit write', () => {
+    const recordStart = organizationJoinRequests.indexOf(
+      'async function recordJoinRequestDecision('
     );
+    const recordEnd = organizationJoinRequests.indexOf(
+      'function isSerializationConflict',
+      recordStart
+    );
+    const record = organizationJoinRequests.slice(recordStart, recordEnd);
+    expect(record).toMatch(/await tx\.notification\.create\(/);
+    expect(record).toMatch(/approved \? 'JOIN_REQUEST_APPROVED' : 'JOIN_REQUEST_DENIED'/);
+    expect(record).toMatch(/await tx\.adminActivityLog\.create\(/);
+    expect(record).not.toMatch(/catch\s*\(/);
+    for (const fnName of ['approveJoinRequest', 'denyJoinRequest']) {
+      const body = extractFunctionBody(organizationJoinRequests, fnName);
+      expect(body).toMatch(/await runJoinRequestDecisionTransaction\(async tx =>/);
+      expect(body).toMatch(/await recordJoinRequestDecision\(tx,/);
+      expect(body).toMatch(/throw err;/);
+    }
+    // Actual FK failure -> rollback -> same-token retry is exercised in
+    // organization-email-review-token-order.test.ts, not replaced by this guard.
   });
 
   it('email-token event and game review routes pass reviewer identity through instead of the sentinel string', () => {

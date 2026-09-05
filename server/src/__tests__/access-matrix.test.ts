@@ -296,11 +296,16 @@ function record(
   opts: {
     coachOnly?: boolean; // Fan should NOT get GRANTED
     veteranOnly?: boolean; // Rookie should NOT get GRANTED
+    hiddenFromRoles?: Array<'fan' | 'rookie' | 'veteran'>; // Existing fixture intentionally hidden by privacy
   } = {}
 ) {
-  const fv = classify(fan.status, fan.body);
-  const rv = classify(rookie.status, rookie.body);
-  const vv = classify(veteran.status, veteran.body);
+  const verdict = (role: 'fan' | 'rookie' | 'veteran', response: { status: number; body: any }) =>
+    response.status === 404 && opts.hiddenFromRoles?.includes(role)
+      ? ('DENIED' as const)
+      : classify(response.status, response.body);
+  const fv = verdict('fan', fan);
+  const rv = verdict('rookie', rookie);
+  const vv = verdict('veteran', veteran);
 
   const flags: string[] = [];
 
@@ -643,13 +648,23 @@ describe('Access Matrix — Full Feature Scan', () => {
       // Access matrix only verifies role access here; approval details vary by selected team scope.
     });
 
-    it('POST /events/:id/rsvp — RSVP to event', async () => {
-      if (!testEventId) return;
+    it('POST /events/:id/rsvp — pending event stays hidden and cannot receive RSVPs', async () => {
+      expect(testEventId).toBeTruthy();
+      const existing = await prisma.event.findUnique({ where: { id: testEventId } });
+      expect(existing).toMatchObject({ creator_id: veteranId, approval_status: 'pending' });
       const { fan, rookie, veteran } = await hitAll('post', `/events/${testEventId}/rsvp`, {
         status: 'going',
       });
-      record('RSVP to event', 'POST /events/:id/rsvp', fan, rookie, veteran);
-      expect(fan.status).toBeLessThan(500);
+      // This exact fixture exists; the creator reaches its pending-state gate.
+      // These two 404s are deliberate privacy denials, not missing Express routes.
+      record('RSVP to pending event', 'POST /events/:id/rsvp', fan, rookie, veteran, {
+        hiddenFromRoles: ['fan', 'rookie'],
+      });
+      expect(fan.status).toBe(404);
+      expect(rookie.status).toBe(404);
+      expect(veteran.status).toBe(400);
+      expect(veteran.body.error).toBe('Event not available');
+      expect(await prisma.eventRsvp.count({ where: { event_id: testEventId } })).toBe(0);
     });
 
     it('GET /events/pending — view pending events (coach/admin only)', async () => {

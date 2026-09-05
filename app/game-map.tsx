@@ -6,7 +6,9 @@ import { Stack, useRouter } from 'expo-router';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
 import SportFilterBar from '@/components/SportFilterBar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthProvider';
 import {
   ActivityIndicator,
   Modal,
@@ -41,57 +43,55 @@ function GameMapScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
 
-  const [loading, setLoading] = useState(true);
-  const [events, setEvents] = useState<EventMapData[]>([]);
-  const [calendarEvents, setCalendarEvents] = useState<EventMapData[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
-  // A picked past day fetches its own markers (past days sit outside the loaded
-  // 5-day window). null = not in past-day mode.
-  const [pastDayMarkers, setPastDayMarkers] = useState<EventMapData[] | null>(null);
-  const [pastLoading, setPastLoading] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerDate, setPickerDate] = useState<Date>(() => new Date());
 
-  const loadGames = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // The feed map shows ALL public VarsityHub event pages nationwide — not a
-      // nearby/pro-only slice. The single `/event-discovery?surface=map`
-      // endpoint already returns every approved, non-private game AND standalone
-      // event page in the server's map window, privacy-filtered and with NO
-      // location gate. Query shape + mapping live in utils/mapDiscovery so the
-      // "no data gates" rule is pinned in one place. Location is NOT requested
-      // here — EventMap requests it only to draw the user dot.
+  const defaultQuery = useQuery({
+    queryKey: ['game-map', user?.id ?? null, 'default'],
+    queryFn: async () => {
       const res: unknown = await httpGet(buildMapDiscoveryPath());
+      return validateEventCards('/event-discovery?surface=map', res);
+    },
+  });
+  const selectedDayQuery = useQuery({
+    queryKey: ['game-map', user?.id ?? null, 'date', selectedDate],
+    enabled: Boolean(selectedDate),
+    queryFn: async () => {
+      const [year, month, day] = selectedDate.split('-').map(Number);
+      const start = new Date(year, month - 1, day);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+      const path = `/event-discovery?surface=map&from=${encodeURIComponent(start.toISOString())}&to=${encodeURIComponent(end.toISOString())}&limit=200`;
+      const res: unknown = await httpGet(path);
       const items = validateEventCards('/event-discovery?surface=map', res);
-      const now = new Date();
-
-      // Map pins need coordinates; the calendar summarizes every upcoming event
-      // page in the dataset, including ones without a location.
-      const markers = toMapEvents(items, now);
-      setEvents(markers);
-      setCalendarEvents(toMapEvents(items, now, { requireCoords: false }));
-
-      if (__DEV__) {
-        console.warn(
-          `[game-map] Loaded ${items.length} discovery items (${markers.length} with map pins)`
-        );
-      }
-    } catch (err) {
-      if (__DEV__) console.error('Error loading events:', err);
-      setError('Unable to load events. Please check your connection.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadGames();
-  }, [loadGames]);
+      return toMapEvents(items, new Date(), { includePast: true });
+    },
+  });
+  // Each request writes only its own query key. Late responses cannot change
+  // the selected day, and the calendar keeps the independent upcoming dataset.
+  const activeQuery = selectedDate ? selectedDayQuery : defaultQuery;
+  const loading = activeQuery.isPending;
+  const error = activeQuery.isError ? 'Unable to load events. Please check your connection.' : null;
+  const events = useMemo(() => toMapEvents(defaultQuery.data, new Date()), [defaultQuery.data]);
+  const calendarEvents = useMemo(
+    () => toMapEvents(defaultQuery.data, new Date(), { requireCoords: false }),
+    [defaultQuery.data]
+  );
+  const levelMarkers = useMemo(() => {
+    const dateMarkers = selectedDate ? (selectedDayQuery.data ?? []) : events;
+    return selectedLevel
+      ? dateMarkers.filter(event => event.league_level === selectedLevel)
+      : dateMarkers;
+  }, [selectedDate, selectedDayQuery.data, events, selectedLevel]);
+  const loadGames = () => {
+    void activeQuery.refetch();
+  };
 
   const handleEventPress = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
     if (eventType === 'event') {
@@ -120,41 +120,22 @@ function GameMapScreen() {
     [router]
   );
 
-  // Sports actually present on the map right now — the filter only offers what
-  // exists (no 🏒 chip when there's no hockey nearby).
   const presentSports = useMemo(
-    () => Array.from(new Set(events.map(e => e.sport).filter((s): s is string => !!s))),
-    [events]
+    () =>
+      Array.from(
+        new Set(levelMarkers.map(event => event.sport).filter((sport): sport is string => !!sport))
+      ),
+    [levelMarkers]
   );
-
   const clearDate = useCallback(() => {
     setSelectedDate('');
-    setPastDayMarkers(null);
+    setSelectedSport(null);
   }, []);
-
-  // Date chips are the last 7 days. Each day fetches its own map markers because
-  // past days sit outside the default public map window; explicit date loads keep
-  // approved past event pages available for reopening.
-  const selectMapDate = useCallback(async (picked: Date) => {
+  const selectMapDate = useCallback((picked: Date) => {
     const start = new Date(picked);
     start.setHours(0, 0, 0, 0);
-    const end = new Date(picked);
-    end.setHours(23, 59, 59, 999);
     setSelectedDate(toLocalDateKey(start));
-    setPastLoading(true);
-    try {
-      const path = `/event-discovery?surface=map&from=${encodeURIComponent(
-        start.toISOString()
-      )}&to=${encodeURIComponent(end.toISOString())}&limit=200`;
-      const res: unknown = await httpGet(path);
-      const items = validateEventCards('/event-discovery?surface=map', res);
-      setPastDayMarkers(toMapEvents(items, new Date(), { includePast: true }));
-    } catch (err) {
-      if (__DEV__) console.error('[game-map] past-day load failed:', err);
-      setPastDayMarkers([]);
-    } finally {
-      setPastLoading(false);
-    }
+    setSelectedSport(null);
   }, []);
 
   // Last 7 days as quick chips. Logic lives in utils/mapDiscovery.
@@ -163,20 +144,11 @@ function GameMapScreen() {
     [calendarEvents]
   );
 
-  // Markers on the map: a picked past day uses its own fetched set; a forward chip
-  // filters the loaded set to that day; otherwise the full loaded set. The sport
-  // filter applies on top in every case.
-  const mapMarkers = useMemo(() => {
-    let base: EventMapData[];
-    if (pastDayMarkers !== null) {
-      base = pastDayMarkers;
-    } else if (selectedDate) {
-      base = events.filter(e => e.date && toLocalDateKey(new Date(e.date)) === selectedDate);
-    } else {
-      base = events;
-    }
-    return selectedSport ? base.filter(e => e.sport === selectedSport) : base;
-  }, [pastDayMarkers, selectedDate, events, selectedSport]);
+  const mapMarkers = useMemo(
+    () =>
+      selectedSport ? levelMarkers.filter(event => event.sport === selectedSport) : levelMarkers,
+    [levelMarkers, selectedSport]
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -217,7 +189,7 @@ function GameMapScreen() {
           onCreatePostPress={handleCreatePostPress}
           onCalendarPress={() => setCalendarOpen(open => !open)}
           calendarActive={calendarOpen || Boolean(selectedDate)}
-          onRefresh={!loading && !error ? loadGames : undefined}
+          onRefresh={!loading ? loadGames : undefined}
         />
 
         {/* Discreet sport filter — sits on the count-badge row, right of it. */}
@@ -231,7 +203,56 @@ function GameMapScreen() {
           </View>
         )}
 
-        {!loading && !error && calendarOpen && (
+        {!loading && !error && (
+          <View style={styles.levelStripPanel}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateStripContent}
+            >
+              {[
+                { label: 'All', value: null },
+                { label: 'Major', value: 'major' },
+                { label: 'Minor', value: 'minor' },
+                { label: 'NCAA', value: 'college' },
+              ].map(level => (
+                <Pressable
+                  key={level.label}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${level.label} leagues`}
+                  accessibilityState={{ selected: selectedLevel === level.value }}
+                  onPress={() => {
+                    setSelectedLevel(level.value);
+                    setSelectedSport(null);
+                  }}
+                  style={[
+                    styles.dateChip,
+                    {
+                      backgroundColor:
+                        selectedLevel === level.value
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].background,
+                      borderColor: Colors[colorScheme].border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dateChipText,
+                      {
+                        color: selectedLevel === level.value ? '#FFFFFF' : Colors[colorScheme].text,
+                      },
+                    ]}
+                  >
+                    {level.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {calendarOpen && (
           <View style={styles.dateStripPanel} pointerEvents="box-none">
             <ScrollView
               horizontal
@@ -303,7 +324,7 @@ function GameMapScreen() {
                 <MaterialIcons name="event" size={18} color={Colors[colorScheme].tint} />
               </Pressable>
 
-              {pastDayMarkers !== null ? (
+              {selectedDate ? (
                 <Pressable
                   onPress={clearDate}
                   style={[
@@ -316,7 +337,7 @@ function GameMapScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Showing ${selectedDate}, tap to clear`}
                 >
-                  {pastLoading ? (
+                  {loading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <>
@@ -384,7 +405,7 @@ function GameMapScreen() {
           ))}
 
         {loading && (
-          <View style={styles.loadingOverlay}>
+          <View style={styles.loadingOverlay} pointerEvents="box-none">
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>
               Loading events...
@@ -393,7 +414,7 @@ function GameMapScreen() {
         )}
 
         {!loading && error && (
-          <View style={styles.loadingOverlay}>
+          <View style={styles.loadingOverlay} pointerEvents="box-none">
             <MaterialIcons name="cloud-off" size={40} color={Colors[colorScheme].mutedText} />
             <Text
               style={[
@@ -405,8 +426,7 @@ function GameMapScreen() {
             </Text>
             <Pressable
               onPress={() => {
-                setError(null);
-                void loadGames();
+                loadGames();
               }}
               style={{
                 marginTop: 12,
@@ -443,11 +463,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   // Transparent container — the date chips float directly on the map, no card behind them.
-  dateStripPanel: {
+  levelStripPanel: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: 116,
+  },
+  dateStripPanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 160,
   },
   dateStripContent: {
     paddingHorizontal: 12,

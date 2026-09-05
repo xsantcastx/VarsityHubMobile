@@ -1,3 +1,4 @@
+import ImageCropEditor from './ImageCropEditor';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import React, { useEffect, useRef, useState } from 'react';
@@ -16,13 +17,22 @@ import ViewShot, { captureRef } from 'react-native-view-shot';
 type Props = {
   visible: boolean;
   imageUri: string | null;
-  onSave: (uri: string) => void;
+  onSave: (uri: string) => void | Promise<void>;
+  cropAspectRatio?: number;
   onClose: () => void;
 };
 
 type Sticker = { id: string; emoji: string; x: number; y: number; size: number };
 
-export default function ImageEditor({ visible, imageUri, onSave, onClose }: Props) {
+export default function ImageEditor(props: Props) {
+  return props.cropAspectRatio ? (
+    <ImageCropEditor {...props} aspectRatio={props.cropAspectRatio} />
+  ) : (
+    <DecorativeImageEditor {...props} />
+  );
+}
+
+function DecorativeImageEditor({ visible, imageUri, onSave, onClose }: Props) {
   const colorScheme = useColorScheme() ?? 'light';
   const [baseUri, setBaseUri] = useState<string | null>(imageUri);
   const [filter, setFilter] = useState<string>('none');
@@ -54,7 +64,7 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
     if (!viewShotRef.current) return;
     try {
       const uri = await captureRef(viewShotRef.current, { format: 'png', quality: 0.95 });
-      onSave(uri as string);
+      await onSave(uri as string);
     } catch (e) {
       if (__DEV__) console.error('Failed to capture edited image', e);
     }

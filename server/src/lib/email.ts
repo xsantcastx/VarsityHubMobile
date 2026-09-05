@@ -2174,12 +2174,14 @@ export function buildCoachJoinRequestReviewUrl(params: {
   requestId?: string | null;
   action?: 'approve' | 'reject';
   token?: string;
+  reviewerUserId?: string;
+  requestCreatedAt?: Date;
 }): string {
   const action = params.action === 'reject' ? 'reject' : 'approve';
   const requestId = String(params.requestId || '').trim();
-  // Without a requestId we can't sign a meaningful token — fall back to the
-  // app-handoff page (deep-link into the app for manual review).
-  if (!requestId) {
+  // Without the recipient and application attempt, only offer authenticated
+  // app review. Never mint an unbound bearer capability.
+  if (!requestId || (!params.token && (!params.reviewerUserId || !params.requestCreatedAt))) {
     return buildAppReviewUrl('/organization-join-requests', {
       organization_id: params.organizationId,
       organization_name: params.organizationName || undefined,
@@ -2191,6 +2193,8 @@ export function buildCoachJoinRequestReviewUrl(params: {
     signReviewToken(
       {
         requestId,
+        reviewerUserId: params.reviewerUserId,
+        requestCreatedAt: params.requestCreatedAt?.toISOString(),
         orgId: params.organizationId,
         action: action === 'reject' ? 'reject_join_request' : 'approve_join_request',
       },

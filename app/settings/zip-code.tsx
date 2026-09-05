@@ -2,7 +2,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Alert, useColorScheme } from 'react-native';
+import { Alert } from 'react-native';
+import { useColorScheme } from '@/hooks/useColorScheme';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';

@@ -1,0 +1,60 @@
+{
+  "routes": [
+    {
+      "path": "/feed",
+      "finalUrl": "http://localhost:8081/feed",
+      "errors": [],
+      "errorBoundary": 0
+    },
+    {
+      "path": "/highlights",
+      "finalUrl": "http://localhost:8081/highlights",
+      "errors": [],
+      "errorBoundary": 0
+    },
+    {
+      "path": "/create",
+      "finalUrl": "http://localhost:8081/create",
+      "errors": [],
+      "errorBoundary": 0
+    },
+    {
+      "path": "/create-post",
+      "finalUrl": "http://localhost:8081/feed",
+      "errors": [],
+      "errorBoundary": 0
+    },
+    {
+      "path": "/discover",
+      "finalUrl": "http://localhost:8081/discover",
+      "errors": [],
+      "errorBoundary": 0
+    },
+    {
+      "path": "/game-map",
+      "finalUrl": "http://localhost:8081/game-map",
+      "errors": [],
+      "errorBoundary": 0
+    },
+    {
+      "path": "/profile",
+      "finalUrl": "http://localhost:8081/user-profile",
+      "errors": [],
+      "errorBoundary": 0
+    },
+    {
+      "path": "/settings",
+      "finalUrl": "http://localhost:8081/settings",
+      "errors": [],
+      "errorBoundary": 0
+    },
+    {
+      "path": "/settings/followed-teams",
+      "finalUrl": "http://localhost:8081/settings/followed-teams",
+      "errors": [],
+      "errorBoundary": 0
+    }
+  ],
+  "api_request_count": 79,
+  "scope": "Local Chromium, isolated PostgreSQL fixtures; no provider/native interaction"
+}

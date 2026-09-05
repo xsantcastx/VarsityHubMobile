@@ -1,3 +1,4 @@
+import { EVENT_BANNER_ASPECT_RATIO } from '@/constants/eventPresentation';
 import { Colors } from '@/constants/Colors';
 import ExpandableText from '@/components/ExpandableText';
 import {
@@ -127,6 +128,7 @@ const GameDetailsScreen = () => {
   const sectionOffsets = useRef<{ media: number; posts: number }>({ media: 0, posts: 0 });
 
   const [vm, setVm] = useState<GameVM | null>(null);
+  const [bannerWidth, setBannerWidth] = useState(0);
   const [bannerPreviewOpen, setBannerPreviewOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1986,12 +1988,7 @@ const GameDetailsScreen = () => {
     // team-logo hero. Demo matchups set banner_url to a specific Cloudinary
     // asset that should render as the event page background.
     const isHero = Boolean(leftLogo && rightLogo) && !finalsBanner && !bannerUrl;
-    // Same fixed landscape height for every non-hero banner — a real photo,
-    // the auto-generated matchup graphic, and the placeholder gradient all
-    // render at the same size, matching the Add-Event modal preview (which
-    // uses the same value) so the crop the user sees while creating the
-    // event matches what ships to the detail page.
-    const bannerHeight = isHero ? 320 : 240;
+    const bannerHeight = bannerWidth / EVENT_BANNER_ASPECT_RATIO;
 
     const heroBanner =
       bannerImageUrl && !isHero ? (
@@ -2041,7 +2038,10 @@ const GameDetailsScreen = () => {
       );
 
     return (
-      <View style={[styles.bannerWrapper, { height: bannerHeight }]}>
+      <View
+        onLayout={event => setBannerWidth(event.nativeEvent.layout.width)}
+        style={[styles.bannerWrapper, { aspectRatio: EVENT_BANNER_ASPECT_RATIO }]}
+      >
         {heroBanner}
         <FullscreenImageViewer
           visible={bannerPreviewOpen}

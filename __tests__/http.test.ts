@@ -109,6 +109,37 @@ beforeEach(() => {
 });
 
 describe('api/http — auth refresh', () => {
+  it('does not retry a queued preferences write after its session changes during refresh', async () => {
+    let finishRefresh!: (value: any) => void;
+    let currentSession = true;
+    mockRefreshToken.mockReturnValue(
+      new Promise(resolve => {
+        finishRefresh = resolve;
+      })
+    );
+    const fetchMock = jest
+      .fn<FetchFn>()
+      .mockResolvedValueOnce(mkJsonResponse(401, { error: 'expired' }))
+      .mockResolvedValueOnce(mkJsonResponse(200, { preferences: { profile_private: true } }));
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('account-a');
+    const save = http.httpPatch('/me/preferences', { profile_private: true }, {
+      isSessionCurrent: () => currentSession,
+    } as any);
+    const outcome = save.then(
+      () => 'saved',
+      () => 'cancelled'
+    );
+    while (!mockRefreshToken.mock.calls.length)
+      await new Promise(resolve => setTimeout(resolve, 0));
+    currentSession = false;
+    http.clearAuthToken();
+    http.setAuthToken('account-b');
+    finishRefresh({ accessToken: 'account-b', reason: 'success' });
+    expect(await outcome).toBe('cancelled');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('hydrates the auth header from persisted storage when memory cache is empty', async () => {
     const fetchMock = jest
       .fn<(input: any, init?: any) => Promise<any>>()

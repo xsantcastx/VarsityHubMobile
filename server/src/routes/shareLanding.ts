@@ -32,7 +32,12 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 import { isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
-import { isGamePubliclyVisible } from '../lib/gameApproval.js';
+import {
+  canViewGameRecord,
+  canViewEventRecord,
+  GAME_VISIBILITY_SELECT,
+  EVENT_VISIBILITY_SELECT,
+} from '../lib/entityVisibility.js';
 
 const APP_STORE_URL =
   process.env.IOS_APP_STORE_URL || 'https://apps.apple.com/us/app/varsityhub/id6758405187';
@@ -274,6 +279,7 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
     .findUnique({
       where: { id },
       select: {
+        ...GAME_VISIBILITY_SELECT,
         title: true,
         location: true,
         date: true,
@@ -286,7 +292,7 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
   // Do not leak pending/rejected games — nor upcoming games whose opponent
   // hasn't consented (or declined) — through this public side door. Mirrors
   // og.ts / GET /games via the shared isGamePubliclyVisible rule.
-  const visibleGame = game && isGamePubliclyVisible(game) ? game : null;
+  const visibleGame = game && (await canViewGameRecord(game)) ? game : null;
 
   const meta: LandingMeta = visibleGame
     ? {
@@ -304,7 +310,7 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
     : genericLanding(req);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.setHeader('Cache-Control', 'no-store');
   return res.send(renderLanding(meta, requestOrigin(req)));
 }
 
@@ -456,6 +462,7 @@ async function eventLanding(req: Request, res: Response, next: NextFunction) {
     .findUnique({
       where: { id },
       select: {
+        ...EVENT_VISIBILITY_SELECT,
         title: true,
         location: true,
         date: true,
@@ -465,6 +472,7 @@ async function eventLanding(req: Request, res: Response, next: NextFunction) {
         status: true,
         game: {
           select: {
+            ...GAME_VISIBILITY_SELECT,
             approval_status: true,
             opponent_approval_status: true,
             date: true,
@@ -480,8 +488,7 @@ async function eventLanding(req: Request, res: Response, next: NextFunction) {
   // fixtures stay private).
   const eventPublic =
     !!event && event.approval_status === 'approved' && event.status !== 'cancelled';
-  const gamePublic = !event?.game || isGamePubliclyVisible(event.game);
-  const visibleEvent = eventPublic && gamePublic ? event : null;
+  const visibleEvent = eventPublic && (await canViewEventRecord(event)) ? event : null;
 
   const meta: LandingMeta = visibleEvent
     ? {
@@ -502,7 +509,7 @@ async function eventLanding(req: Request, res: Response, next: NextFunction) {
     : genericLanding(req);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.setHeader('Cache-Control', 'no-store');
   return res.send(renderLanding(meta, requestOrigin(req)));
 }
 

@@ -1,3 +1,4 @@
+import { releaseAdPurchaseHolds } from '../lib/adInventory.js';
 import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import expressPkg, { Router, type Response } from 'express';
@@ -58,6 +59,7 @@ import {
 } from '../lib/planDefinitions.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
+import { sendError } from '../lib/http/sendError.js';
 import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { runWithBreaker } from '../lib/circuitBreaker.js';
@@ -81,7 +83,7 @@ import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { calculateAdPriceCents } from '../utils/adPricing.js';
+import { adDateSchema, calculateAdPriceCents } from '../utils/adPricing.js';
 import { getDatesPastBookingHorizon } from '../utils/bookingHorizon.js';
 
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
@@ -157,49 +159,19 @@ const OWNER_MANAGED_SUBSCRIPTION_ERROR =
 async function activateApprovedAdPaymentIntent(
   tx: Prisma.TransactionClient,
   adId: string,
-  dates: string[]
+  dates: string[],
+  purchaseReference: string
 ) {
-  const adRecord = await tx.ad.findUnique({
-    where: { id: adId },
-    select: { target_zip_code: true, status: true, payment_status: true },
-  });
-
-  if (adRecord?.target_zip_code) {
-    const fullDates = await getFullAdSlotDates(tx, {
-      adId,
-      targetZipCode: adRecord.target_zip_code,
-      isoDates: dates,
-    });
-    if (fullDates.length > 0) {
-      const err = new Error('SLOT_FULL') as Error & { slotFull?: boolean; dates?: string[] };
-      err.slotFull = true;
-      err.dates = fullDates;
-      throw err;
-    }
+  const ad = await tx.ad.findUnique({ where: { id: adId } });
+  if (!ad || !['approved', 'active', 'archived'].includes(ad.status)) {
+    throw new Error(`AD_NOT_APPROVED: Ad ${adId} cannot activate`);
   }
-
-  if (!adRecord || (adRecord.status !== 'approved' && adRecord.status !== 'active')) {
-    throw new Error(`AD_NOT_APPROVED: Ad ${adId} status is ${adRecord?.status}, cannot activate`);
-  }
-  if (adRecord.payment_status === 'paid') {
-    return;
-  }
-
-  const updated = await tx.ad.updateMany({
-    where: {
-      id: adId,
-      status: { in: ['approved', 'active'] },
-      payment_status: { not: 'paid' },
-    },
-    data: { payment_status: 'paid', status: 'active' },
-  });
-  if (updated.count === 0) {
-    throw new Error(`AD_NOT_APPROVED: Ad ${adId} was no longer approved at activation time`);
-  }
-
-  await tx.adReservation.createMany({
-    data: dates.map(s => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
-    skipDuplicates: true,
+  await reserveAdSlots(tx, {
+    adId,
+    isoDates: dates,
+    paymentStatus: 'paid',
+    status: 'active',
+    purchaseReference,
   });
 }
 
@@ -535,6 +507,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             context: 'refund_no_tx',
             chargeId: charge.id,
           });
+          throw new Error('Refund transaction is not available yet');
         } else {
           const promoRollbackRefs = Array.from(
             new Set(
@@ -544,80 +517,136 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             )
           );
 
-          const { promoRollback } = await prisma.$transaction(async db => {
-            const promoRollbackResult = await reversePromoRedemption(
-              { orderReferences: promoRollbackRefs },
-              db
-            );
-
-            await db.transactionLog.update({
-              where: { id: tx.id },
-              data: {
-                status: 'REFUNDED' as any,
-                metadata: {
-                  ...((tx.metadata as any) || {}),
-                  refund_source:
-                    event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
-                  refunded_amount_cents: refundAmount,
-                  stripe_charge_id: charge.id,
-                  refunded_at: new Date().toISOString(),
-                  promo_redemption_reversed: promoRollbackResult.reversed,
-                  promo_reversal_count: promoRollbackResult.count,
-                  promo_reversal_refs: promoRollbackResult.orderReferences,
-                },
-              },
-            });
-
-            // Cascade based on transaction type:
-            // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
-            // - AD_PURCHASE → mark ad refunded + release reservations
-            if (
-              tx.user_id &&
-              (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
-                tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
-            ) {
-              const u = await db.user.findUnique({
-                where: { id: tx.user_id },
-                select: { preferences: true },
-              });
-              const prefs = (u?.preferences as any) || {};
-              const nextPrefs = mergeBillingStateIntoPreferences(
-                { ...prefs, subscription_id: null, subscription_period_end: null },
-                {
-                  plan: 'rookie',
-                  pending_plan: null,
-                  payment_pending: false,
-                  payment_approved: false,
-                }
+          const { promoRollback, entitlementRevoked } = await prisma.$transaction(
+            async db => {
+              const fresh = await db.transactionLog.findUniqueOrThrow({ where: { id: tx.id } });
+              if ((fresh.metadata as any)?.refund_event_id === event.id)
+                return {
+                  promoRollback: { reversed: false, count: 0, orderReferences: [] as string[] },
+                  entitlementRevoked: false,
+                };
+              let entitlementRevoked = false;
+              const promoRollbackResult = await reversePromoRedemption(
+                { orderReferences: promoRollbackRefs },
+                db
               );
-              // cache-invalidation-exempt: invalidateMeCacheForUser called below
-              await db.user.update({
-                where: { id: tx.user_id },
+
+              await db.transactionLog.update({
+                where: { id: tx.id },
                 data: {
-                  preferences: nextPrefs,
-                  ...buildBillingStateColumns({
-                    plan: 'rookie',
-                    pending_plan: null,
-                    payment_pending: false,
-                    payment_approved: false,
-                  }),
-                  subscription_tier: 'free',
-                  subscription_status: 'canceled',
-                  max_teams: SERVER_ROOKIE_TEAM_LIMIT,
+                  status: 'REFUNDED' as any,
+                  metadata: {
+                    ...((tx.metadata as any) || {}),
+                    refund_source:
+                      event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+                    refunded_amount_cents: refundAmount,
+                    stripe_charge_id: charge.id,
+                    refunded_at: new Date().toISOString(),
+                    refund_event_id: event.id,
+                    promo_redemption_reversed: promoRollbackResult.reversed,
+                    promo_reversal_count: promoRollbackResult.count,
+                    promo_reversal_refs: promoRollbackResult.orderReferences,
+                  },
                 },
               });
-            } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
-              await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
-              await db.ad.updateMany({
-                where: { id: tx.order_id },
-                data: { status: 'draft', payment_status: 'refunded' },
-              });
-            }
 
-            return { promoRollback: promoRollbackResult };
-          });
+              // Cascade based on transaction type:
+              // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
+              // - AD_PURCHASE → mark ad refunded + release reservations
+              if (
+                tx.user_id &&
+                (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
+                  tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
+              ) {
+                const u = await db.user.findUnique({
+                  where: { id: tx.user_id },
+                  select: { preferences: true },
+                });
+                const prefs = (u?.preferences as any) || {};
+                const refundSubscriptionId =
+                  tx.stripe_subscription_id ||
+                  (tx.metadata as any)?.subscription_id ||
+                  (tx.metadata as any)?.stripe_subscription_id;
+                if (
+                  typeof refundSubscriptionId === 'string' &&
+                  prefs.subscription_id === refundSubscriptionId &&
+                  shouldApplyStripeSubscriptionEvent(prefs, refundSubscriptionId)
+                ) {
+                  entitlementRevoked = true;
+                  const nextPrefs = mergeBillingStateIntoPreferences(
+                    { ...prefs, subscription_id: null, subscription_period_end: null },
+                    {
+                      plan: 'rookie',
+                      pending_plan: null,
+                      payment_pending: false,
+                      payment_approved: false,
+                    }
+                  );
+                  // cache-invalidation-exempt: invalidateMeCacheForUser called below
+                  await db.user.update({
+                    where: { id: tx.user_id },
+                    data: {
+                      preferences: nextPrefs,
+                      ...buildBillingStateColumns({
+                        plan: 'rookie',
+                        pending_plan: null,
+                        payment_pending: false,
+                        payment_approved: false,
+                      }),
+                      subscription_tier: 'free',
+                      subscription_status: 'canceled',
+                      max_teams: SERVER_ROOKIE_TEAM_LIMIT,
+                    },
+                  });
+                }
+              } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+                const purchaseReferences = [
+                  tx.stripe_session_id,
+                  tx.stripe_payment_intent_id,
+                ].filter((ref): ref is string => !!ref);
+                // Purchase provenance prevents a refund for an earlier run erasing newer inventory.
+                // NULL legacy rows require reconciliation; no guessed date ownership.
+                await db.adReservation.deleteMany({
+                  where: { ad_id: tx.order_id, purchase_reference: { in: purchaseReferences } },
+                });
+                await db.adSlotHold.deleteMany({
+                  where: { ad_id: tx.order_id, purchase_reference: { in: purchaseReferences } },
+                });
+                const remaining = await db.adReservation.count({ where: { ad_id: tx.order_id } });
+                if (!remaining) {
+                  const liveHolds = await db.adSlotHold.count({
+                    where: { ad_id: tx.order_id, expires_at: { gt: new Date() } },
+                  });
+                  if (liveHolds) {
+                    const currentAd = await db.ad.findUnique({
+                      where: { id: tx.order_id },
+                      select: { status: true },
+                    });
+                    await db.ad.updateMany({
+                      where: { id: tx.order_id },
+                      data: {
+                        payment_status: 'hold',
+                        ...(['active', 'approved', 'archived'].includes(currentAd?.status || '')
+                          ? { status: 'approved' }
+                          : {}),
+                      },
+                    });
+                  } else {
+                    await db.ad.updateMany({
+                      where: { id: tx.order_id },
+                      data: { status: 'draft', payment_status: 'refunded' },
+                    });
+                  }
+                }
+              }
+
+              return { promoRollback: promoRollbackResult, entitlementRevoked };
+            },
+            { isolationLevel: 'Serializable' }
+          );
 
           if (
+            entitlementRevoked &&
             tx.user_id &&
             (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
               tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
@@ -641,43 +670,18 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
       } catch (refundErr: any) {
         console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
         captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+        throw refundErr;
       }
     }
 
     if (event.type === 'checkout.session.expired') {
       const session = event.data.object as Stripe.Checkout.Session;
-      await updateTransactionStatus(session.id, 'FAILED', {
-        metadata: { reason: 'checkout_expired' },
-      }).catch(err => {
-        console.error('[transaction-log] expired session update failed:', err);
-        captureException(err as Error, { context: 'transaction_log_expired_session' });
-      });
-
-      // Release ad slot holds if this was an ad checkout
-      const expiredAdId = session.metadata?.ad_id;
-      if (expiredAdId) {
-        try {
-          const heldAd = await prisma.ad.findUnique({
-            where: { id: expiredAdId },
-            select: { payment_status: true },
-          });
-          if (heldAd?.payment_status === 'hold') {
-            await prisma.$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
-              prisma.ad.update({ where: { id: expiredAdId }, data: { payment_status: 'unpaid' } }),
-            ]);
-            debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId });
-          }
-        } catch (releaseErr) {
-          console.error(
-            '[webhook] Failed to release ad hold on expiry:',
-            (releaseErr as any)?.message
-          );
-          captureException(releaseErr as Error, {
-            context: 'release_ad_hold_expired',
-            adId: expiredAdId,
-          });
-        }
+      if (session.metadata?.ad_id) {
+        await releaseAdPurchaseHolds(session.metadata.ad_id, session.id, true);
+      } else {
+        await updateTransactionStatus(session.id, 'FAILED', {
+          metadata: { reason: 'checkout_expired' },
+        });
       }
     }
 
@@ -686,85 +690,40 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     if (event.type === 'payment_intent.canceled') {
       const pi = event.data.object as Stripe.PaymentIntent;
       const meta = pi.metadata || {};
-      await logTransaction({
-        transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
-        status: 'FAILED',
-        stripePaymentIntentId: pi.id,
-        userId: meta.user_id || undefined,
-        totalCents: pi.amount,
-        metadata: { reason: 'payment_intent_canceled', ...meta },
-      }).catch(err => {
-        console.error('[transaction-log] canceled PI log failed:', err);
-        captureException(err as Error, { context: 'transaction_log_canceled_pi' });
-      });
+      if (!meta.ad_id)
+        await logTransaction({
+          transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+          status: 'FAILED',
+          stripePaymentIntentId: pi.id,
+          userId: meta.user_id || undefined,
+          totalCents: pi.amount,
+          metadata: { reason: 'payment_intent_canceled', ...meta },
+        }).catch(err => {
+          console.error('[transaction-log] canceled PI log failed:', err);
+          captureException(err as Error, { context: 'transaction_log_canceled_pi' });
+        });
 
-      if (meta.ad_id) {
-        try {
-          const heldAd = await prisma.ad.findUnique({
-            where: { id: meta.ad_id },
-            select: { payment_status: true },
-          });
-          if (heldAd?.payment_status === 'hold') {
-            await prisma.$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
-              prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
-            ]);
-            debugLog('[webhook] Released ad slot hold on PI cancellation', { ad_id: meta.ad_id });
-          }
-        } catch (releaseErr) {
-          console.error(
-            '[webhook] Failed to release ad hold on PI cancel:',
-            (releaseErr as any)?.message
-          );
-          captureException(releaseErr as Error, {
-            context: 'release_ad_hold_pi_canceled',
-            adId: meta.ad_id,
-          });
-        }
-      }
+      if (meta.ad_id) await releaseAdPurchaseHolds(meta.ad_id, pi.id, true);
     }
 
     // Handle failed payment intents
     if (event.type === 'payment_intent.payment_failed') {
       const pi = event.data.object as Stripe.PaymentIntent;
       const meta = pi.metadata || {};
-      await logTransaction({
-        transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
-        status: 'FAILED',
-        stripePaymentIntentId: pi.id,
-        userId: meta.user_id || undefined,
-        totalCents: pi.amount,
-        metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
-      }).catch(err => {
-        console.error('[transaction-log] failed payment log failed:', err);
-        captureException(err as Error, { context: 'transaction_log_failed_payment' });
-      });
+      if (!meta.ad_id)
+        await logTransaction({
+          transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+          status: 'FAILED',
+          stripePaymentIntentId: pi.id,
+          userId: meta.user_id || undefined,
+          totalCents: pi.amount,
+          metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
+        }).catch(err => {
+          console.error('[transaction-log] failed payment log failed:', err);
+          captureException(err as Error, { context: 'transaction_log_failed_payment' });
+        });
 
-      // Release ad slot holds on payment failure
-      if (meta.ad_id) {
-        try {
-          const heldAd = await prisma.ad.findUnique({
-            where: { id: meta.ad_id },
-            select: { payment_status: true },
-          });
-          if (heldAd?.payment_status === 'hold') {
-            await prisma.$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
-              prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
-            ]);
-            debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
-          }
-        } catch (releaseErr) {
-          console.error(
-            '[webhook] Failed to release ad hold on payment failure:',
-            (releaseErr as any)?.message
-          );
-          captureException(releaseErr as Error, {
-            context: 'release_ad_hold_failed_pi',
-            adId: meta.ad_id,
-          });
-        }
-      }
+      if (meta.ad_id) await releaseAdPurchaseHolds(meta.ad_id, pi.id, true);
 
       // Notify user of failed payment
       if (meta.user_id) {
@@ -802,13 +761,12 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           try {
             await prisma.$transaction(
               async tx => {
-                await activateApprovedAdPaymentIntent(tx, adId, piDates);
+                await activateApprovedAdPaymentIntent(tx, adId, piDates, pi.id);
               },
               { isolationLevel: 'Serializable' }
             );
 
-            // Update transaction
-            await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+            // Completion was committed with inventory in reserveAdSlots.
             // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
             const adForEmail = await prisma.ad.findUnique({
               where: { id: adId },
@@ -880,6 +838,10 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
               }
             }
           } catch (e: any) {
+            if (e?.code === 'AD_PURCHASE_REFUNDED') {
+              await markStripeEventProcessed(event.id);
+              return { status: 200, body: { received: true, refunded: true } };
+            }
             if (e?.slotFull) {
               console.error(
                 '[payments] SLOT_FULL on payment_intent.succeeded — issuing auto-refund',
@@ -892,7 +854,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
                   reason: 'requested_by_customer',
                 });
                 try {
-                  await releaseAdInventoryAfterSlotFullRefundWithRetry(adId);
+                  await releaseAdInventoryAfterSlotFullRefundWithRetry(adId, pi.id);
                   await updateTransactionStatus(pi.id, 'REFUNDED', {
                     metadata: {
                       reason: 'slot_full',
@@ -1047,7 +1009,7 @@ paymentsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const quoteSchema = z.object({
       ad_id: z.string(),
-      dates: z.array(z.string()).min(1),
+      dates: z.array(adDateSchema).min(1),
       promo_code: z.string().optional(),
     });
     const parsed = quoteSchema.safeParse(req.body || {});
@@ -1552,7 +1514,7 @@ paymentsRouter.post(
     req.log?.info({ userId: req.user?.id, path: '/checkout' }, '[checkout] start');
     const checkoutSchema = z.object({
       ad_id: z.string().optional(),
-      dates: z.array(z.string()).optional(),
+      dates: z.array(adDateSchema).optional(),
       promo_code: z.string().optional(),
       plan: z.string().optional(),
       team_count: z.number().optional(),
@@ -1794,14 +1756,24 @@ paymentsRouter.post(
 
     // v1.0.2 audit fix: same idempotency drift bug — widen fallback window to 1h.
     const adIdemClientKey = (req.headers['x-idempotency-key'] as string) || '';
-    const adIdempotencyKey =
-      adIdemClientKey || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
+    const adIdempotencyKey = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify([
+          'ad_checkout',
+          req.user!.id,
+          ad_id,
+          [...isoDates].sort(),
+          appliedCode || '',
+          adIdemClientKey || Math.floor(Date.now() / (60 * 60 * 1000)),
+        ])
+      )
+      .digest('hex');
     const session = await stripe.checkout.sessions.create(sessionConfig, {
       idempotencyKey: adIdempotencyKey,
     });
 
-    // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
-    // On payment success, status moves to 'paid'. On failure/expiry, hold is released.
+    // Hold only this purchase's dates; existing paid inventory keeps serving.
     try {
       await prisma.$transaction(
         async tx => {
@@ -1810,13 +1782,21 @@ paymentsRouter.post(
             targetZipCode: ad.target_zip_code,
             isoDates,
             paymentStatus: 'hold',
+            purchaseReference: session.id,
+            expiresAt: new Date(session.expires_at * 1000),
             ...(ad.status === 'archived' ? { status: 'approved' as const } : {}),
           });
         },
         { isolationLevel: 'Serializable' }
       );
     } catch (holdErr) {
-      if ((holdErr as any)?.slotFull) {
+      await stripe.checkout.sessions.expire(session.id).catch(error =>
+        captureException(error, {
+          context: 'expire_checkout_after_hold_failure',
+          sessionId: session.id,
+        })
+      );
+      if ((holdErr as any)?.slotFull || (holdErr as any)?.code === 'P2034') {
         return res.status(409).json({
           error: 'One or more selected dates are fully booked',
           dates: (holdErr as any).dates,
@@ -1880,7 +1860,7 @@ paymentsRouter.post(
     const userId = req.user!.id;
     const paymentSheetSchema = z.object({
       ad_id: z.string().optional(),
-      dates: z.array(z.string()).optional(),
+      dates: z.array(adDateSchema).optional(),
       promo_code: z.string().optional(),
       plan: z.string().optional(),
       team_count: z.number().optional(),
@@ -2192,9 +2172,20 @@ paymentsRouter.post(
         },
         {
           // v1.0.2 audit fix: widen fallback window from 60s to 1h to prevent duplicate payment intents on retry
-          idempotencyKey:
-            (req.headers['x-idempotency-key'] as string) ||
-            `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`,
+          idempotencyKey: crypto
+            .createHash('sha256')
+            .update(
+              JSON.stringify([
+                'ad_pi',
+                userId,
+                ad_id,
+                [...isoDates].sort(),
+                appliedCode || '',
+                (req.headers['x-idempotency-key'] as string) ||
+                  Math.floor(Date.now() / (60 * 60 * 1000)),
+              ])
+            )
+            .digest('hex'),
         }
       );
 
@@ -2207,6 +2198,7 @@ paymentsRouter.post(
               targetZipCode: ad.target_zip_code,
               isoDates,
               paymentStatus: 'hold',
+              purchaseReference: paymentIntent.id,
               ...(ad.status === 'archived' ? { status: 'approved' as const } : {}),
             });
           },
@@ -2382,13 +2374,18 @@ paymentsRouter.post(
         ['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(pi.status)
       ) {
         await stripe.paymentIntents.cancel(payment_intent_id);
+      } else if (pi.status !== 'canceled') {
+        return sendError(res, 409, 'Payment is no longer cancelable', {
+          extraFields: { canceled: false },
+        });
       }
-      await updateTransactionStatus(payment_intent_id, 'FAILED', {
-        metadata: { reason: 'user_abandoned', canceled_at: new Date().toISOString() },
-      }).catch(err => {
-        console.error('[transaction-log] cancel-intent log failed:', err);
-        captureException(err as Error, { context: 'cancel_intent_log' });
-      });
+      if (!pi.metadata?.ad_id)
+        await updateTransactionStatus(payment_intent_id, 'FAILED', {
+          metadata: { reason: 'user_abandoned', canceled_at: new Date().toISOString() },
+        }).catch(err => {
+          console.error('[transaction-log] cancel-intent log failed:', err);
+          captureException(err as Error, { context: 'cancel_intent_log' });
+        });
 
       // Cancel incomplete subscription if this PI belongs to one (prevents orphaned subscriptions in Stripe)
       if (pi.invoice) {
@@ -2411,27 +2408,8 @@ paymentsRouter.post(
         }
       }
 
-      // Release ad slot holds if this was an ad payment
       const cancelAdId = pi.metadata?.ad_id;
-      if (cancelAdId) {
-        const heldAd = await prisma.ad.findUnique({
-          where: { id: cancelAdId },
-          select: { payment_status: true },
-        });
-        if (heldAd?.payment_status === 'hold') {
-          await prisma
-            .$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: cancelAdId } }),
-              prisma.ad.update({ where: { id: cancelAdId }, data: { payment_status: 'unpaid' } }),
-            ])
-            .catch(releaseErr => {
-              console.error(
-                '[payments] Failed to release hold on cancel-intent:',
-                (releaseErr as any)?.message
-              );
-            });
-        }
-      }
+      if (cancelAdId) await releaseAdPurchaseHolds(cancelAdId, pi.id, true);
 
       return res.json({ canceled: true });
     } catch (err: any) {
@@ -3724,7 +3702,7 @@ paymentsRouter.post(
 
       const appleAdReceiptSchema = z.object({
         ad_id: z.string().min(1),
-        dates: z.array(z.string()).min(1),
+        dates: z.array(adDateSchema).min(1),
         receipts: z
           .array(
             z.object({

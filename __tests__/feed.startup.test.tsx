@@ -34,6 +34,7 @@ const GAME_LIST_CALLS_PER_LOAD = 3;
 
 const EMPTY_GAMES_PAGE = { games: [], nextCursor: null };
 
+const mockEventFilter = jest.fn(async (..._args: any[]) => [] as any[]);
 const mockCheckAuth = jest.fn(() => authDeferred.promise);
 const mockGameList = jest.fn(() => {
   // The deferred queue drives the UPCOMING section (the one these tests assert
@@ -75,6 +76,7 @@ jest.mock('@/api/entities', () => ({
     report: jest.fn(),
   },
   Event: {
+    filter: (...args: any[]) => mockEventFilter(...args),
     rsvp: jest.fn(),
     rsvpStatus: jest.fn(async () => ({ going: false, count: 0 })),
   },
@@ -102,6 +104,10 @@ jest.mock('@/api/entities', () => ({
   User: {
     me: jest.fn(),
   },
+}));
+
+jest.mock('@/api/http', () => ({
+  httpPost: jest.fn().mockRejectedValue(new Error('Sample seeding disabled in this test')),
 }));
 
 jest.mock('@/context/AuthProvider', () => ({
@@ -188,6 +194,7 @@ describe('Feed startup performance', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockEventFilter.mockReset().mockResolvedValue([]);
     // FeedScreen reads games through the shared singleton queryClient; clear it
     // so each test starts with an empty cache and the 30s staleTime math isn't
     // polluted by the prior test's cached ['feed-games'] entry.
@@ -287,5 +294,19 @@ describe('Feed startup performance', () => {
       jest.advanceTimersByTime(10_000);
     });
     jest.useRealTimers();
+  });
+  it('does not report an empty feed while standalone events are still loading', async () => {
+    const events = createDeferred<any[]>();
+    mockEventFilter.mockImplementation(() => events.promise);
+    const screen = render(<FeedScreen />);
+    await act(async () => {
+      firstGameDeferred.resolve(EMPTY_GAMES_PAGE);
+    });
+    await waitFor(() => expect(mockEventFilter).toHaveBeenCalled());
+    expect(screen.queryByText('No posts yet')).toBeNull();
+    await act(async () => {
+      events.resolve([]);
+    });
+    await waitFor(() => expect(screen.getByText('No posts yet')).toBeTruthy());
   });
 });

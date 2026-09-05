@@ -61,6 +61,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Media validation constants
 const ALLOWED_IMAGE_TYPES = [
@@ -1250,30 +1251,51 @@ function CreatePostScreen() {
             <View style={styles.tilesRow}>
               <Pressable
                 testID="create-post-photo-picker"
-                style={[styles.tile, styles.primaryTile]}
+                style={styles.tile}
                 onPress={() => pickFromLibrary('image')}
                 accessibilityLabel="Photo Gallery"
               >
-                <Ionicons name="image-outline" size={24} color="#FFFFFF" />
-                <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Photo</Text>
+                <LinearGradient
+                  colors={['#EDCCAA', '#BA8050', '#EAC5A0']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.metallicTile}
+                >
+                  <Ionicons name="image-outline" size={24} color="#241B12" />
+                  <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Photo</Text>
+                </LinearGradient>
               </Pressable>
               <Pressable
                 testID="create-post-camera-picker"
-                style={[styles.tile, styles.primaryTile]}
+                style={styles.tile}
                 onPress={() => captureWithCamera()}
                 accessibilityLabel="Camera"
               >
-                <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
-                <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
+                <LinearGradient
+                  colors={['#F1F4F8', '#AEB8C6', '#E8EDF3']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.metallicTile}
+                >
+                  <Ionicons name="camera-outline" size={24} color="#241B12" />
+                  <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
+                </LinearGradient>
               </Pressable>
               <Pressable
                 testID="create-post-video-picker"
-                style={[styles.tile, styles.primaryTile]}
+                style={styles.tile}
                 onPress={() => pickFromLibrary('video')}
                 accessibilityLabel="Video Gallery"
               >
-                <Ionicons name="videocam-outline" size={24} color="#FFFFFF" />
-                <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Video</Text>
+                <LinearGradient
+                  colors={['#F8E8AC', '#D2AA47', '#F6E1A0']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.metallicTile}
+                >
+                  <Ionicons name="videocam-outline" size={24} color="#241B12" />
+                  <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Video</Text>
+                </LinearGradient>
               </Pressable>
             </View>
           </View>
@@ -2287,9 +2309,11 @@ const styles = StyleSheet.create({
         }),
     elevation: 3,
   },
-  primaryTile: {
-    backgroundColor: '#1B3A6B',
-    borderColor: '#1B3A6B',
+  metallicTile: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tileLabel: {
     fontSize: 12,
@@ -2298,7 +2322,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   primaryTileLabel: {
-    color: '#FFFFFF',
+    color: '#241B12',
   },
   storyButtonContainer: {
     marginTop: 20,

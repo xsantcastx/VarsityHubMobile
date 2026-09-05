@@ -1,4 +1,12 @@
-import type { AdStatus, Prisma } from '@prisma/client';
+import {
+  getFullAdSlotDates,
+  reserveAdSlots,
+  releaseAdPurchaseHolds,
+  isRefundedAdPurchase,
+  refundedAdPurchaseError,
+} from './adInventory.js';
+export { getFullAdSlotDates, reserveAdSlots };
+import type { Prisma } from '@prisma/client';
 import type { Stripe } from 'stripe';
 import { debugLog } from './debugLog.js';
 import {
@@ -12,7 +20,6 @@ import { captureException, captureMessage } from './sentry.js';
 import { buildBillingStateColumns, mergeBillingStateIntoPreferences } from './userBillingState.js';
 import { invalidateMeCacheForUser } from './userCache.js';
 import { WEEKDAY_BLOCK_PRICE_CENTS, WEEKEND_BLOCK_PRICE_CENTS } from '../utils/adPricing.js';
-const MAX_AD_SLOTS = 2;
 const isJestRuntime = process.env.JEST_WORKER_ID != null;
 
 /**
@@ -498,33 +505,31 @@ export function resolveVeteranQuantityUpdate(
   };
 }
 
-export async function releaseAdInventoryAfterSlotFullRefund(adId: string) {
-  await prisma.$transaction([
-    prisma.adReservation.deleteMany({ where: { ad_id: adId } }),
-    prisma.ad.updateMany({
-      where: {
-        id: adId,
-        payment_status: { in: ['hold', 'pending_approval'] },
-      },
-      data: { payment_status: 'unpaid' },
-    }),
-  ]);
+export async function releaseAdInventoryAfterSlotFullRefund(
+  adId: string,
+  purchaseReference?: string
+) {
+  // Legacy callers without a purchase identity must preserve ambiguous inventory.
+  if (!purchaseReference) throw new Error('Refund recovery requires a purchase reference');
+  await releaseAdPurchaseHolds(adId, purchaseReference);
 }
 
-export async function releaseAdInventoryAfterSlotFullRefundWithRetry(adId: string) {
-  let lastError: unknown = null;
+export async function releaseAdInventoryAfterSlotFullRefundWithRetry(
+  adId: string,
+  purchaseReference?: string
+) {
+  // Existing bounded database recovery; provider refund retries remain in the Stripe SDK.
+  let lastError: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      await releaseAdInventoryAfterSlotFullRefund(adId);
+      await releaseAdInventoryAfterSlotFullRefund(adId, purchaseReference);
       return;
     } catch (error) {
       lastError = error;
-      if (attempt < 3) {
-        await new Promise(resolve => setTimeout(resolve, 250 * attempt));
-      }
+      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 250 * attempt));
     }
   }
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  throw lastError;
 }
 
 export function isUniqueConstraintError(error: unknown, fieldName?: string): boolean {
@@ -576,76 +581,6 @@ export const AD_PRODUCT_CENTS: Record<string, number> = {
   FRI_SUN: WEEKEND_BLOCK_PRICE_CENTS,
 };
 
-function buildSlotFullError(dates: string[]) {
-  const err = new Error('SLOT_FULL') as any;
-  err.slotFull = true;
-  err.dates = dates;
-  return err;
-}
-
-type AdSlotAvailabilityDb = Pick<Prisma.TransactionClient, 'ad' | 'adReservation'>;
-
-export async function getFullAdSlotDates(
-  db: AdSlotAvailabilityDb,
-  params: {
-    adId: string;
-    targetZipCode?: string | null;
-    isoDates: string[];
-  }
-): Promise<string[]> {
-  if (!params.targetZipCode) return [];
-
-  const competingAds = await db.ad.findMany({
-    where: {
-      target_zip_code: params.targetZipCode,
-      payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-      NOT: { id: params.adId },
-    },
-    select: { id: true },
-    take: 100,
-  });
-  if (competingAds.length === 0) return [];
-
-  const dateObjects = params.isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-  const bookedSlots = await db.adReservation.groupBy({
-    by: ['date'],
-    where: { ad_id: { in: competingAds.map(a => a.id) }, date: { in: dateObjects } },
-    _count: { date: true },
-  });
-
-  return bookedSlots
-    .filter(slot => slot._count.date >= MAX_AD_SLOTS)
-    .map(slot => slot.date.toISOString().slice(0, 10));
-}
-
-export async function reserveAdSlots(
-  tx: Prisma.TransactionClient,
-  params: {
-    adId: string;
-    targetZipCode?: string | null;
-    isoDates: string[];
-    paymentStatus: 'hold' | 'paid';
-    status?: AdStatus;
-  }
-) {
-  const fullDates = await getFullAdSlotDates(tx, params);
-  if (fullDates.length > 0) {
-    throw buildSlotFullError(fullDates);
-  }
-
-  await tx.ad.update({
-    where: { id: params.adId },
-    data: {
-      payment_status: params.paymentStatus,
-      ...(params.status ? { status: params.status } : {}),
-    },
-  });
-  await tx.adReservation.createMany({
-    data: params.isoDates.map(s => ({ ad_id: params.adId, date: new Date(s + 'T00:00:00.000Z') })),
-    skipDuplicates: true,
-  });
-}
-
 export async function ensureApplePendingTransactionLog(params: {
   transactionType: 'SUBSCRIPTION_PURCHASE' | 'AD_PURCHASE';
   userId: string;
@@ -655,11 +590,28 @@ export async function ensureApplePendingTransactionLog(params: {
   metadata: Record<string, unknown>;
 }) {
   const normalizedAppleTransactionId = String(params.appleTransactionId || '').trim() || null;
+  const receiptMatch =
+    params.transactionType === 'AD_PURCHASE'
+      ? {
+          OR: [
+            {
+              metadata: {
+                path: ['apple_transaction_ids'],
+                equals: params.metadata.apple_transaction_ids || [],
+              },
+            },
+            ...(normalizedAppleTransactionId
+              ? [{ apple_transaction_id: normalizedAppleTransactionId }]
+              : []),
+          ],
+        }
+      : {};
   const completed = await prisma.transactionLog.findFirst({
     where: {
       transaction_type: params.transactionType,
       user_id: params.userId,
       order_id: params.orderId,
+      ...receiptMatch,
       status: 'COMPLETED',
     } as any,
     select: { id: true },
@@ -673,6 +625,7 @@ export async function ensureApplePendingTransactionLog(params: {
       transaction_type: params.transactionType,
       user_id: params.userId,
       order_id: params.orderId,
+      ...receiptMatch,
       status: { in: ['PENDING', 'NEEDS_REVIEW'] },
     } as any,
     select: { id: true, apple_transaction_id: true, metadata: true },
@@ -989,6 +942,7 @@ async function reserveAppleTransactionClaims(
   return {
     appleTransactionIds: normalizedIds,
     idempotent: missingIds.length === 0,
+    existingAppleTransactionIds: Array.from(existingIds),
   };
 }
 
@@ -1015,20 +969,73 @@ export async function finalizeAppleAdPurchase(params: {
         },
       });
 
-      const existingTx = await tx.transactionLog.findFirst({
+      if (!claimResult.idempotent && claimResult.existingAppleTransactionIds.length > 0) {
+        throw buildAppleTransactionClaimConflictError();
+      }
+      const receiptMatch = {
+        OR: [
+          {
+            metadata: { path: ['apple_transaction_ids'], equals: claimResult.appleTransactionIds },
+          },
+          ...(claimResult.appleTransactionIds.length === 1
+            ? [{ apple_transaction_id: claimResult.appleTransactionIds[0] }]
+            : []),
+        ],
+      };
+      const previousTransactions = await tx.transactionLog.findMany({
         where: {
           user_id: params.userId,
           order_id: orderId,
           transaction_type: 'AD_PURCHASE',
-          status: 'COMPLETED',
+          ...receiptMatch,
+          status: { in: ['COMPLETED', 'REFUNDED', 'NEEDS_REVIEW'] },
         } as any,
-        select: { id: true },
+        select: { id: true, status: true, metadata: true },
+        orderBy: { created_at: 'desc' },
+        take: 100,
       });
+      if (previousTransactions.some(isRefundedAdPurchase)) throw refundedAdPurchaseError();
+      if (previousTransactions.length === 100) throw buildAppleTransactionClaimConflictError();
+      const existingTx = previousTransactions.find(purchase => purchase.status === 'COMPLETED');
+      if (existingTx?.status === 'COMPLETED') {
+        const previousDates = (existingTx.metadata as any)?.dates;
+        if (
+          !Array.isArray(previousDates) ||
+          JSON.stringify([...new Set(previousDates)].sort()) !==
+            JSON.stringify([...new Set(params.dates)].sort())
+        ) {
+          throw buildAppleTransactionClaimConflictError();
+        }
+        return { ok: true, idempotent: true, appleTransactionIds: claimResult.appleTransactionIds };
+      }
+      // A new receipt bundle cannot recycle any already-spent receipt from an earlier run.
+      const previousReceiptUses = await tx.transactionLog.findMany({
+        where: {
+          transaction_type: 'AD_PURCHASE',
+          OR: [
+            { apple_transaction_id: { in: claimResult.appleTransactionIds } },
+            ...claimResult.appleTransactionIds.map(id => ({
+              metadata: { path: ['apple_transaction_ids'], array_contains: [id] },
+            })),
+          ],
+        },
+        select: { id: true, status: true, metadata: true },
+        take: 100,
+      });
+      if (
+        claimResult.idempotent ||
+        previousReceiptUses.length === 100 ||
+        previousReceiptUses.some(
+          purchase => purchase.status === 'COMPLETED' || isRefundedAdPurchase(purchase)
+        )
+      )
+        throw buildAppleTransactionClaimConflictError();
       const pendingTx = await tx.transactionLog.findFirst({
         where: {
           user_id: params.userId,
           order_id: orderId,
           transaction_type: 'AD_PURCHASE',
+          ...receiptMatch,
           status: { in: ['PENDING', 'NEEDS_REVIEW'] },
         } as any,
         select: { id: true, metadata: true },
@@ -1037,14 +1044,18 @@ export async function finalizeAppleAdPurchase(params: {
 
       const adRecord = await tx.ad.findUnique({
         where: { id: String(params.adId) },
-        select: { target_zip_code: true },
+        select: { target_zip_code: true, status: true },
       });
 
+      if (!adRecord || !['approved', 'active', 'archived'].includes(adRecord.status)) {
+        throw new Error('AD_NOT_APPROVED');
+      }
       await reserveAdSlots(tx, {
         adId: String(params.adId),
         targetZipCode: adRecord?.target_zip_code,
         isoDates: params.dates,
         paymentStatus: 'paid',
+        purchaseReference: `apple:${claimResult.appleTransactionIds.join(',')}`,
         status: 'active',
       });
 
@@ -1109,7 +1120,10 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
   const meta = session.metadata || {};
   const { getTransactionBySession, updateTransactionStatus } = await getTransactionLoggerFns();
   const transactionLog = await getTransactionBySession(session.id);
-  if (transactionLog?.status === 'COMPLETED') {
+  if (
+    transactionLog?.status === 'COMPLETED' ||
+    (meta.ad_id && isRefundedAdPurchase(transactionLog))
+  ) {
     debugLog('[payments] finalizeFromSession skipped — already COMPLETED', {
       session_id: session.id,
     });
@@ -1138,60 +1152,25 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
     try {
       await prisma.$transaction(
         async tx => {
-          const adRecord = await tx.ad.findUnique({
-            where: { id: ad_id },
-            select: { target_zip_code: true },
-          });
-          if (adRecord?.target_zip_code) {
-            const fullDates = await getFullAdSlotDates(tx, {
-              adId: ad_id,
-              targetZipCode: adRecord.target_zip_code,
-              isoDates: dates,
-            });
-            if (fullDates.length > 0) {
-              const err = new Error('SLOT_FULL') as any;
-              err.slotFull = true;
-              err.dates = fullDates;
-              throw err;
-            }
+          const adCheck = await tx.ad.findUnique({ where: { id: ad_id } });
+          if (!adCheck || !['approved', 'active', 'archived'].includes(adCheck.status)) {
+            throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} cannot activate`);
           }
-
-          const adCheck = await tx.ad.findUnique({
-            where: { id: ad_id },
-            select: { status: true, payment_status: true },
-          });
-          if (adCheck?.payment_status === 'paid') {
-            console.log(
-              `[payments] Idempotent: ad ${ad_id} already paid, skipping duplicate activation`
-            );
-            return;
-          }
-          if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
-            throw new Error(
-              `AD_NOT_APPROVED: Ad ${ad_id} status is ${adCheck?.status}, cannot activate`
-            );
-          }
-
-          const updated = await tx.ad.updateMany({
-            where: { id: ad_id, status: { in: ['approved', 'active'] } },
-            data: { payment_status: 'paid', status: 'active' },
-          });
-          if (updated.count === 0) {
-            throw new Error(
-              `AD_NOT_APPROVED: Ad ${ad_id} was no longer approved at activation time`
-            );
-          }
-          await tx.adReservation.createMany({
-            data: dates.map(s => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
-            skipDuplicates: true,
+          await reserveAdSlots(tx, {
+            adId: ad_id,
+            isoDates: dates,
+            paymentStatus: 'paid',
+            status: 'active',
+            purchaseReference: session.id,
+            stripePaymentIntentId:
+              typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id,
           });
         },
         { isolationLevel: 'Serializable' }
       );
 
-      await updateTransactionStatus(session.id, 'COMPLETED', {
-        stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
-      });
       const adForEmail = await prisma.ad.findUnique({
         where: { id: ad_id },
         select: {
@@ -1216,6 +1195,7 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         )
       );
     } catch (e: any) {
+      if (e?.code === 'AD_PURCHASE_REFUNDED') return;
       if (e?.slotFull) {
         try {
           const piId = session.payment_intent ? String(session.payment_intent) : '';
@@ -1226,7 +1206,7 @@ export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
               reason: 'requested_by_customer',
             });
             try {
-              await releaseAdInventoryAfterSlotFullRefundWithRetry(ad_id);
+              await releaseAdInventoryAfterSlotFullRefundWithRetry(ad_id, session.id);
               await updateTransactionStatus(session.id, 'REFUNDED', {
                 metadata: {
                   reason: 'slot_full',

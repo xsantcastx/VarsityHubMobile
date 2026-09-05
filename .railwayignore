@@ -90,3 +90,16 @@ expo-env.d.ts
 !react-native.config.js
 !tsconfig.json
 !types/
+
+# Local credentials and agent state never belong in an uploaded build context.
+.env
+.env.*
+**/.env
+**/.env.*
+/.codex
+/server/.keys
+service-account-key.json
+**/*.p8
+**/*.p12
+**/*.key
+**/*.keystore

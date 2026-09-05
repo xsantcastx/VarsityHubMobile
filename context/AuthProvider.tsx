@@ -19,6 +19,7 @@ import { AppState, Platform } from 'react-native';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
 import { User } from '@/api/entities';
+import type { UpdatePreferencesPayload } from '@/api/types';
 import { abortAllInflight, httpGet } from '@/api/http';
 import { showWarningToast } from '@/components/ErrorToast';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
@@ -121,6 +122,8 @@ export interface AuthContextType {
     forceRefresh?: boolean;
   }) => Promise<any>;
   signOut: () => Promise<void>;
+  savePreferences: (patch: UpdatePreferencesPayload) => Promise<Record<string, unknown>>;
+  preferenceSaveState: { pending: number; error: boolean; saved: boolean };
   registerPushToken: () => Promise<boolean>;
   markOnboardingCompleteLocally: () => Promise<void>;
   markOnboardingIncompleteLocally: () => Promise<void>;
@@ -143,6 +146,80 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const preferenceQueue = React.useRef<Promise<unknown>>(Promise.resolve());
+  const preferenceSession = React.useRef(0);
+  const preferenceUserId = React.useRef<string | null>(null);
+  const [preferenceSaveState, setPreferenceSaveState] = useState({
+    pending: 0,
+    error: false,
+    saved: false,
+  });
+  const preferenceRevision = React.useRef(0);
+  const lastSavedPreferences = React.useRef<{
+    userId: string;
+    revision: number;
+    preferences: Record<string, unknown>;
+  } | null>(null);
+  const resetPreferenceSession = useCallback((userId: string | null) => {
+    preferenceUserId.current = userId;
+    preferenceSession.current += 1;
+    preferenceQueue.current = Promise.resolve();
+    lastSavedPreferences.current = null;
+    setPreferenceSaveState({ pending: 0, error: false, saved: false });
+  }, []);
+
+  // Auth owns writes and feedback across navigation. Session changes detach the
+  // old queue immediately; stale completions never update the next account.
+  const savePreferences = useCallback((patch: UpdatePreferencesPayload) => {
+    const userId = preferenceUserId.current;
+    const session = preferenceSession.current;
+    setPreferenceSaveState(state => ({ pending: state.pending + 1, error: false, saved: false }));
+    const save = preferenceQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (!userId || session !== preferenceSession.current) {
+          throw new Error('Your account changed. Please reopen settings.');
+        }
+        const result = (await User.updatePreferences(patch, {
+          isSessionCurrent: () =>
+            session === preferenceSession.current && userId === preferenceUserId.current,
+        })) as {
+          preferences: Record<string, unknown>;
+        };
+        if (session !== preferenceSession.current) {
+          throw new Error('Your account changed. Please reopen settings.');
+        }
+        if (!result?.preferences || typeof result.preferences !== 'object') {
+          throw new Error('The server did not confirm your preferences. Please try again.');
+        }
+        const revision = ++preferenceRevision.current;
+        lastSavedPreferences.current = { userId, revision, preferences: result.preferences };
+        setUser(current =>
+          current?.id === userId ? { ...current, preferences: result.preferences } : current
+        );
+        return result.preferences;
+      });
+    preferenceQueue.current = save;
+    void save.then(
+      () => {
+        if (session === preferenceSession.current)
+          setPreferenceSaveState(state => ({
+            ...state,
+            pending: Math.max(0, state.pending - 1),
+            saved: true,
+          }));
+      },
+      () => {
+        if (session === preferenceSession.current)
+          setPreferenceSaveState(state => ({
+            pending: Math.max(0, state.pending - 1),
+            error: true,
+            saved: false,
+          }));
+      }
+    );
+    return save;
+  }, []);
   const [hasSession, setHasSession] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -380,35 +457,39 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const pushTokenTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscriptionFetchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearLocalAuthState = useCallback((options?: { abortInflight?: boolean }) => {
-    if (pushTokenTimeoutRef.current) {
-      clearTimeout(pushTokenTimeoutRef.current);
-      pushTokenTimeoutRef.current = null;
-    }
-    if (subscriptionFetchTimeoutRef.current) {
-      clearTimeout(subscriptionFetchTimeoutRef.current);
-      subscriptionFetchTimeoutRef.current = null;
-    }
-    // Cancel every in-flight HTTP request and drop the GET dedup cache.
-    // Without this, a request initiated under user A's token can resolve
-    // after user B signs in on the same device, and any still-mounted
-    // subscriber (or the GET-dedup cache) could observe user A's response.
-    // AbortController cancellation causes fetch() to throw AbortError so
-    // the resolution path never delivers the body.
-    if (options?.abortInflight !== false) {
-      abortAllInflight('sign_out_or_session_expiry');
-    }
-    clearPostCacheOnLogout();
-    setUser(null);
-    setHasSession(false);
-    setSentryUser(null);
-    analytics.reset();
-    setPendingVerificationEmail(null);
-    setHasCompletedOnboarding(false);
-    setSubscriptionTier('rookie');
-    setHasActiveSubscription(false);
-    lastPushRegistrationRef.current = null;
-  }, []);
+  const clearLocalAuthState = useCallback(
+    (options?: { abortInflight?: boolean }) => {
+      if (pushTokenTimeoutRef.current) {
+        clearTimeout(pushTokenTimeoutRef.current);
+        pushTokenTimeoutRef.current = null;
+      }
+      if (subscriptionFetchTimeoutRef.current) {
+        clearTimeout(subscriptionFetchTimeoutRef.current);
+        subscriptionFetchTimeoutRef.current = null;
+      }
+      // Cancel every in-flight HTTP request and drop the GET dedup cache.
+      // Without this, a request initiated under user A's token can resolve
+      // after user B signs in on the same device, and any still-mounted
+      // subscriber (or the GET-dedup cache) could observe user A's response.
+      // AbortController cancellation causes fetch() to throw AbortError so
+      // the resolution path never delivers the body.
+      if (options?.abortInflight !== false) {
+        abortAllInflight('sign_out_or_session_expiry');
+      }
+      clearPostCacheOnLogout();
+      resetPreferenceSession(null);
+      setUser(null);
+      setHasSession(false);
+      setSentryUser(null);
+      analytics.reset();
+      setPendingVerificationEmail(null);
+      setHasCompletedOnboarding(false);
+      setSubscriptionTier('rookie');
+      setHasActiveSubscription(false);
+      lastPushRegistrationRef.current = null;
+    },
+    [resetPreferenceSession]
+  );
 
   const clearUserScopedStorage = useCallback(async () => {
     const baseKeys = [
@@ -453,6 +534,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         if (options?.pendingVerification && options?.email) {
           setHasSession(true);
           setPendingVerificationEmail(options.email);
+          resetPreferenceSession(null);
           setUser(null); // Don't set user until verification succeeds
           return;
         }
@@ -490,6 +572,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // transitions such as new session establishment.
         const shouldForceRefresh =
           options?.forceRefresh === true || options?.replaceSession === true;
+        const preferenceRevisionAtRead = preferenceRevision.current;
         const me: any = await User.me(shouldForceRefresh ? { force: true } : undefined);
         setHealthOk(true);
         setHealthError(null);
@@ -548,6 +631,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           await clearUserScopedStorage();
         }
 
+        if (preferenceUserId.current !== me.id) resetPreferenceSession(me.id);
+        const saved = lastSavedPreferences.current;
+        if (saved && saved.userId === me.id && saved.revision > preferenceRevisionAtRead) {
+          me.preferences = saved.preferences;
+        }
         // NOW set user — routing effect will fire with correct hasCompletedOnboarding
         setUser(me);
         setSentryUser({ id: me.id, email: me.email, username: me.username });
@@ -612,6 +700,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       fetchSubscription,
       healthOk,
       isOnboardingComplete,
+      resetPreferenceSession,
       user?.id,
     ]
   );
@@ -720,6 +809,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Sign out
   const signOut = useCallback(async () => {
     const userBeforeSignOut = user;
+    resetPreferenceSession(null);
     try {
       await auth.logout();
     } catch (error) {
@@ -738,6 +828,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     redirectWithTelemetry,
     unauthenticatedEntryRoute,
     user,
+    resetPreferenceSession,
   ]);
 
   const registerPushToken = useCallback(async () => {
@@ -1348,6 +1439,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       subscriptionTier,
       hasActiveSubscription,
       checkAuth,
+      savePreferences,
+      preferenceSaveState,
       signOut,
       registerPushToken,
       markOnboardingCompleteLocally,
@@ -1364,6 +1457,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       subscriptionTier,
       hasActiveSubscription,
       checkAuth,
+      savePreferences,
+      preferenceSaveState,
       signOut,
       registerPushToken,
       markOnboardingCompleteLocally,

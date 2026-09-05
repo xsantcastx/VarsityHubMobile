@@ -427,6 +427,15 @@ function TeamScreen() {
   // sub-teams. State + count come from the program screen-summary (ProgramFollow-
   // based), not the single opened sub-team. A lone team keeps the team-follow path.
   const programId = team?.program_id ?? null;
+  // Team data arrives before its program summary. Until the summary resolves,
+  // we cannot choose between a whole-sport follow and a lone-team follow.
+  // Cached data for this program key remains usable during background refresh.
+  const programFollowDataReady =
+    programQuery.data?.program?.id === programId && Array.isArray(programQuery.data?.levels);
+  const followContextLoading =
+    Boolean(programId) && !programFollowDataReady && programQuery.isPending;
+  const followContextError =
+    Boolean(programId) && !programFollowDataReady && !programQuery.isPending;
   const [programIsFollowing, setProgramIsFollowing] = useState(false);
   useEffect(() => {
     if (isProgramTeam && programQuery.data?.program) {
@@ -824,25 +833,38 @@ function TeamScreen() {
                     backgroundColor: effectiveFollowing ? '#10B981' : '#FFD600',
                     borderWidth: 0,
                   },
-                  followLoading && { opacity: 0.5 },
+                  (followLoading || followContextLoading) && { opacity: 0.5 },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  effectiveFollowing
-                    ? isProgramTeam
-                      ? 'Unfollow sport'
-                      : 'Unfollow team'
-                    : isProgramTeam
-                      ? 'Follow sport'
-                      : 'Follow team'
+                  followContextLoading
+                    ? 'Loading follow status'
+                    : followContextError
+                      ? 'Retry follow status'
+                      : effectiveFollowing
+                        ? isProgramTeam
+                          ? 'Unfollow sport'
+                          : 'Unfollow team'
+                        : isProgramTeam
+                          ? 'Follow sport'
+                          : 'Follow team'
                 }
-                disabled={followLoading}
+                disabled={followLoading || followContextLoading}
                 onPress={async () => {
-                  if (!team?.id || team.id.startsWith('temp-') || followLoading) {
+                  if (
+                    !team?.id ||
+                    team.id.startsWith('temp-') ||
+                    followLoading ||
+                    followContextLoading
+                  ) {
                     return;
                   }
                   if (!currentUser) {
                     router.push('/sign-in' as any);
+                    return;
+                  }
+                  if (followContextError) {
+                    void programQuery.refetch();
                     return;
                   }
                   // Program team → follow the whole SPORT. Program.follow fans out
@@ -928,7 +950,11 @@ function TeamScreen() {
                   }
                 }}
               >
-                {effectiveFollowing ? (
+                {followContextLoading || followLoading ? (
+                  <ActivityIndicator size="small" color="#1A1A1A" />
+                ) : followContextError ? (
+                  <Ionicons name="refresh" size={18} color="#1A1A1A" />
+                ) : effectiveFollowing ? (
                   // audit: fixed white on the fixed green button (theme-independent bg)
                   <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                 ) : (
@@ -940,6 +966,15 @@ function TeamScreen() {
             )}
           </View>
         </View>
+
+        {followContextError && !isTeamAdmin ? (
+          <Text
+            accessibilityRole="alert"
+            style={{ color: theme.text, paddingHorizontal: 16, marginBottom: 8 }}
+          >
+            Could not load follow status. Tap to retry.
+          </Text>
+        ) : null}
 
         {/* Team Details - Left aligned with avatar */}
         <View style={styles.userDetails}>

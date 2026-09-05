@@ -1,31 +1,17 @@
 import { MembershipStatus, type Prisma } from '@prisma/client';
 import { prisma } from './prisma.js';
 import { getTeamState } from './teamState.js';
-import { cacheGet, cacheSet, cacheDel } from './cache.js';
+import { cacheDel } from './cache.js';
+import { isOrganizationOwner, getOwnedOrganizationIds } from './organizationAuthorization.js';
 
-// Cache TTLs (seconds for Redis, milliseconds for in-process fallback)
-const PRIVATE_IDS_CACHE_TTL_S = 60;
-const BLOCKED_IDS_CACHE_TTL_S = 30;
-const PRIVATE_TEAM_IDS_CACHE_TTL_S = 60;
-const PRIVATE_IDS_CACHE_TTL_MS = PRIVATE_IDS_CACHE_TTL_S * 1000;
-const PRIVATE_TEAM_IDS_CACHE_TTL_MS = PRIVATE_TEAM_IDS_CACHE_TTL_S * 1000;
-
-// In-process fallback for when Redis is unavailable (single-instance dev/cold start)
-let _privateIdsCache: { ids: string[]; expires: number } | null = null;
-let _privateTeamIdsCache: {
-  teams: Array<{ id: string; organization_id: string | null }>;
-  expires: number;
-} | null = null;
-
-/** Invalidate the private-IDs cache (call when a user toggles profile_private). */
+// Privacy is authorization state: read it from PostgreSQL for every request.
+// Redis/local TTL snapshots can survive a different replica's invalidation or
+// be repopulated by a read that raced a privacy change. Keep these invalidators
+// to evict keys written by older replicas during a rolling deployment.
 export function invalidatePrivateIdsCache(): void {
-  _privateIdsCache = null;
   void cacheDel('privacy:private_ids');
 }
-
-/** Invalidate the private-team cache (call when team privacy/status/org changes). */
 export function invalidatePrivateTeamIdsCache(): void {
-  _privateTeamIdsCache = null;
   void cacheDel('privacy:private_team_ids');
 }
 
@@ -34,31 +20,11 @@ export function invalidatePrivateTeamIdsCache(): void {
  * Excludes the viewer themselves and users the viewer already follows.
  */
 export async function getExcludedPrivateAuthorIds(viewerId: string | null): Promise<string[]> {
-  let privateUsers: { id: string }[];
-
-  // Try Redis first (distributed — works across multiple Railway instances)
-  const cached = await cacheGet<string[]>('privacy:private_ids');
-  if (cached) {
-    privateUsers = cached.map(id => ({ id }));
-  } else if (_privateIdsCache && Date.now() < _privateIdsCache.expires) {
-    // In-process fallback (Redis unavailable)
-    privateUsers = _privateIdsCache.ids.map(id => ({ id }));
-  } else {
-    // v1.0.2 pass 12: bound the scan. 50k private-profile users is ~10x today's peak and
-    // the result is cached for 60s, so cold-start cost stays constant regardless of growth.
-    privateUsers = await prisma.user.findMany({
-      where: {
-        preferences: { path: ['profile_private'], equals: true },
-      },
-      select: { id: true },
-      take: 50000,
-    });
-    _privateIdsCache = {
-      ids: privateUsers.map(u => u.id),
-      expires: Date.now() + PRIVATE_IDS_CACHE_TTL_MS,
-    };
-    void cacheSet('privacy:private_ids', _privateIdsCache.ids, PRIVATE_IDS_CACHE_TTL_S);
-  }
+  const privateUsers = await prisma.user.findMany({
+    where: { preferences: { path: ['profile_private'], equals: true } },
+    select: { id: true },
+    take: 50000,
+  });
 
   if (privateUsers.length === 0) return [];
 
@@ -87,27 +53,11 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
  * viewer. Team members, team followers, and org admins are allowed through.
  */
 export async function getExcludedPrivateTeamIds(viewerId: string | null): Promise<string[]> {
-  let privateTeams: Array<{ id: string; organization_id: string | null }>;
-
-  const cached = await cacheGet<Array<{ id: string; organization_id: string | null }>>(
-    'privacy:private_team_ids'
-  );
-  if (cached) {
-    privateTeams = cached;
-  } else if (_privateTeamIdsCache && Date.now() < _privateTeamIdsCache.expires) {
-    privateTeams = _privateTeamIdsCache.teams;
-  } else {
-    privateTeams = await prisma.team.findMany({
-      where: { is_private: true, status: 'active' },
-      select: { id: true, organization_id: true },
-      take: 50000,
-    });
-    _privateTeamIdsCache = {
-      teams: privateTeams,
-      expires: Date.now() + PRIVATE_TEAM_IDS_CACHE_TTL_MS,
-    };
-    void cacheSet('privacy:private_team_ids', privateTeams, PRIVATE_TEAM_IDS_CACHE_TTL_S);
-  }
+  const privateTeams = await prisma.team.findMany({
+    where: { is_private: true, status: 'active' },
+    select: { id: true, organization_id: true },
+    take: 50000,
+  });
 
   if (privateTeams.length === 0) return [];
   const privateTeamIds = privateTeams.map(team => team.id);
@@ -154,7 +104,17 @@ export async function getExcludedPrivateTeamIds(viewerId: string | null): Promis
     ...follows.map(row => row.team_id),
     ...memberships.map(row => row.team_id),
   ]);
-  const allowedOrgIds = new Set(orgMemberships.map(row => row.organization_id));
+  const ownedOrgIds: string[] = [];
+  const ownerCandidates = organizationIds.filter((id): id is string => Boolean(id));
+  for (let start = 0; start < ownerCandidates.length; start += 5000) {
+    ownedOrgIds.push(
+      ...(await getOwnedOrganizationIds(viewerId, ownerCandidates.slice(start, start + 5000)))
+    );
+  }
+  const allowedOrgIds = new Set([
+    ...orgMemberships.map(row => row.organization_id),
+    ...ownedOrgIds,
+  ]);
   for (const team of privateTeams) {
     if (team.organization_id && allowedOrgIds.has(team.organization_id)) {
       allowedTeamIds.add(team.id);
@@ -260,13 +220,8 @@ export function mergeAndWhere<T extends { AND?: unknown }>(where: T, clause: obj
  */
 export type BlockedCache = Map<string, Promise<string[]>>;
 
-// Short-lived cross-request in-process fallback for blocked-user lists (used when Redis unavailable).
-// With Redis, invalidation is distributed across all Railway instances.
-const _blockedIdsFallback = new Map<string, { promise: Promise<string[]>; expires: number }>();
-
-/** Invalidate a specific user's blocked-ids cache entry (call on block/unblock). */
+/** Evict old-replica keys on block/unblock; current reads are request-scoped. */
 export function invalidateBlockedIdsCache(viewerId: string): void {
-  _blockedIdsFallback.delete(viewerId);
   void cacheDel(`privacy:blocked:${viewerId}`);
 }
 
@@ -289,23 +244,7 @@ export async function getBlockedUserIds(
     if (existing) return existing;
   }
 
-  // Cross-request in-process fallback (Redis unavailable)
-  const fallback = _blockedIdsFallback.get(viewerId);
-  if (fallback && Date.now() < fallback.expires) {
-    if (cache) cache.set(viewerId, fallback.promise);
-    return fallback.promise;
-  }
-
-  // The Redis check lives INSIDE the promise so the in-flight promise can be
-  // registered synchronously below. Awaiting cacheGet before registration
-  // opened an async gap where concurrent same-viewer calls each fired their
-  // own DB query (the dedupe race blocked-cache-dedup.test.ts guards).
-  const redisKey = `privacy:blocked:${viewerId}`;
   const promise = (async (): Promise<string[]> => {
-    // Try Redis distributed cache — works across all Railway instances
-    const redisHit = await cacheGet<string[]>(redisKey);
-    if (redisHit) return redisHit;
-
     // v1.0.2 pass 12: bound the scan. A single user's bidirectional block set is tiny in
     // practice; 10k is orders of magnitude beyond real use and keeps the query bounded.
     const blocks = await prisma.blockedUser.findMany({
@@ -321,21 +260,9 @@ export async function getBlockedUserIds(
       if (b.blocked_id !== viewerId) ids.add(b.blocked_id);
     }
     const result = Array.from(ids);
-    // Write to Redis for cross-instance sharing (fire-and-forget, non-blocking)
-    void cacheSet(redisKey, result, BLOCKED_IDS_CACHE_TTL_S);
     return result;
   })();
 
-  // Register before any await so concurrent callers share this in-flight
-  // promise. A rejected lookup must not poison the TTL window — clear it so
-  // the next caller retries.
-  _blockedIdsFallback.set(viewerId, {
-    promise,
-    expires: Date.now() + BLOCKED_IDS_CACHE_TTL_S * 1000,
-  });
-  promise.catch(() => {
-    invalidateBlockedIdsCache(viewerId);
-  });
   if (cache) cache.set(viewerId, promise);
   return promise;
 }
@@ -466,5 +393,6 @@ export async function isTeamHiddenFromViewer(
       : Promise.resolve(null),
   ]);
 
-  return !follow && !membership && !orgMembership;
+  if (follow || membership || orgMembership) return false;
+  return !(await isOrganizationOwner(viewerId, team.organization_id));
 }

@@ -4,6 +4,7 @@ export interface SendErrorOptions {
   code?: string;
   details?: unknown;
   message?: string;
+  extraFields?: Record<string, unknown>;
 }
 
 type ErrorEnvelope = {
@@ -16,9 +17,10 @@ type ErrorEnvelope = {
 };
 
 export function buildErrorEnvelope(error: string, options: SendErrorOptions = {}): ErrorEnvelope {
-  const { code, details, message } = options;
+  const { code, details, message, extraFields } = options;
 
   return {
+    ...extraFields,
     error,
     ...(code ? { code, errorCode: code } : {}),
     ...(details !== undefined ? { details, metadata: details } : {}),

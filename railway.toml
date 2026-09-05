@@ -19,10 +19,15 @@ numReplicas = 1
 
 # Railway routes health probes here; an unhealthy replica is pulled from the LB.
 healthcheckPath = "/health"
-healthcheckTimeout = 100
+# Covers bounded migration retries and the optional backup schema sync.
+healthcheckTimeout = 600
 
-# Keep the old replica serving until the new one is healthy (zero-downtime).
-overlapSeconds = 30
+# Activate only after health succeeds, then stop the old writer immediately.
+# The September 2026 ad-hold migration cannot mix old checkout writers with
+# the new AdSlotHold inventory adapter. Keep rollback on a compatible adapter.
+# In-flight requests may retry during cutover; webhook settlement is idempotent.
+overlapSeconds = 0
+drainingSeconds = 0
 
 # Restart a crashed replica rather than leaving capacity down.
 restartPolicyType = "ON_FAILURE"

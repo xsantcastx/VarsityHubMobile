@@ -22,6 +22,7 @@ import { redactEmail } from '../lib/logRedaction.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import {
   getOrganizationMembership,
+  getOrganizationOwner,
   isOrganizationOwner as isOrganizationOwnerScoped,
   ORGANIZATION_OWNER_ROLE,
 } from '../lib/organizationAuthorization.js';
@@ -1770,18 +1771,7 @@ organizationsRouter.post(
           effectiveMessage = message ? `${teamContext} ${message}` : teamContext;
         }
       }
-      const ownerMembership = await prisma.organizationMembership.findFirst({
-        where: {
-          organization_id,
-          role: 'owner',
-          status: 'active',
-        },
-        select: {
-          user: {
-            select: { id: true, email: true, display_name: true },
-          },
-        },
-      });
+      const owner = await getOrganizationOwner(organization_id);
 
       // Merely ASKING to join another league must not demote an established
       // league owner to PENDING — that locked them out of the org they already
@@ -1854,8 +1844,7 @@ organizationsRouter.post(
       await invalidateMeCacheForUser(req.user!.id);
 
       // Send email + push + in-app notification to organization owner
-      if (ownerMembership?.user) {
-        const owner = ownerMembership.user;
+      if (owner) {
         try {
           // v1.0.2 audit fix: search-mode join requests now send email to org owner
           // (previously only push + in-app). Uses LEAGUE_PENDING_APPROVAL template.
@@ -1872,12 +1861,16 @@ organizationsRouter.post(
               organizationId: organization.id,
               organizationName: organization.name,
               requestId: joinRequest.id,
+              reviewerUserId: owner.id,
+              requestCreatedAt: joinRequest.created_at,
               action: 'approve',
             }),
             rejectUrl: buildCoachJoinRequestReviewUrl({
               organizationId: organization.id,
               organizationName: organization.name,
               requestId: joinRequest.id,
+              reviewerUserId: owner.id,
+              requestCreatedAt: joinRequest.created_at,
               action: 'reject',
             }),
           }).catch(err =>
@@ -2202,14 +2195,28 @@ async function joinRequestEmailReviewHandler(
   }
 
   const expectedAction = action === 'approve' ? 'approve_join_request' : 'reject_join_request';
-  const payload = verifyReviewToken<{ requestId: string; orgId: string; action: string }>(token);
-  if (!payload || payload.requestId !== requestId || payload.action !== expectedAction) {
+  const payload = verifyReviewToken<{
+    requestId: string;
+    orgId: string;
+    action: string;
+    reviewerUserId: string;
+    requestCreatedAt: string;
+  }>(token);
+  if (
+    !payload ||
+    payload.requestId !== requestId ||
+    payload.action !== expectedAction ||
+    typeof payload.reviewerUserId !== 'string' ||
+    !payload.reviewerUserId ||
+    typeof payload.requestCreatedAt !== 'string' ||
+    !Number.isFinite(Date.parse(payload.requestCreatedAt))
+  ) {
     return res
       .status(401)
       .send(
         joinReviewHtml(
           'Link Expired',
-          `<h1 style="color:#DC2626">Link Expired</h1><p>This ${linkLabel} link is no longer valid.</p>`,
+          `<h1 style="color:#DC2626">Link Expired</h1><p>This ${linkLabel} link is no longer valid.</p><p>Open VarsityHub and review this request in Organization Settings → Join Requests.</p>`,
           '#DC2626'
         )
       );
@@ -2247,12 +2254,33 @@ async function joinRequestEmailReviewHandler(
       .send(
         joinReviewHtml(
           'Link Expired',
-          `<h1 style="color:#DC2626">Link Expired</h1><p>This ${linkLabel} link is no longer valid.</p>`,
+          `<h1 style="color:#DC2626">Link Expired</h1><p>This ${linkLabel} link is no longer valid.</p><p>Open VarsityHub and review this request in Organization Settings → Join Requests.</p>`,
           '#DC2626'
         )
       );
   }
 
+  const owner = await getOrganizationOwner(joinRequest.organization_id);
+  if (!owner || owner.id !== payload.reviewerUserId || owner.id === joinRequest.user_id) {
+    return res
+      .status(403)
+      .send(
+        joinReviewHtml(
+          'Review Access Changed',
+          '<h1>Review Access Changed</h1><p>This link no longer authorizes you to review this request. The current owner can review it in VarsityHub under Organization Settings → Join Requests.</p>'
+        )
+      );
+  }
+  if (joinRequest.created_at.toISOString() !== payload.requestCreatedAt) {
+    return res
+      .status(409)
+      .send(
+        joinReviewHtml(
+          'Link Expired',
+          '<h1>Link Expired</h1><p>This link belongs to an earlier application or ownership term. Open VarsityHub to review the current request.</p>'
+        )
+      );
+  }
   if (joinRequest.status !== 'pending') {
     return res.send(
       renderJoinRequestStatePage(joinRequest, action, {
@@ -2263,37 +2291,17 @@ async function joinRequestEmailReviewHandler(
     );
   }
 
-  const ownerMembership = await prisma.organizationMembership.findFirst({
-    where: {
-      organization_id: joinRequest.organization_id,
-      role: 'owner',
-      status: 'active',
-    },
-    select: { user_id: true },
-  });
-  if (!ownerMembership) {
-    return res
-      .status(500)
-      .send(
-        joinReviewHtml(
-          'Owner Not Found',
-          '<h1 style="color:#DC2626">Error</h1><p>Could not identify the league owner. Please contact support.</p>',
-          '#DC2626'
-        )
-      );
-  }
-
   const result =
     action === 'approve'
       ? await approveJoinRequest({
           requestId,
-          reviewerUserId: ownerMembership.user_id,
-          context: { via: 'email-link' },
+          reviewerUserId: payload.reviewerUserId,
+          context: { via: 'email-link', requestCreatedAt: payload.requestCreatedAt },
         })
       : await denyJoinRequest({
           requestId,
-          reviewerUserId: ownerMembership.user_id,
-          context: { via: 'email-link' },
+          reviewerUserId: payload.reviewerUserId,
+          context: { via: 'email-link', requestCreatedAt: payload.requestCreatedAt },
         });
 
   if (!result.ok) {
@@ -2308,25 +2316,8 @@ async function joinRequestEmailReviewHandler(
       );
   }
 
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult === 'already_used') {
-    return res
-      .status(409)
-      .send(
-        joinReviewHtml(
-          'Link Already Used',
-          `<h1 style="color:#DC2626">Link Already Used</h1><p>This ${linkLabel} link has already been used.</p>`,
-          '#DC2626'
-        )
-      );
-  }
-  if (consumeResult === 'store_unavailable') {
-    console.warn('[organizations] join request review token could not be marked consumed:', {
-      request_id: requestId,
-      action,
-      consumeResult,
-    });
-  }
+  // The atomic pending+attempt transition is the durable capability claim.
+  // Do not consume in Redis after effects: a rollback must leave this link retryable.
 
   if (action === 'approve') {
     return res.send(
@@ -2407,29 +2398,40 @@ organizationsRouter.post(
     // Transfer the canonical owner pointer AND membership roles together.
     // Without updating `league_owner_id`, old-owner authority leaked through
     // billing, team-management fallback checks, and org-owner-only screens.
-    await prisma.$transaction([
-      prisma.organization.update({
+    const transferred = await prisma.$transaction(async tx => {
+      // Share the row lock with email review: revocation and decisions serialize.
+      await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${orgId} FOR UPDATE`;
+      if ((await getOrganizationOwner(orgId, tx))?.id !== req.user!.id) return false;
+      const successor = await tx.organizationMembership.findFirst({
+        where: { organization_id: orgId, user_id: new_owner_id, status: 'active' },
+        select: { id: true },
+      });
+      if (!successor) return false;
+      await tx.organization.update({
         where: { id: orgId },
         data: { league_owner_id: new_owner_id },
-        select: { id: true },
-      }),
-      // Demote the old owner's membership row — skipped for a legacy owner who
-      // never had one (they simply stop being the league_owner_id pointer).
-      ...(currentOwnership
-        ? [
-            prisma.organizationMembership.update({
-              where: { id: currentOwnership.id },
-              data: { role: 'manager' },
-              select: { id: true },
-            }),
-          ]
-        : []),
-      prisma.organizationMembership.update({
-        where: { id: newOwnerMembership.id },
+      });
+      await tx.organizationMembership.updateMany({
+        where: { organization_id: orgId, role: 'owner', status: 'active' },
+        data: { role: 'manager' },
+      });
+      await tx.organizationMembership.update({
+        where: { id: successor.id },
         data: { role: 'owner' },
-        select: { id: true },
-      }),
-    ]);
+      });
+      // created_at is the request attempt stamp (also reset on reapplication).
+      // Rotate pending capabilities on transfer, including transfer-back, without
+      // discarding requests. GREATEST guarantees a distinct millisecond stamp.
+      await tx.$executeRaw`
+        UPDATE "OrganizationJoinRequest"
+        SET created_at = GREATEST(CURRENT_TIMESTAMP, created_at + INTERVAL '1 millisecond')
+        WHERE organization_id = ${orgId} AND status = 'pending'
+      `;
+      return true;
+    });
+    if (!transferred) {
+      return sendError(res, 403, 'Ownership or membership changed. Refresh and try again.');
+    }
 
     await logAdminActivityFromReq(
       req,

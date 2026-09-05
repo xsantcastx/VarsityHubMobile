@@ -1,3 +1,10 @@
+import { optimizeImageUrl } from '@/utils/imageUrl';
+import EventLiveWindowPicker from './EventLiveWindowPicker';
+import EventPreviewImageField from './EventPreviewImageField';
+import {
+  EVENT_BANNER_ASPECT_RATIO,
+  type EventLiveWindowHours,
+} from '@/constants/eventPresentation';
 import { uploadFile } from '@/api/upload';
 // @ts-ignore JS exports
 import { Team } from '@/api/entities';
@@ -8,18 +15,13 @@ import { useManagedTeamOptions } from '@/hooks/useManagedTeamOptions';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
 import { formatGameTime, isPastGameDate } from '@/utils/gameFormHelpers';
-import { optimizeImageUrl } from '@/utils/imageUrl';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { pickerMediaTypesProp } from '@/utils/picker';
-import { toUserMessage } from '@/utils/toUserMessage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+  Image,
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -36,13 +38,12 @@ import ViewShot, { captureRef } from 'react-native-view-shot';
 import { getApiBaseUrl } from '../apiclient/http';
 import MatchBanner from '../app/components/MatchBanner';
 import { AppearancePreset } from './AppearancePicker';
-import ImageEditor from './ImageEditor';
 import LocationPicker from './LocationPicker';
 
 interface QuickAddGameModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (gameData: QuickGameData) => void;
+  onSave: (gameData: QuickGameData) => void | boolean | Promise<void | boolean>;
   currentTeamName?: string; // Optional current team context
   currentTeamId?: string; // Current team ID for database relation
   userRole?: 'fan' | 'coach'; // User role to customize defaults
@@ -56,6 +57,7 @@ interface QuickAddGameModalProps {
     appearance?: string;
     status?: string;
     location?: string | null;
+    liveWindowHours?: EventLiveWindowHours;
   };
 }
 
@@ -77,6 +79,7 @@ export interface QuickGameData {
   date: string; // Will be today + some days
   time: string; // Selected time
   type: 'home' | 'away';
+  liveWindowHours?: EventLiveWindowHours;
   banner_url?: string; // Add banner URL support
   cover_image_url?: string; // Add cover image URL support
   appearance?: string; // Add appearance support
@@ -112,6 +115,7 @@ export interface BuildQuickGameDataParams {
   formattedDate: string;
   formattedTime: string;
   gameType: 'home' | 'away';
+  liveWindowHours?: EventLiveWindowHours;
   expectedAttendance?: number;
   eventType: EventType;
   eventDescription?: string;
@@ -140,6 +144,7 @@ export function buildQuickGameData({
   formattedDate,
   formattedTime,
   gameType,
+  liveWindowHours,
   expectedAttendance,
   eventType,
   eventDescription,
@@ -173,6 +178,7 @@ export function buildQuickGameData({
     date: formattedDate,
     time: formattedTime,
     type: gameType,
+    liveWindowHours,
     isCompetitive,
     expectedAttendance,
     eventType: isCompetitive ? 'game' : eventType,
@@ -288,15 +294,16 @@ export default function QuickAddGameModal({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [gameType, setGameType] = useState<'home' | 'away'>('home');
+  const [liveWindowHours, setLiveWindowHours] = useState<EventLiveWindowHours>(5);
+  const [previewWidth, setPreviewWidth] = useState(320);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const viewShotRef = useRef<any>(null);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
-  const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
-  const [editorVisible, setEditorVisible] = useState(false);
-  const [uploadingCustomBanner, setUploadingCustomBanner] = useState(false);
   const [appearance, setAppearance] = useState<AppearancePreset>('classic');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [liveWindowChanged, setLiveWindowChanged] = useState(false);
 
   // New state for competitive toggle and attendance
   const [isCompetitive, setIsCompetitive] = useState(true); // Default to competitive game
@@ -361,6 +368,8 @@ export default function QuickAddGameModal({
   // Populate form when editing (initialData provided)
   useEffect(() => {
     if (initialData && visible) {
+      setLiveWindowHours(initialData.liveWindowHours ?? 5);
+      setLiveWindowChanged(false);
       setOpponent(initialData.opponent || '');
       setGameType(initialData.type || 'home');
       setBannerUrl(initialData.banner_url || null);
@@ -488,15 +497,15 @@ export default function QuickAddGameModal({
 
   // Set home venue when current team changes or modal opens
   useEffect(() => {
-    if (currentTeam && visible) {
+    if (currentTeam && visible && !initialData) {
       // Find the team data to get venue information
       const teamData = myTeams.find(t => t.name === currentTeam);
 
       if (teamData?.venue_address) {
         // Use actual team venue from database
         setHomeVenue(teamData.venue_address);
-        setHomeVenueLat(teamData.venue_lat || undefined);
-        setHomeVenueLng(teamData.venue_lng || undefined);
+        setHomeVenueLat(teamData.venue_lat ?? undefined);
+        setHomeVenueLng(teamData.venue_lng ?? undefined);
       } else {
         // No saved venue — leave blank so LocationPicker is shown
         setHomeVenue('');
@@ -505,7 +514,7 @@ export default function QuickAddGameModal({
       }
       setHomeVenueLocked(true); // Re-lock whenever team changes
     }
-  }, [currentTeam, visible, myTeams]);
+  }, [currentTeam, visible, myTeams, initialData]);
 
   // Debounced search: queries the API for teams matching the typed text
   const handleOpponentSearchChange = (text: string) => {
@@ -602,11 +611,11 @@ export default function QuickAddGameModal({
   };
 
   const handleSave = () => {
-    if (!validateForm() || submitting) {
+    if (!validateForm() || submitting || uploadingImage) {
       return;
     }
 
-    const formattedDate = selectedDate.toISOString().split('T')[0];
+    const formattedDate = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
     const formattedTime = formatGameTime(selectedTime);
     const parsedAttendance = expectedAttendance ? parseInt(expectedAttendance, 10) : undefined;
     const parsedDonationGoal = donationGoal ? parseFloat(donationGoal) : undefined;
@@ -622,6 +631,7 @@ export default function QuickAddGameModal({
       formattedDate,
       formattedTime,
       gameType,
+      liveWindowHours: !initialData || liveWindowChanged ? liveWindowHours : undefined,
       expectedAttendance: parsedAttendance,
       eventType: isCompetitive ? 'game' : eventType,
       eventDescription,
@@ -679,9 +689,15 @@ export default function QuickAddGameModal({
           }
         }
 
-        onSave(finalData);
+        const saved = await onSave(finalData);
+        if (saved === false) return;
         resetForm();
         onClose();
+      } catch (error) {
+        Alert.alert(
+          'Unable to save event',
+          error instanceof Error ? error.message : 'Please try again.'
+        );
       } finally {
         setSubmitting(false);
       }
@@ -698,10 +714,10 @@ export default function QuickAddGameModal({
     setSelectedDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
     setSelectedTime(new Date(new Date().setHours(19, 0, 0, 0)));
     setGameType('home');
+    setLiveWindowHours(5);
+    setLiveWindowChanged(false);
     setErrors({});
     setBannerUrl(null);
-    setEditingImageUri(null);
-    setUploadingCustomBanner(false);
     setIsCompetitive(true);
     setEventType('game');
     setExpectedAttendance('');
@@ -718,113 +734,6 @@ export default function QuickAddGameModal({
     onClose();
   };
 
-  const pickCustomBanner = async () => {
-    try {
-      const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (result.granted === false) {
-        Alert.alert(
-          'Permission Required',
-          'Please allow access to your photos to upload a banner.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
-          ]
-        );
-        return;
-      }
-
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        ...pickerMediaTypesProp(),
-        allowsEditing: true,
-        // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
-        // crop at the displayed ratio so uploads aren't re-cropped at render time.
-        aspect: [4, 5],
-        quality: 0.9,
-        exif: false,
-      });
-
-      if (!pickerResult.canceled && pickerResult.assets[0]) {
-        const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
-        await uploadCustomBanner(localUri);
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
-    }
-  };
-
-  const takeCustomBannerPhoto = async () => {
-    try {
-      const result = await ImagePicker.requestCameraPermissionsAsync();
-      if (result.granted === false) {
-        Alert.alert('Permission Required', 'Please allow camera access to take a banner photo.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        ]);
-        return;
-      }
-
-      const pickerResult = await ImagePicker.launchCameraAsync({
-        ...pickerMediaTypesProp(),
-        allowsEditing: true,
-        // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
-        // crop at the displayed ratio so uploads aren't re-cropped at render time.
-        aspect: [4, 5],
-        quality: 0.9,
-        exif: false,
-      });
-
-      if (!pickerResult.canceled && pickerResult.assets[0]) {
-        const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
-        await uploadCustomBanner(localUri);
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
-    }
-  };
-
-  const uploadCustomBanner = async (uri: string) => {
-    setUploadingCustomBanner(true);
-    try {
-      // Upload using dynamic API base
-      const uploaded = await uploadFile(getApiBaseUrl(), uri, 'custom-banner.jpg', 'image/jpeg');
-
-      const url = uploaded?.url || uploaded?.path;
-
-      if (url) {
-        setBannerUrl(url);
-      } else {
-        throw new Error('Upload failed - no URL returned');
-      }
-    } catch (error: any) {
-      Alert.alert(
-        'Upload Failed',
-        toUserMessage(error, 'Failed to upload banner. Please try again.')
-      );
-    } finally {
-      setUploadingCustomBanner(false);
-    }
-  };
-
-  const showCustomBannerOptions = () => {
-    Alert.alert('Upload Custom Banner', 'Choose how you want to add your game banner', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Photo Library', onPress: pickCustomBanner },
-      { text: 'Take Photo', onPress: takeCustomBannerPhoto },
-    ]);
-  };
-
-  const removeCustomBanner = () => {
-    Alert.alert(
-      'Remove Custom Banner',
-      'This will remove your custom banner and use the auto-generated one instead.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => setBannerUrl(null) },
-      ]
-    );
-  };
-
-  // True when the current team has a real saved venue address
   const teamHasVenue = !!teams.find(t => t.name === currentTeam)?.venue_address;
 
   return (
@@ -860,10 +769,10 @@ export default function QuickAddGameModal({
             <Pressable
               style={[
                 styles.headerButton,
-                (uploadingBanner || submitting) && styles.headerButtonDisabled,
+                (uploadingBanner || submitting || uploadingImage) && styles.headerButtonDisabled,
               ]}
               onPress={handleSave}
-              disabled={uploadingBanner || submitting}
+              disabled={uploadingBanner || submitting || uploadingImage}
             >
               {submitting ? (
                 <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
@@ -958,6 +867,9 @@ export default function QuickAddGameModal({
                       </Text>
                     </View>
                     <Pressable
+                      accessibilityRole="switch"
+                      accessibilityLabel="Competitive game"
+                      accessibilityState={{ checked: isCompetitive }}
                       style={[
                         styles.toggle,
                         {
@@ -1587,160 +1499,93 @@ export default function QuickAddGameModal({
               </View>
             )}
 
-            {/* Enhanced Game Preview */}
-            {currentTeam.trim() &&
-              (!isCompetitive || opponent.trim()) &&
-              !errors.currentTeam &&
-              !errors.opponent &&
-              !errors.date &&
-              renderLockedSection(
-                <View
-                  style={[
-                    styles.previewCard,
-                    {
-                      backgroundColor: Colors[colorScheme].surface,
-                      borderColor: Colors[colorScheme].border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>
-                    {isCompetitive ? 'Game Preview' : 'Event Preview'}
-                  </Text>
+            {renderLockedSection(
+              <EventLiveWindowPicker
+                value={
+                  initialData && !liveWindowChanged ? initialData.liveWindowHours : liveWindowHours
+                }
+                onChange={hours => {
+                  setLiveWindowHours(hours);
+                  setLiveWindowChanged(true);
+                }}
+              />
+            )}
 
-                  {/* Custom Banner Upload Section */}
-                  <View style={styles.bannerUploadSection}>
-                    <Text style={[styles.bannerUploadLabel, { color: Colors[colorScheme].text }]}>
-                      {isCompetitive ? 'Game Banner' : 'Event Banner'}
-                    </Text>
+            {/* Both event types expose the same banner frame and crop controls. */}
+            {renderLockedSection(
+              <View
+                style={[
+                  styles.previewCard,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
+                <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>
+                  {isCompetitive ? 'Game Preview' : 'Event Preview'}
+                </Text>
 
-                    {bannerUrl ? (
-                      // Show custom uploaded banner
-                      <View style={styles.customBannerContainer}>
-                        <Image
-                          source={{ uri: optimizeImageUrl(bannerUrl, 1200) }}
-                          style={styles.customBannerImage}
-                          resizeMode="cover"
-                        />
-                        <View style={styles.customBannerActions}>
-                          <Pressable
-                            style={[
-                              styles.bannerActionButton,
-                              { backgroundColor: Colors[colorScheme].tint },
-                            ]}
-                            onPress={showCustomBannerOptions}
-                            disabled={uploadingCustomBanner}
-                          >
-                            <Ionicons name="camera-outline" size={16} color="#fff" />
-                            <Text style={styles.bannerActionText}>
-                              {uploadingCustomBanner ? 'Uploading...' : 'Change'}
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            style={[styles.bannerActionButton, { backgroundColor: '#EF4444' }]}
-                            onPress={removeCustomBanner}
-                            disabled={uploadingCustomBanner}
-                          >
-                            <Ionicons name="trash-outline" size={16} color="#fff" />
-                            <Text style={styles.bannerActionText}>Remove</Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    ) : (
-                      // Show auto-generated banner with upload option
-                      <View>
-                        <View style={styles.matchupContainer}>
-                          <ViewShot
-                            ref={viewShotRef}
-                            options={{ format: 'png', quality: 0.9 }}
-                            style={{ width: '100%' }}
-                          >
-                            {/* Render MatchBanner so appearance and images are visible in the preview */}
-                            <MatchBanner
-                              leftImage={
-                                isCompetitive
-                                  ? getTeamLogo(getHomeAwayTeams().homeTeam) || undefined
-                                  : undefined
-                              }
-                              rightImage={
-                                isCompetitive
-                                  ? getTeamLogo(getHomeAwayTeams().awayTeam) || undefined
-                                  : undefined
-                              }
-                              leftName={
-                                isCompetitive
-                                  ? getHomeAwayTeams().homeTeam
-                                  : eventTitle.trim() || 'Event'
-                              }
-                              rightName={
-                                isCompetitive
-                                  ? getHomeAwayTeams().awayTeam
-                                  : EVENT_TYPES.find(t => t.value === eventType)?.label || 'Event'
-                              }
-                              height={240}
-                              variant="compact"
-                              leftColor={
-                                isCompetitive
-                                  ? (teams.find(t => t.name === getHomeAwayTeams().homeTeam) as any)
-                                      ?.color
-                                  : undefined
-                              }
-                              rightColor={
-                                isCompetitive
-                                  ? (teams.find(t => t.name === getHomeAwayTeams().awayTeam) as any)
-                                      ?.color
-                                  : undefined
-                              }
-                              appearance={appearance}
-                            />
-                          </ViewShot>
-                        </View>
-
-                        <View style={styles.bannerOptionsRow}>
-                          <Pressable
-                            style={[
-                              styles.bannerOptionButton,
-                              { backgroundColor: Colors[colorScheme].tint },
-                            ]}
-                            onPress={showCustomBannerOptions}
-                            disabled={uploadingCustomBanner}
-                          >
-                            <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
-                            <Text style={styles.bannerOptionText}>
-                              {uploadingCustomBanner ? 'Uploading...' : 'Upload Custom'}
-                            </Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    )}
+                <EventPreviewImageField
+                  value={bannerUrl}
+                  onChange={setBannerUrl}
+                  label={isCompetitive ? 'Game Banner' : 'Event Banner'}
+                  disabled={submitting}
+                  onUploadingChange={setUploadingImage}
+                />
+                {!bannerUrl && isCompetitive && currentTeam.trim() && opponent.trim() && (
+                  <View onLayout={event => setPreviewWidth(event.nativeEvent.layout.width)}>
+                    <ViewShot
+                      ref={viewShotRef}
+                      options={{ format: 'png', quality: 0.9 }}
+                      style={{ width: '100%' }}
+                    >
+                      <MatchBanner
+                        leftName={getHomeAwayTeams().homeTeam}
+                        rightName={getHomeAwayTeams().awayTeam}
+                        leftImage={getTeamLogo(getHomeAwayTeams().homeTeam) || undefined}
+                        rightImage={getTeamLogo(getHomeAwayTeams().awayTeam) || undefined}
+                        height={previewWidth / EVENT_BANNER_ASPECT_RATIO}
+                        variant="compact"
+                        appearance={appearance}
+                      />
+                    </ViewShot>
                   </View>
+                )}
 
-                  {/* Game Details */}
-                  <View
-                    style={[styles.gameDetails, { borderTopColor: Colors[colorScheme].border }]}
-                  >
-                    <View style={styles.detailRow}>
-                      <Ionicons
-                        name="location-outline"
-                        size={16}
-                        color={Colors[colorScheme].mutedText}
-                      />
-                      <Text style={[styles.detailText, { color: Colors[colorScheme].mutedText }]}>
-                        {gameType === 'home' ? 'Home Stadium' : 'Away Venue'}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Ionicons
-                        name="calendar-outline"
-                        size={16}
-                        color={Colors[colorScheme].mutedText}
-                      />
-                      <Text style={[styles.detailText, { color: Colors[colorScheme].mutedText }]}>
-                        {gameType === 'home' ? 'Home Game' : 'Away Game'}
-                      </Text>
-                    </View>
+                {/* Game Details */}
+                <View style={[styles.gameDetails, { borderTopColor: Colors[colorScheme].border }]}>
+                  <View style={styles.detailRow}>
+                    <Ionicons
+                      name="location-outline"
+                      size={16}
+                      color={Colors[colorScheme].mutedText}
+                    />
+                    <Text style={[styles.detailText, { color: Colors[colorScheme].mutedText }]}>
+                      {!isCompetitive
+                        ? eventType === 'team_trip'
+                          ? destination || 'Choose a destination'
+                          : eventType === 'watch_party'
+                            ? watchLocation || 'Choose a venue'
+                            : homeVenue || 'Choose a venue'
+                        : gameType === 'home'
+                          ? homeVenue || 'Choose a home venue'
+                          : awayVenue || 'Choose an away venue'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={16}
+                      color={Colors[colorScheme].mutedText}
+                    />
+                    <Text style={[styles.detailText, { color: Colors[colorScheme].mutedText }]}>
+                      {gameType === 'home' ? 'Home Game' : 'Away Game'}
+                    </Text>
                   </View>
                 </View>
-              )}
+              </View>
+            )}
 
             <View style={styles.bottomSpacer} />
           </ScrollView>
@@ -2084,31 +1929,6 @@ export default function QuickAddGameModal({
           </Modal>
         </View>
       </Modal>
-
-      <ImageEditor
-        visible={editorVisible}
-        imageUri={editingImageUri}
-        onClose={() => setEditorVisible(false)}
-        onSave={async uri => {
-          // upload edited image and set as bannerUrl
-          setEditorVisible(false);
-          setUploadingBanner(true);
-          try {
-            const uploaded = await uploadFile(
-              getApiBaseUrl(),
-              uri,
-              'edited-banner.png',
-              'image/png'
-            );
-            const url = uploaded?.url || uploaded?.path || null;
-            if (url) setBannerUrl(url);
-          } catch (e) {
-            if (__DEV__) console.warn('Upload edited image failed', e);
-          } finally {
-            setUploadingBanner(false);
-          }
-        }}
-      />
     </>
   );
 }

@@ -1,3 +1,4 @@
+import { releaseAdPurchaseHolds, releaseExpiredAdPurchaseHolds } from '../lib/adInventory.js';
 import cron from 'node-cron';
 import { debugLog } from '../lib/debugLog.js';
 import { runStripeSubscriptionReconciliation } from '../lib/billingLifecycle.js';
@@ -34,27 +35,21 @@ export async function recoverSlotFullRefundReleaseFailures(referenceTime = new D
     if (metadata.release_pending !== true) continue;
     if (!tx.order_id) continue;
 
-    await prisma.$transaction([
-      prisma.adReservation.deleteMany({ where: { ad_id: tx.order_id } }),
-      prisma.ad.updateMany({
-        where: {
-          id: tx.order_id,
-          payment_status: { in: ['hold', 'pending_approval'] },
+    const reference = tx.stripe_session_id || tx.stripe_payment_intent_id;
+    if (!reference) continue; // Legacy recovery needs an explicit purchase identity.
+    await releaseAdPurchaseHolds(tx.order_id, reference);
+    await prisma.transactionLog.update({
+      where: { id: tx.id },
+      data: {
+        status: 'REFUNDED',
+        metadata: {
+          ...metadata,
+          release_pending: false,
+          release_recovered_at: new Date().toISOString(),
         },
-        data: { payment_status: 'unpaid' },
-      }),
-      prisma.transactionLog.update({
-        where: { id: tx.id },
-        data: {
-          status: 'REFUNDED',
-          metadata: {
-            ...metadata,
-            release_pending: false,
-            release_recovered_at: new Date().toISOString(),
-          },
-        },
-      }),
-    ]);
+      },
+    });
+
     recovered += 1;
   }
 
@@ -242,31 +237,8 @@ export function startAdGoLiveCheck() {
         debugLog(`[ad-lifecycle] Archived ${expiredAds.length} expired ads`);
       }
 
-      // 3. Clean up stale holds (older than 1 hour since last status change)
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      const staleHoldAds = await prisma.ad.findMany({
-        where: {
-          payment_status: 'hold',
-          updated_at: { lt: oneHourAgo },
-        },
-        select: { id: true },
-        take: 1000,
-      });
-      if (staleHoldAds.length > 0) {
-        const staleAdIds = staleHoldAds.map(a => a.id);
-        // Idempotent: only update ads still in 'hold' status (prevents double-processing on retry)
-        await prisma.$transaction([
-          prisma.adReservation.deleteMany({ where: { ad_id: { in: staleAdIds } } }),
-          prisma.ad.updateMany({
-            where: { id: { in: staleAdIds }, payment_status: 'hold' },
-            data: { payment_status: 'unpaid' },
-          }),
-        ]);
-      }
-      const staleHolds = { count: staleHoldAds.length };
-      if (staleHolds.count > 0) {
-        debugLog(`[ad-lifecycle] Released ${staleHolds.count} stale ad holds`);
-      }
+      // Expire only the purchase's temporary rows; paid and ambiguous legacy dates survive.
+      const staleHolds = await releaseExpiredAdPurchaseHolds();
 
       // 4. Release stale pending approvals that never progressed to checkout.
       const stalePendingApprovalCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -281,22 +253,30 @@ export function startAdGoLiveCheck() {
       });
       if (stalePendingApprovalAds.length > 0) {
         const stalePendingApprovalIds = stalePendingApprovalAds.map(ad => ad.id);
-        await prisma.$transaction([
-          prisma.adReservation.deleteMany({ where: { ad_id: { in: stalePendingApprovalIds } } }),
-          prisma.ad.updateMany({
-            where: {
-              id: { in: stalePendingApprovalIds },
-              status: 'pending',
-              payment_status: 'pending_approval',
-            },
-            data: {
-              status: 'draft',
-              payment_status: 'unpaid',
-              admin_note:
-                '[Auto] Ad approval request expired after 24 hours without payment. Re-submit to re-reserve dates.',
-            },
-          }),
-        ]);
+        await prisma.$transaction(
+          [
+            prisma.adReservation.deleteMany({
+              where: {
+                ad_id: { in: stalePendingApprovalIds },
+                ad: { status: 'pending', payment_status: 'pending_approval' },
+              },
+            }),
+            prisma.ad.updateMany({
+              where: {
+                id: { in: stalePendingApprovalIds },
+                status: 'pending',
+                payment_status: 'pending_approval',
+              },
+              data: {
+                status: 'draft',
+                payment_status: 'unpaid',
+                admin_note:
+                  '[Auto] Ad approval request expired after 24 hours without payment. Re-submit to re-reserve dates.',
+              },
+            }),
+          ],
+          { isolationLevel: 'Serializable' }
+        );
         debugLog(
           `[ad-lifecycle] Released ${stalePendingApprovalAds.length} stale pending approval ads (>24 hours)`
         );
@@ -336,13 +316,21 @@ export function startAdGoLiveCheck() {
       });
       if (unpaidAds.length > 0) {
         const unpaidAdIds = unpaidAds.map(a => a.id);
-        await prisma.$transaction([
-          prisma.adReservation.deleteMany({ where: { ad_id: { in: unpaidAdIds } } }),
-          prisma.ad.updateMany({
-            where: { id: { in: unpaidAdIds } },
-            data: { status: 'archived' },
-          }),
-        ]);
+        await prisma.$transaction(
+          [
+            prisma.adReservation.deleteMany({
+              where: {
+                ad_id: { in: unpaidAdIds },
+                ad: { status: 'approved', payment_status: 'unpaid' },
+              },
+            }),
+            prisma.ad.updateMany({
+              where: { id: { in: unpaidAdIds }, status: 'approved', payment_status: 'unpaid' },
+              data: { status: 'archived' },
+            }),
+          ],
+          { isolationLevel: 'Serializable' }
+        );
         debugLog(`[ad-lifecycle] Archived ${unpaidAds.length} unpaid approved ads (>30 days)`);
       }
 

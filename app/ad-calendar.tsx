@@ -661,6 +661,21 @@ function AdCalendarScreen() {
           promo_code: promo || undefined,
           checkout_mode: 'web',
         });
+        if (data?.free) {
+          setSubmitting(false);
+          router.replace({
+            // nav-safe: sequential purchase flow — promo checkout → confirmation
+            pathname: '/ad-confirmation',
+            params: {
+              ad_id: String(adId),
+              selectedDates: dates.join(', '),
+              totalAmount: '$0.00 (promo)',
+              purchasedHours: String(purchasedHours),
+              purchasedDays: String(dates.length),
+            },
+          });
+          return;
+        }
         if (!data?.url || typeof data.url !== 'string') {
           throw new Error('Unable to start web checkout');
         }
@@ -684,24 +699,6 @@ function AdCalendarScreen() {
         setSubmitting(false);
         return;
       }
-    }
-
-    // Stripe must be configured — try build-time config first, then fetch from server
-    let stripeKey = getConfig().stripePublishableKey;
-    if (!stripeKey || !stripeKey.startsWith('pk_')) {
-      try {
-        const serverCfg = await Payments.getConfig();
-        stripeKey = serverCfg?.stripe_publishable_key || '';
-      } catch {
-        /* server config fetch failed — fall through to error */
-      }
-    }
-    if (!stripeKey || !stripeKey.startsWith('pk_')) {
-      Alert.alert(
-        'Payments Not Ready',
-        'Payment configuration is missing. Please update the app or try again later.'
-      );
-      return;
     }
 
     // Disable unsaved changes guard during payment flow
@@ -755,6 +752,26 @@ function AdCalendarScreen() {
             totalAmount: paidAmount,
           },
         });
+        return;
+      }
+
+      // Stripe must be configured — try build-time config first, then fetch from server
+      let stripeKey = getConfig().stripePublishableKey;
+      if (!stripeKey || !stripeKey.startsWith('pk_')) {
+        try {
+          const serverCfg = await Payments.getConfig();
+          stripeKey = serverCfg?.stripe_publishable_key || '';
+        } catch {
+          /* server config fetch failed — fall through to error */
+        }
+      }
+      if (!stripeKey || !stripeKey.startsWith('pk_')) {
+        Alert.alert(
+          'Payments Not Ready',
+          'Payment configuration is missing. Please update the app or try again later.'
+        );
+        setSubmitting(false);
+        setDirty(selected.size > 0);
         return;
       }
 

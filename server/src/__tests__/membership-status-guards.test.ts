@@ -63,14 +63,22 @@ describe('membership status guards', () => {
     expect(orgsSrc).toMatch(/\/:id\/join-requests[\s\S]{0,2500}?isOrganizationOwnerScoped\(/);
   });
 
-  it('the org-owner helper still requires an ACTIVE OWNER membership (invariant moved, not lost)', () => {
-    // isOrganizationOwner is the single home of the owner check now. It must
-    // require status active AND the owner role before the legacy pointer fallback.
-    expect(orgAuthSrc).toMatch(/export async function isOrganizationOwner/);
-    expect(orgAuthSrc).toMatch(
-      /membership\?\.status === 'active' && membership\.role === ORGANIZATION_OWNER_ROLE/
+  it('canonical owner queries select only ACTIVE OWNER memberships before the legacy fallback', () => {
+    const singleStart = orgAuthSrc.indexOf('export async function getOrganizationOwner(');
+    const batchStart = orgAuthSrc.indexOf('export async function getOwnedOrganizationIds(');
+    const wrapperStart = orgAuthSrc.indexOf('export async function isOrganizationOwner(');
+    for (const body of [
+      orgAuthSrc.slice(singleStart, batchStart),
+      orgAuthSrc.slice(batchStart, wrapperStart),
+    ]) {
+      expect(body).toMatch(/m\.role = 'owner' AND m\.status = 'active'/);
+      expect(body).toMatch(
+        /COALESCE\([\s\S]*?SELECT m\.user_id[\s\S]*?LIMIT 1\),\s*o\.league_owner_id/
+      );
+    }
+    expect(orgAuthSrc.slice(wrapperStart)).toMatch(
+      /return \(await getOrganizationOwner\(orgId\)\)\?\.id === userId/
     );
-    expect(orgAuthSrc).toMatch(/ORGANIZATION_OWNER_ROLE = 'owner'/);
   });
 
   it('org transfer-ownership requires active current + new owner memberships', () => {

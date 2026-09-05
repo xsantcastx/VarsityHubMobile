@@ -1,3 +1,4 @@
+import { buildQuickGamePayload } from '@/utils/quickGamePayload';
 import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
@@ -640,142 +641,10 @@ function ManageSeasonScreen() {
     return trimmed.length > 0 ? trimmed : undefined;
   };
 
-  const parseDateParts = (date: string) => {
-    const [yearStr, monthStr, dayStr] = (date || '').split('-');
-    const year = parseInt(yearStr || '', 10);
-    const month = parseInt(monthStr || '', 10);
-    const day = parseInt(dayStr || '', 10);
-    return { year, month, day };
-  };
-
-  const parseMeridiemTime = (time: string) => {
-    const normalized = (time || '').replace(/\u202f/g, ' ').trim();
-    const match = normalized.match(/^(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?$/i);
-    if (!match) {
-      throw new Error('Invalid time format');
-    }
-    let hours = parseInt(match[1], 10);
-    const minutes = parseInt(match[2] ?? '0', 10);
-    const meridiem = (match[3] || '').toUpperCase();
-    if (meridiem === 'PM' && hours < 12) hours += 12;
-    if (meridiem === 'AM' && hours === 12) hours = 0;
-    return { hours, minutes };
-  };
-
   const handleSaveQuickGame = async (gameData: QuickGameData) => {
     const isEditing = !!gameData.id;
     try {
-      const { year, month, day } = parseDateParts(gameData.date);
-      const { hours, minutes } = parseMeridiemTime(gameData.time);
-
-      if ([year, month, day, hours, minutes].some(val => Number.isNaN(val))) {
-        throw new Error('Invalid date/time combination');
-      }
-
-      // True-instant encoding: build the Date from local parts (NOT Date.UTC) so
-      // "7:00 PM" is stored as the correct UTC instant of the coach's local time
-      // and renders back as 7:00 PM for same-region viewers. This matches the
-      // bulk-add and fan-event paths; the old Date.UTC form stored wall-clock as
-      // UTC and showed a shifted time to everyone not in UTC.
-      const gameDateTime = new Date(year, month - 1, day, hours, minutes);
-
-      // Validate the date
-      if (isNaN(gameDateTime.getTime())) {
-        throw new Error('Invalid date/time combination');
-      }
-
-      const homeTeamId = sanitizeTeamId(
-        gameData.type === 'home' ? gameData.currentTeamId : gameData.opponentTeamId
-      );
-      const awayTeamId = sanitizeTeamId(
-        gameData.type === 'home' ? gameData.opponentTeamId : gameData.currentTeamId
-      );
-
-      // Create game data for API. For non-competitive events
-      // `gameData.currentTeam` carries the user-entered event title
-      // (buildQuickGameData) — use it verbatim; every event is one-of-one,
-      // never "<title> Event".
-      const gamePayload: Record<string, any> = {
-        title: gameData.isCompetitive
-          ? `${gameData.currentTeam} vs ${gameData.opponent}`
-          : gameData.currentTeam,
-        date: gameDateTime.toISOString(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        description:
-          gameData.description ||
-          (gameData.isCompetitive
-            ? `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`
-            : gameData.currentTeam),
-      };
-
-      // Only add team fields if this is a competitive game
-      if (gameData.isCompetitive) {
-        gamePayload.home_team = gameData.type === 'home' ? gameData.currentTeam : gameData.opponent;
-        gamePayload.away_team = gameData.type === 'home' ? gameData.opponent : gameData.currentTeam;
-
-        if (homeTeamId) gamePayload.home_team_id = homeTeamId;
-        if (awayTeamId) {
-          gamePayload.away_team_id = awayTeamId;
-        } else if (gameData.opponent) {
-          gamePayload.away_team_name = gameData.opponent;
-        }
-      } else {
-        // For non-competitive events, still send home_team_id for approval workflow
-        if (gameData.currentTeamId) {
-          gamePayload.home_team_id = gameData.currentTeamId;
-        }
-      }
-
-      // Add expected attendance if provided
-      if (gameData.expectedAttendance) {
-        gamePayload.expected_attendance = gameData.expectedAttendance;
-      }
-
-      // Add event type
-      if (gameData.eventType) {
-        gamePayload.event_type = gameData.eventType;
-      }
-
-      // Add event type-specific fields
-      if (gameData.donationGoal) {
-        gamePayload.donation_goal = gameData.donationGoal;
-      }
-      if (gameData.watchLocation) {
-        gamePayload.watch_location = gameData.watchLocation;
-        if (gameData.watchLocationLat) gamePayload.watch_location_lat = gameData.watchLocationLat;
-        if (gameData.watchLocationLng) gamePayload.watch_location_lng = gameData.watchLocationLng;
-        if (gameData.watchLocationPlaceId)
-          gamePayload.watch_location_place_id = gameData.watchLocationPlaceId;
-      }
-      if (gameData.destination) {
-        gamePayload.destination = gameData.destination;
-      }
-
-      // Add game venue location — always ensure location is set (server requires it)
-      const venue = gameData.type === 'home' ? gameData.homeVenue : gameData.awayVenue;
-      const venueLat = gameData.type === 'home' ? gameData.homeVenueLat : gameData.awayVenueLat;
-      const venueLng = gameData.type === 'home' ? gameData.homeVenueLng : gameData.awayVenueLng;
-      if (venue) {
-        gamePayload.location = venue;
-        if (venueLat) gamePayload.latitude = venueLat;
-        if (venueLng) gamePayload.longitude = venueLng;
-      } else {
-        // Fallback for non-competitive events: use watch location, destination, or a default
-        gamePayload.location = gameData.watchLocation || gameData.destination || 'TBD';
-      }
-
-      // Include banner URL if provided by the QuickAdd modal
-      if (gameData.banner_url) {
-        gamePayload.banner_url = gameData.banner_url;
-        gamePayload.cover_image_url = gameData.banner_url; // Also set cover_image_url to the same value
-      } else if (gameData.cover_image_url) {
-        gamePayload.cover_image_url = gameData.cover_image_url;
-      }
-      // Include appearance preset if provided
-      if (gameData.appearance) {
-        // Map to backend field - use `appearance` or `banner_style` depending on API
-        gamePayload.appearance = gameData.appearance;
-      }
+      const gamePayload = buildQuickGamePayload(gameData);
 
       // Save to backend API (create or update)
       const savedGame = isEditing
@@ -826,7 +695,7 @@ function ManageSeasonScreen() {
       if (
         handleCoachAccessError(router, error, isEditing ? 'updating games' : 'creating games', user)
       ) {
-        return;
+        return false;
       }
       if (__DEV__) console.error('Error adding quick game:', error);
       if (__DEV__) console.error('Error status:', error?.status);
@@ -847,6 +716,7 @@ function ManageSeasonScreen() {
         message: `Failed to save event: ${errorMsg}${details}`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
+      return false;
     }
   };
 
@@ -878,6 +748,7 @@ function ManageSeasonScreen() {
         date: gameDateTime.toISOString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         location: gameData.location,
+        live_window_hours_after_start: gameData.liveWindowHours,
         description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: ${gameData.currentTeam} vs ${gameData.opponent}`,
       };
 
@@ -929,7 +800,7 @@ function ManageSeasonScreen() {
       });
     } catch (error) {
       if (handleCoachAccessError(router, error, 'creating games', user)) {
-        return;
+        return false;
       }
       setActionModal({
         visible: true,
@@ -938,6 +809,7 @@ function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
       if (__DEV__) console.error('Error adding game:', error);
+      return false;
     }
   };
 

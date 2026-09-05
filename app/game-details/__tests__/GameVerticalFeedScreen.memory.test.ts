@@ -40,7 +40,11 @@ describe('profile grid thumbnails', () => {
     const optimized = profileSource.match(
       /optimizeImageUrl\(media\.previewUrl \|\| media\.displayImageUrl!, 500\)/g
     );
-    expect(optimized?.length).toBe(3); // posts, replies, upvotes grids
+    expect(optimized?.length).toBe(1); // Shared tile renderer used by all three tabs.
+    expect(profileSource).toContain('renderPostGridTile({ item, index, sourceItems: data');
+    for (const data of ['posts', 'replies', 'upvotes']) {
+      expect(profileSource).toMatch(new RegExp(`renderPostGridList\\(\\{\\s*data: ${data}`));
+    }
     expect(profileSource).not.toContain('source={{ uri: media.displayImageUrl! }}');
   });
 });

@@ -2,7 +2,14 @@ import { Router } from 'express';
 import escapeHtml from 'escape-html';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { isGamePubliclyVisible } from '../lib/gameApproval.js';
+import {
+  canViewGameRecord,
+  canViewEventRecord,
+  GAME_VISIBILITY_SELECT,
+  EVENT_VISIBILITY_SELECT,
+} from '../lib/entityVisibility.js';
+import { getPostVisibilityFilters, mergeAndWhere } from '../lib/privacyUtils.js';
+import { detectMediaType } from '../lib/mediaUtils.js';
 import { isAllowedMediaUrl } from '../lib/mediaHosts.js';
 
 /**
@@ -32,16 +39,24 @@ function firstAllowedImageUrl(...candidates: Array<string | null | undefined>): 
 }
 
 async function representativePostImageUrl(where: any): Promise<string | null> {
-  const post = await prisma.post.findFirst({
-    where: {
-      ...where,
-      deleted_at: null,
-      media_url: { not: null },
-    },
+  const visibility = await getPostVisibilityFilters(null);
+  const postWhere = { ...where, deleted_at: null, media_url: { not: null } };
+  mergeAndWhere(postWhere, visibility.authorWhere);
+  mergeAndWhere(postWhere, visibility.privateTeamWhere);
+  const posts = await prisma.post.findMany({
+    where: postWhere,
     select: { media_url: true, poster_url: true },
     orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
+    take: 50,
   });
-  return firstAllowedImageUrl(post?.poster_url, post?.media_url);
+  for (const post of posts) {
+    const image = firstAllowedImageUrl(
+      post.poster_url,
+      detectMediaType(post.media_url) === 'image' ? post.media_url : null
+    );
+    if (image) return image;
+  }
+  return null;
 }
 
 function genericOgPage(canonicalUrl: string): string {
@@ -118,11 +133,12 @@ ogRouter.get(
     const id = String(req.params.id);
     const canonicalUrl = `${CANONICAL_APP_BASE_URL}/games/${encodeURIComponent(id)}`;
     res.set('Content-Type', 'text/html; charset=utf-8');
-    res.set('Cache-Control', 'public, max-age=300');
+    res.set('Cache-Control', 'no-store');
 
     const game = await prisma.game.findUnique({
       where: { id },
       select: {
+        ...GAME_VISIBILITY_SELECT,
         title: true,
         date: true,
         location: true,
@@ -136,7 +152,7 @@ ogRouter.get(
     // Only ever reveal data GET /games already treats as public — no leaking
     // pending/rejected games, nor upcoming games whose opponent hasn't consented
     // (or declined), through this side door.
-    if (!game || !isGamePubliclyVisible(game)) {
+    if (!game || !(await canViewGameRecord(game))) {
       return res.send(genericOgPage(canonicalUrl));
     }
     const imageUrl =
@@ -161,11 +177,12 @@ ogRouter.get(
     const id = String(req.params.id);
     const canonicalUrl = `${CANONICAL_APP_BASE_URL}/events/${encodeURIComponent(id)}`;
     res.set('Content-Type', 'text/html; charset=utf-8');
-    res.set('Cache-Control', 'public, max-age=300');
+    res.set('Cache-Control', 'no-store');
 
     const event = await prisma.event.findUnique({
       where: { id },
       select: {
+        ...EVENT_VISIBILITY_SELECT,
         title: true,
         date: true,
         location: true,
@@ -174,6 +191,7 @@ ogRouter.get(
         status: true,
         game: {
           select: {
+            ...GAME_VISIBILITY_SELECT,
             banner_url: true,
             cover_image_url: true,
             approval_status: true,
@@ -190,8 +208,7 @@ ogRouter.get(
     // gate: an upcoming fixture whose opponent is pending/declined stays private.
     const eventPublic =
       !!event && event.approval_status === 'approved' && event.status === 'approved';
-    const gamePublic = !event?.game || isGamePubliclyVisible(event.game);
-    if (!eventPublic || !gamePublic) {
+    if (!eventPublic || !(await canViewEventRecord(event))) {
       return res.send(genericOgPage(canonicalUrl));
     }
     const imageUrl =

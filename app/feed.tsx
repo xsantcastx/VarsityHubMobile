@@ -1,3 +1,4 @@
+import { EVENT_BANNER_ASPECT_RATIO } from '@/constants/eventPresentation';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
@@ -471,6 +472,8 @@ export default function FeedScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
+  const [eventEnrichmentPending, setEventEnrichmentPending] = useState(true);
+  const [eventEnrichmentFailed, setEventEnrichmentFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [webHydrated, setWebHydrated] = useState(Platform.OS !== 'web');
   const [games, setGames] = useState<GameItem[]>([]);
@@ -655,6 +658,8 @@ export default function FeedScreen() {
       const requestId = ++loadRequestIdRef.current;
       const isCurrentRequest = () => loadRequestIdRef.current === requestId;
       if (!silent) setLoading(true);
+      setEventEnrichmentPending(true);
+      setEventEnrichmentFailed(false);
       setError(null);
       try {
         const userPromise = getAuthSnapshot(checkAuth, user)
@@ -719,6 +724,7 @@ export default function FeedScreen() {
               queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
             })
             .catch((err: any) => {
+              if (!isCurrentRequest()) return null;
               if (__DEV__) console.error('[Feed] Failed to load games:', err);
               // If it's a network error, show a more helpful message
               if (err?.isNetworkError || err?.status === 0) {
@@ -897,6 +903,14 @@ export default function FeedScreen() {
             ]);
 
             if (!isCurrentRequest()) return;
+            setEventEnrichmentFailed(
+              [
+                proUpcomingData,
+                proPastData,
+                varsityhubUpcomingEventsData,
+                varsityhubPastEventsData,
+              ].some(data => data === null)
+            );
             const proPastRows = filterProEventsAlreadyRepresentedByGames(
               gameRows,
               normalizeFeedEvents(proPastData)
@@ -922,7 +936,10 @@ export default function FeedScreen() {
             if (!enrichmentRows.some(rows => rows.length > 0)) return;
             setGames(prev => dedupeFeedEntities(mergeFeedGames(prev, ...enrichmentRows)));
           } catch (enrichmentErr) {
+            if (isCurrentRequest()) setEventEnrichmentFailed(true);
             if (__DEV__) console.warn('[Feed] Event enrichment failed:', enrichmentErr);
+          } finally {
+            if (isCurrentRequest()) setEventEnrichmentPending(false);
           }
         })();
 
@@ -1070,6 +1087,8 @@ export default function FeedScreen() {
           }
         })();
       } catch (e: any) {
+        if (!isCurrentRequest()) return;
+        setEventEnrichmentPending(false);
         if (__DEV__) console.error('[Feed] Failed to load feed:', e);
         if (e?.isNetworkError || e?.status === 0) {
           setError('Unable to connect to server. Please check your internet connection.');
@@ -2417,7 +2436,15 @@ export default function FeedScreen() {
   }
 
   const showEmptyState =
-    !loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error;
+    !loading &&
+    !refreshing &&
+    !eventEnrichmentPending &&
+    !eventEnrichmentFailed &&
+    filtered.length === 0 &&
+    followedPosts.length === 0 &&
+    followedTeamsPosts.length === 0 &&
+    !error &&
+    !socialFeedWarning;
   const listHeader = (
     <>
       {error && (
@@ -2468,7 +2495,7 @@ export default function FeedScreen() {
         </View>
       )}
 
-      {!error && socialFeedWarning ? (
+      {!error && (socialFeedWarning || eventEnrichmentFailed) ? (
         <View
           testID="feed-bundle-warning"
           style={[
@@ -2490,7 +2517,7 @@ export default function FeedScreen() {
               { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
             ]}
           >
-            {socialFeedWarning}
+            {socialFeedWarning || 'Some events could not load. Pull to refresh or try again.'}
           </Text>
         </View>
       ) : null}
@@ -2529,7 +2556,7 @@ export default function FeedScreen() {
         Showing upcoming and recent games in your area.
       </Text>
 
-      {loading && (
+      {(loading || (eventEnrichmentPending && games.length === 0)) && (
         <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
           <PostCardSkeleton />
           <PostCardSkeleton />
@@ -3025,9 +3052,7 @@ const styles = StyleSheet.create({
   },
   singleEventCard: {
     width: '100%',
-    // Matches the event detail page's fixed banner height (GameDetailsScreen
-    // bannerHeight) so the same photo isn't cropped differently here vs there.
-    height: 240,
+    aspectRatio: EVENT_BANNER_ASPECT_RATIO,
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',

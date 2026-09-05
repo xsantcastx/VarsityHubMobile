@@ -153,10 +153,10 @@ describe('3c private-team posts excluded from feeds', () => {
     expect(read('routes', 'games.ts')).toMatch(/buildPrivateTeamGameVisibilityWhere/);
     expect(read('routes', 'events.ts')).toMatch(/buildPrivateTeamEventVisibilityWhere/);
   });
-  it('private-team exclusion list is cached and invalidated from team writes', () => {
+  it('private-team reads are fresh while team writes evict older replica keys', () => {
     const privacySrc = read('lib', 'privacyUtils.ts');
     expect(privacySrc).toMatch(/privacy:private_team_ids/);
-    expect(privacySrc).toMatch(/PRIVATE_TEAM_IDS_CACHE_TTL_S/);
+    expect(privacySrc).not.toMatch(/cacheGet|_privateTeamIdsCache/);
     expect(privacySrc).toMatch(/invalidatePrivateTeamIdsCache/);
 
     const teamsSrc = read('routes', 'teams.ts');

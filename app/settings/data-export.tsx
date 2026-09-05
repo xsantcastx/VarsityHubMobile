@@ -14,9 +14,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useColorScheme,
   View,
 } from 'react-native';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type ExportStatus = 'pending' | 'building' | 'ready' | 'expired' | 'failed';

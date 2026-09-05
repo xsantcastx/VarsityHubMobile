@@ -87,7 +87,7 @@ describe('account boundary invariants', () => {
 
     it('bootstrap does not abort active auth-establishing requests when no token is present yet', () => {
       expect(authProvider).toMatch(
-        /clearLocalAuthState = useCallback\(\(options\?: \{ abortInflight\?: boolean \}\)/
+        /clearLocalAuthState = useCallback\(\s*\(options\?: \{ abortInflight\?: boolean \}\)/
       );
       expect(authProvider).toMatch(
         /if \(options\?\.abortInflight !== false\) \{\s*abortAllInflight\('sign_out_or_session_expiry'\);/

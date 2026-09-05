@@ -2,7 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { describeDb } from './helpers/dbTestSuite.js';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
-import { app } from '../app.js';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+let app = '';
+let appProcess: ChildProcess | undefined;
 
 let prisma: any;
 let signJwt: any;
@@ -30,6 +33,55 @@ describeDb('Team entitlement enforcement', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
+    // Exercise the complete production middleware graph in an ordinary Node
+    // process; Jest's experimental ESM linker remains limited to fixture helpers.
+    const child = spawn(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        fileURLToPath(new URL('./helpers/full-app-test-server.mts', import.meta.url)),
+      ],
+      {
+        cwd: fileURLToPath(new URL('../../', import.meta.url)),
+        env: {
+          PATH: process.env.PATH,
+          HOME: process.env.HOME,
+          VARSITYHUB_ENV_PATH: '/dev/null',
+          DOTENV_CONFIG_PATH: '/dev/null',
+          DATABASE_URL: process.env.DATABASE_URL,
+          JWT_SECRET: process.env.JWT_SECRET,
+          NODE_ENV: 'test',
+        },
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      }
+    );
+    appProcess = child;
+    let diagnostics = '';
+    child.stdout?.on('data', () => {});
+    child.stderr?.on('data', chunk => {
+      diagnostics = (diagnostics + String(chunk)).slice(-5000);
+    });
+    app = await new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Full app did not start: ${diagnostics}`)),
+        20000
+      );
+      child.once('error', error => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once('exit', code => {
+        clearTimeout(timer);
+        reject(new Error(`Full app exited ${code}: ${diagnostics}`));
+      });
+      child.on('message', (message: any) => {
+        if (message?.type === 'ready' && /^http:\/\/127\.0\.0\.1:\d+$/.test(message.baseUrl)) {
+          clearTimeout(timer);
+          resolve(message.baseUrl);
+        }
+      });
+    });
 
     const passwordHash = await bcrypt.hash(PASSWORD, 10);
 
@@ -248,9 +300,20 @@ describeDb('Team entitlement enforcement', () => {
       },
     });
     createdUserIds.push(overflowUser.id);
-  });
+  }, 30000);
 
   afterAll(async () => {
+    if (appProcess && appProcess.exitCode === null && appProcess.signalCode === null) {
+      const child = appProcess;
+      await new Promise<void>(resolve => {
+        const timer = setTimeout(() => child.kill('SIGKILL'), 5000);
+        child.once('exit', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        child.kill('SIGTERM');
+      });
+    }
     if (!prisma) return;
 
     if (createdInviteIds.length) {
@@ -293,14 +356,23 @@ describeDb('Team entitlement enforcement', () => {
   });
 
   it('keeps public team detail readable but blocks privileged access to locked teams', async () => {
-    await request(app).get(`/teams/${lockedTeamId}`).expect(200);
+    expect(
+      await prisma.team.findUnique({
+        where: { id: lockedTeamId },
+        select: { id: true, status: true, is_private: true },
+      })
+    ).toEqual({ id: lockedTeamId, status: 'active', is_private: false });
+    await request(app).get(`/teams/${lockedTeamId}`).set('Accept', 'application/json').expect(200);
 
     const lockedRes = await request(app)
       .get(`/teams/${lockedTeamId}`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .expect(403);
+      .set('Accept', 'application/json')
+      .set('Authorization', `Bearer ${ownerToken}`);
 
-    expect(lockedRes.body.error).toBe('TEAM_PLAN_LOCKED');
+    expect({ status: lockedRes.status, error: lockedRes.body.error }).toEqual({
+      status: 403,
+      error: 'TEAM_PLAN_LOCKED',
+    });
   });
 
   it('blocks team edits and invites on locked teams', async () => {

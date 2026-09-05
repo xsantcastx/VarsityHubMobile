@@ -121,6 +121,7 @@ New code composes with these single patterns; never stack a parallel mechanism:
 - Web: Stripe PaymentSheet for both subscriptions and ads
 - Server enforces plan limits inside `$transaction` — race-condition safe
 - Ad booking horizon is 56 days max — enforced server-side
+- Ad inventory uses the single `server/src/lib/adInventory.ts` adapter: `AdReservation` stores paid dates, `AdSlotHold` stores expiring purchase-scoped holds, and settlement/refund/cancellation match purchase references. Run Again must preserve existing paid delivery. The September 5 migration requires an explicit old-writer stop before the new adapter starts; rollback must retain compatibility with live holds.
 
 ### Push notification changes
 

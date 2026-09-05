@@ -1,6 +1,7 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
 import {
+  type HttpBehaviorOptions,
   httpDelete,
   httpGet,
   httpPatch,
@@ -84,9 +85,9 @@ export const User = {
       validateAuthenticatedUser('auth.patchMe', response)
     );
   },
-  updatePreferences: (patch: UpdatePreferencesPayload) => {
+  updatePreferences: (patch: UpdatePreferencesPayload, behavior?: HttpBehaviorOptions) => {
     invalidateMeCache();
-    return httpPatch('/me/preferences', patch);
+    return httpPatch('/me/preferences', patch, behavior).finally(() => invalidateMeCache());
   },
   completeOnboarding: (data: CompleteOnboardingPayload) => {
     invalidateMeCache();

@@ -1,3 +1,8 @@
+import {
+  canViewEventRecord,
+  EVENT_VISIBILITY_SELECT,
+  GAME_VISIBILITY_SELECT,
+} from '../lib/entityVisibility.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import {
@@ -112,12 +117,13 @@ const isCompetitivePollEventType = (eventType?: string | null) => {
   return String(eventType).trim().toLowerCase() === 'game';
 };
 
-const getEventPollEligibility = async (eventId: string) => {
+const getEventPollEligibility = async (eventId: string, viewerId: string | null = null) => {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, event_type: true, game_id: true },
+    select: { ...EVENT_VISIBILITY_SELECT, event_type: true },
   });
-  if (!event) return { ok: false as const, status: 404, body: { error: 'Not found' } };
+  if (!event || !(await canViewEventRecord(event, viewerId)))
+    return { ok: false as const, status: 404, body: { error: 'Not found' } };
   if (event.game_id) {
     return {
       ok: false as const,
@@ -1095,7 +1101,7 @@ eventsRouter.get(
     const idsParam = String(req.query.ids || '').trim();
     if (!idsParam)
       return res.status(400).json({ error: 'ids required (comma-separated event IDs)' });
-    const ids = idsParam
+    let ids = idsParam
       .split(',')
       .map(s => s.trim())
       .filter(Boolean);
@@ -1103,6 +1109,13 @@ eventsRouter.get(
     if (ids.length > 50) return res.status(400).json({ error: 'Max 50 ids per request' });
     const userId = req.user?.id ?? null;
 
+    const events = await prisma.event.findMany({
+      where: { id: { in: ids } },
+      select: EVENT_VISIBILITY_SELECT,
+      take: ids.length,
+    });
+    const visible = await Promise.all(events.map(event => canViewEventRecord(event, userId)));
+    ids = events.filter((_, index) => visible[index]).map(event => event.id);
     const [counts, mine] = await Promise.all([
       prisma.eventRsvp.groupBy({
         by: ['event_id'],
@@ -1139,7 +1152,7 @@ eventsRouter.get(
       include: {
         game: {
           select: {
-            id: true,
+            ...GAME_VISIBILITY_SELECT,
             title: true,
             cover_image_url: true,
             date: true,
@@ -1157,27 +1170,8 @@ eventsRouter.get(
         },
       },
     });
-    if (!event) return res.status(404).json({ error: 'Not found' });
-
-    // Approved events are public to everyone (viewing never expires — owner
-    // rule 2026-07-14). A non-approved event is still visible to its creator,
-    // admins, or any contributor who posted to it (permanent, read-only — grants
-    // no approval power).
-    if (event.approval_status !== 'approved') {
-      const isCreator = req.user && event.creator_id === req.user.id;
-      const isAdmin = req.user ? await getIsAdmin(req as any) : false;
-      let hasGraceViewAccess = false;
-      if (!isCreator && !isAdmin && req.user) {
-        hasGraceViewAccess = await viewerHasPostedOnEntity({
-          userId: req.user.id,
-          eventId: event.id,
-          gameId: event.game_id ?? null,
-        });
-      }
-      if (!isCreator && !isAdmin && !hasGraceViewAccess) {
-        return res.status(404).json({ error: 'Not found' });
-      }
-    }
+    if (!event || !(await canViewEventRecord(event, req.user?.id ?? null)))
+      return res.status(404).json({ error: 'Not found' });
 
     const count = await prisma.eventRsvp.count({ where: { event_id: id } });
     const payload = serializeEvent(event, { includeGame: true, rsvpCount: count });
@@ -1223,9 +1217,10 @@ eventsRouter.get(
     const id = String(req.params.id);
     const event = await prisma.event.findUnique({
       where: { id },
-      select: { capacity: true, max_attendees: true },
+      select: { ...EVENT_VISIBILITY_SELECT, capacity: true, max_attendees: true },
     });
-    if (!event) return res.status(404).json({ error: 'Not found' });
+    if (!event || !(await canViewEventRecord(event, req.user?.id ?? null)))
+      return res.status(404).json({ error: 'Not found' });
     const count = await prisma.eventRsvp.count({ where: { event_id: id } });
     const capacity = event.capacity ?? event.max_attendees ?? null;
     if (!req.user) return res.json({ going: false, attending: false, count, capacity });
@@ -1256,7 +1251,7 @@ eventsRouter.post(
     const event = await prisma.event.findUnique({
       where: { id },
       select: {
-        id: true,
+        ...EVENT_VISIBILITY_SELECT,
         title: true,
         location: true,
         capacity: true,
@@ -1268,10 +1263,11 @@ eventsRouter.post(
         team_id: true,
         creator_id: true,
         creator: { select: { email: true } },
-        game: { select: { id: true, home_team_id: true, away_team_id: true } },
+        game: { select: GAME_VISIBILITY_SELECT },
       },
     });
-    if (!event) return res.status(404).json({ error: 'Not found' });
+    if (!event || !(await canViewEventRecord(event, req.user.id)))
+      return res.status(404).json({ error: 'Not found' });
 
     // Only a live (approved, non-cancelled) event can accept RSVPs. Previously
     // only the date was checked, so a cancelled/pending/rejected event still
@@ -1442,7 +1438,7 @@ eventsRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const eventId = String(req.params.id);
-      const eligibility = await getEventPollEligibility(eventId);
+      const eligibility = await getEventPollEligibility(eventId, req.user?.id ?? null);
       if (!eligibility.ok) {
         return res.status(eligibility.status).json(eligibility.body);
       }
@@ -1463,7 +1459,7 @@ eventsRouter.post(
     try {
       if (!req.user) return sendError(res, 401, 'Unauthorized');
       const eventId = String(req.params.id);
-      const eligibility = await getEventPollEligibility(eventId);
+      const eligibility = await getEventPollEligibility(eventId, req.user?.id ?? null);
       if (!eligibility.ok) {
         return res.status(eligibility.status).json(eligibility.body);
       }
@@ -1496,7 +1492,7 @@ eventsRouter.delete(
     try {
       if (!req.user) return sendError(res, 401, 'Unauthorized');
       const eventId = String(req.params.id);
-      const eligibility = await getEventPollEligibility(eventId);
+      const eligibility = await getEventPollEligibility(eventId, req.user?.id ?? null);
       if (!eligibility.ok) {
         return res.status(eligibility.status).json(eligibility.body);
       }
@@ -1524,6 +1520,7 @@ const createEventSchema = z.object({
     }
   ),
   location: z.string().trim().min(1, 'Location is required'),
+  live_window_hours_after_start: z.union([z.literal(5), z.literal(12)]).optional(),
   timezone: z.string().max(64).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
@@ -1711,6 +1708,7 @@ eventsRouter.post(
             date: new Date(data.date),
             timezone: data.timezone ?? null,
             location: data.location,
+            live_window_hours_after_start: data.live_window_hours_after_start,
             latitude: resolvedLat,
             longitude: resolvedLng,
             description: finalDescription,
@@ -1955,7 +1953,8 @@ eventsRouter.put(
 const updateEventSchema = z.object({
   title: z.string().min(1).optional(),
   date: z.string().optional(),
-  location: z.string().optional(),
+  location: z.string().trim().min(1, 'Location is required').optional(),
+  live_window_hours_after_start: z.union([z.literal(5), z.literal(12)]).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().optional(),
@@ -1987,6 +1986,7 @@ const updateEventSchema = z.object({
 
 const COACH_EDITABLE_FIELDS = [
   'date',
+  'live_window_hours_after_start',
   'location',
   'latitude',
   'longitude',
@@ -2129,6 +2129,8 @@ eventsRouter.patch(
         console.warn('[events] geocoding update failed:', geocodeErr);
       }
     }
+    if (data.live_window_hours_after_start !== undefined)
+      updateData.live_window_hours_after_start = data.live_window_hours_after_start;
     if (data.description !== undefined) updateData.description = stripHtml(data.description);
     if (data.event_type !== undefined) updateData.event_type = data.event_type;
     if (data.linked_league !== undefined) updateData.linked_league = data.linked_league;

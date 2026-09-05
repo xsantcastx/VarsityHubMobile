@@ -1,8 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { AD_GEOFENCE_RADIUS_KM, AD_GEOFENCE_RADIUS_MILES } from '../lib/adGeofencing.js';
-
-const adsRouteSource = readFileSync(join(process.cwd(), 'src', 'routes', 'ads.ts'), 'utf8');
 
 describe('Advertisements', () => {
   describe('Ad Creation', () => {
@@ -87,8 +83,43 @@ describe('Advertisements', () => {
       expect(radius).toBeLessThanOrEqual(250);
     });
 
-    it('holds booking inventory on the exact requested zip code', () => {
-      expect(adsRouteSource).toMatch(/target_zip_code:\s*zipCode/);
+    it('counts paid dates and overlapping holds only in the exact requested ZIP', async () => {
+      const { prisma } = await import('../lib/prisma.js');
+      const { getAdSlotCountsForZips } = await import('../lib/adInventory.js');
+      const date = new Date('2099-01-01T00:00:00Z');
+      const user = await prisma.user.create({
+        data: { email: `ad-zip-${Date.now()}@example.test`, password_hash: 'test-only' },
+      });
+      try {
+        await prisma.ad.create({
+          data: {
+            user_id: user.id,
+            contact_name: 'ZIP test',
+            contact_email: user.email,
+            business_name: 'ZIP test',
+            target_zip_code: '00771',
+            status: 'active',
+            payment_status: 'paid',
+            reservations: { create: { date } },
+            slot_holds: {
+              create: {
+                date,
+                purchase_reference: `pi_zip_${user.id}`,
+                expires_at: new Date(Date.now() + 3600000),
+              },
+            },
+          },
+        });
+        expect(
+          await getAdSlotCountsForZips(prisma, {
+            targetZipCodes: ['00771', '00772'],
+            isoDates: ['2099-01-01'],
+          })
+        ).toEqual([{ target_zip_code: '00771', date, count: BigInt(1) }]);
+      } finally {
+        await prisma.ad.deleteMany({ where: { user_id: user.id } });
+        await prisma.user.delete({ where: { id: user.id } });
+      }
     });
   });
 

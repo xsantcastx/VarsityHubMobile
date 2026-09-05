@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { describeDb } from './helpers/dbTestSuite.js';
 import bcrypt from 'bcrypt';
 
@@ -25,8 +25,14 @@ let finalizeAppleAdPurchase: (params: {
   appleTransactionIds: string[];
   receiptsCount: number;
 }) => Promise<{ ok: true; idempotent: boolean; appleTransactionIds: string[] }>;
-let releaseAdInventoryAfterSlotFullRefund: (adId: string) => Promise<void>;
-let releaseAdInventoryAfterSlotFullRefundWithRetry: (adId: string) => Promise<void>;
+let releaseAdInventoryAfterSlotFullRefund: (
+  adId: string,
+  purchaseReference?: string
+) => Promise<void>;
+let releaseAdInventoryAfterSlotFullRefundWithRetry: (
+  adId: string,
+  purchaseReference?: string
+) => Promise<void>;
 let recoverSlotFullRefundReleaseFailures: (referenceTime?: Date) => Promise<number>;
 let dbReady = false;
 
@@ -456,19 +462,29 @@ describeDb('Checkout session finalization', () => {
     });
     createdAdIds.push(ad.id);
 
-    await prisma.adReservation.createMany({
+    await prisma.adSlotHold.createMany({
       data: [
-        { ad_id: ad.id, date: new Date('2035-05-01T00:00:00.000Z') },
-        { ad_id: ad.id, date: new Date('2035-05-02T00:00:00.000Z') },
+        {
+          ad_id: ad.id,
+          purchase_reference: `pi_release_${ad.id}`,
+          expires_at: new Date(Date.now() + 3600000),
+          date: new Date('2035-05-01T00:00:00.000Z'),
+        },
+        {
+          ad_id: ad.id,
+          purchase_reference: `pi_release_${ad.id}`,
+          expires_at: new Date(Date.now() + 3600000),
+          date: new Date('2035-05-02T00:00:00.000Z'),
+        },
       ],
       skipDuplicates: true,
     });
 
-    await releaseAdInventoryAfterSlotFullRefund(ad.id);
+    await releaseAdInventoryAfterSlotFullRefund(ad.id, `pi_release_${ad.id}`);
 
     const [refreshedAd, reservations] = await Promise.all([
       prisma.ad.findUnique({ where: { id: ad.id } }),
-      prisma.adReservation.findMany({ where: { ad_id: ad.id } }),
+      prisma.adSlotHold.findMany({ where: { ad_id: ad.id } }),
     ]);
 
     expect(refreshedAd?.status).toBe('approved');
@@ -499,20 +515,30 @@ describeDb('Checkout session finalization', () => {
         contact_email: user.email,
         target_zip_code: '10010',
         status: 'approved',
-        payment_status: 'pending_approval',
+        payment_status: 'hold',
       },
     });
     createdAdIds.push(ad.id);
 
-    await prisma.adReservation.create({
-      data: { ad_id: ad.id, date: new Date('2035-05-03T00:00:00.000Z') },
+    await prisma.adSlotHold.create({
+      data: {
+        ad_id: ad.id,
+        purchase_reference: `pi_release_${ad.id}`,
+        expires_at: new Date(Date.now() + 3600000),
+        date: new Date('2035-05-03T00:00:00.000Z'),
+      },
     });
 
-    await releaseAdInventoryAfterSlotFullRefundWithRetry(ad.id);
+    const outage = jest
+      .spyOn(prisma, '$transaction')
+      .mockRejectedValueOnce(new Error('transient local inventory outage'));
+    await releaseAdInventoryAfterSlotFullRefundWithRetry(ad.id, `pi_release_${ad.id}`);
+    expect(outage).toHaveBeenCalledTimes(2);
+    outage.mockRestore();
 
     const [refreshedAd, reservations] = await Promise.all([
       prisma.ad.findUnique({ where: { id: ad.id } }),
-      prisma.adReservation.findMany({ where: { ad_id: ad.id } }),
+      prisma.adSlotHold.findMany({ where: { ad_id: ad.id } }),
     ]);
 
     expect(refreshedAd?.payment_status).toBe('unpaid');
@@ -547,8 +573,13 @@ describeDb('Checkout session finalization', () => {
     });
     createdAdIds.push(ad.id);
 
-    await prisma.adReservation.create({
-      data: { ad_id: ad.id, date: new Date('2035-05-04T00:00:00.000Z') },
+    await prisma.adSlotHold.create({
+      data: {
+        ad_id: ad.id,
+        purchase_reference: `pi_release_${ad.id}`,
+        expires_at: new Date(Date.now() + 3600000),
+        date: new Date('2035-05-04T00:00:00.000Z'),
+      },
     });
 
     const tx = await prisma.transactionLog.create({
@@ -558,6 +589,7 @@ describeDb('Checkout session finalization', () => {
         user_id: user.id,
         user_email: user.email,
         order_id: ad.id,
+        stripe_payment_intent_id: `pi_release_${ad.id}`,
         metadata: {
           reason: 'slot_full_release_failed',
           stripe_refund_id: `re_${now}`,
@@ -573,7 +605,7 @@ describeDb('Checkout session finalization', () => {
 
     const [refreshedAd, reservations, refreshedTx] = await Promise.all([
       prisma.ad.findUnique({ where: { id: ad.id } }),
-      prisma.adReservation.findMany({ where: { ad_id: ad.id } }),
+      prisma.adSlotHold.findMany({ where: { ad_id: ad.id } }),
       prisma.transactionLog.findUnique({ where: { id: tx.id } }),
     ]);
 

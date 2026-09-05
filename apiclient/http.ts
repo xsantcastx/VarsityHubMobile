@@ -17,6 +17,8 @@ export type HttpBehaviorOptions = {
   omitAuthToken?: boolean;
   skipAuthRetry?: boolean;
   skipVerificationGate?: boolean;
+  /** Cancel session-owned work before sending or replaying under a new account. */
+  isSessionCurrent?: () => boolean;
 };
 
 export type RefreshOutcome =
@@ -284,6 +286,14 @@ async function request(
   retries: number = 1,
   behavior: HttpBehaviorOptions = {}
 ): Promise<any> {
+  const ensureCurrentSession = () => {
+    if (behavior.isSessionCurrent && !behavior.isSessionCurrent()) {
+      const error = new Error('Your account changed. Please reopen settings.');
+      (error as any).code = 'SESSION_CHANGED';
+      throw error;
+    }
+  };
+  ensureCurrentSession();
   const base = getBaseUrl();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -291,6 +301,7 @@ async function request(
   };
   const token = behavior.omitAuthToken ? null : await getAccessTokenForRequest();
   const deviceId = await getClientDeviceId();
+  ensureCurrentSession();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (deviceId) headers['X-VarsityHub-Device-Id'] = deviceId;
   // Avoid stale caches/Etags for personalized endpoints
@@ -325,6 +336,7 @@ async function request(
     });
     clearTimeout(timeoutId);
     inflightControllers.delete(controller);
+    ensureCurrentSession();
     // HTTP response received
     captureBreadcrumb(`HTTP ${res.status} ${path}`, 'http', { status: res.status, path });
 
@@ -380,16 +392,19 @@ async function request(
       // On 401, attempt a token refresh before giving up.
       // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.
       if (err.status === 401 && token && !behavior.skipAuthRetry) {
+        ensureCurrentSession();
         // Use the shared refresh cache so concurrent 401s across transports
         // coalesce onto one refresh attempt.
         const { auth } = await import('./auth' as string);
         const refreshResult = await refreshAccessTokenWithCache();
+        ensureCurrentSession();
         const newToken = refreshResult?.accessToken ?? null;
 
         if (newToken) {
           // Retry the original request with the fresh token
           headers['Authorization'] = `Bearer ${newToken}`;
           const retryRes = await fetch(base + path, { ...options, headers, signal: undefined });
+          ensureCurrentSession();
           if (retryRes.ok) {
             const retryText = await retryRes.text();
             const retryCt =
@@ -476,6 +491,7 @@ async function request(
   } catch (error: any) {
     clearTimeout(timeoutId);
     inflightControllers.delete(controller);
+    if (error?.code === 'SESSION_CHANGED') throw error;
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
     const isAbortError = error.name === 'AbortError';
@@ -619,7 +635,13 @@ async function request(
           );
         await new Promise(r => setTimeout(r, delay));
         // Retry with original retries count but ensure we don't exceed maxRetriesFor502
-        return request(path, options, timeoutMs, Math.min(retries - 1, maxRetriesFor502 - 1));
+        return request(
+          path,
+          options,
+          timeoutMs,
+          Math.min(retries - 1, maxRetriesFor502 - 1),
+          behavior
+        );
       }
 
       // If all retries exhausted, provide user-friendly error
@@ -661,7 +683,7 @@ async function request(
       if (retries > 0 && isRetryable) {
         // Exponential backoff: small delay before retry
         await new Promise(r => setTimeout(r, Math.min(1000, timeoutMs * 0.1)));
-        return request(path, options, timeoutMs, retries - 1);
+        return request(path, options, timeoutMs, retries - 1, behavior);
       }
       throw err;
     }
@@ -697,7 +719,7 @@ async function request(
       if (retries > 0 && isRetryable) {
         const delay = Math.min(2000, 500 * Math.pow(2, 1 - retries)); // Exponential backoff
         await new Promise(r => setTimeout(r, delay));
-        return request(path, options, timeoutMs, retries - 1);
+        return request(path, options, timeoutMs, retries - 1, behavior);
       }
       throw err;
     }

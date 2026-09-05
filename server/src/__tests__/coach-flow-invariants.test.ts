@@ -2,10 +2,8 @@
  * Coach onboarding + approval structural invariants
  *
  * These tests scan server source code for patterns that MUST remain true
- * for the coach flow to work correctly. Integration tests that actually
- * boot Express are blocked by an ESM/Jest config issue (tracked separately);
- * these static checks cost ~5ms each and catch every regression class we've
- * shipped in the last few weeks.
+ * for the coach flow to work correctly. Source checks supplement the real
+ * HTTP/database scenarios below and the dedicated coach approval suites.
  *
  * When a test here fails, it means somebody introduced a new code path that
  * bypasses the canonical helpers, fire-and-forget email pattern, or idempotent
@@ -15,6 +13,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import request from 'supertest';
 
 const SRC_DIR = join(process.cwd(), 'src');
 const ROUTES_DIR = join(SRC_DIR, 'routes');
@@ -365,15 +364,51 @@ describe('coach flow structural invariants', () => {
       expect(/latestApplication\?\.status !== 'approved'/.test(organizations)).toBe(true);
     });
 
-    it('organization writes flow through an explicit create-data sanitizer', () => {
-      expect(/function buildOrganizationCreateData/.test(organizations)).toBe(true);
-      expect(organizations).toMatch(
-        /const org = await tx\.organization\.create\(\{[\s\S]*data:\s*buildOrganizationCreateData\(data,\s*userId,\s*\{/
-      );
-      const helperRouteCalls =
-        organizations.match(/handleOrganizationCreateRequest\(req,\s*res,\s*parsed\.data,\s*\{/g) ||
-        [];
-      expect(helperRouteCalls.length).toBeGreaterThanOrEqual(2);
+    it('both organization create routes ignore client-owned approval and ownership fields', async () => {
+      const { app } = await import('../testApp.js');
+      const { prisma } = await import('../lib/prisma.js');
+      const { signJwt } = await import('../lib/jwt.js');
+      for (const route of ['/organizations', '/organizations/create']) {
+        const label = `sanitizer${Date.now()}${route.endsWith('create') ? 'alias' : 'root'}`;
+        const owner = await prisma.user.create({
+          data: {
+            email: `${label}@example.com`,
+            role: 'coach',
+            approval_status: 'APPROVED',
+            email_verified: true,
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date(),
+            coach_agreement_version: 1,
+          },
+        });
+        try {
+          const response = await request(app)
+            .post(route)
+            .set('Authorization', `Bearer ${signJwt({ id: owner.id })}`)
+            .send({
+              name: label,
+              supporting_document_url: 'https://example.com/doc.pdf',
+              onboarding: false,
+              admin_approved: true,
+              approved_by: 'client-forged-reviewer',
+              league_owner_id: 'client-forged-owner',
+              status: 'rejected',
+            })
+            .expect(201);
+          const saved = await prisma.organization.findUnique({ where: { id: response.body.id } });
+          expect(saved).toMatchObject({
+            league_owner_id: owner.id,
+            admin_approved: false,
+            approved_by: null,
+            status: 'active',
+          });
+          expect(saved?.approved_at).toBeNull();
+        } finally {
+          await prisma.adminActivityLog.deleteMany({ where: { admin_id: owner.id } });
+          await prisma.organization.deleteMany({ where: { league_owner_id: owner.id } });
+          await prisma.user.delete({ where: { id: owner.id } });
+        }
+      }
     });
 
     it('organization create routes do not spread parsed onboarding payloads into Prisma writes', () => {

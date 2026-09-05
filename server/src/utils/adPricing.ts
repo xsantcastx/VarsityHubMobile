@@ -1,3 +1,11 @@
+import { z } from 'zod';
+
+export const adDateSchema = z.string().refine(value => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}, 'Expected a real calendar date in YYYY-MM-DD format');
+
 /**
  * Ad calendar pricing is **per calendar week block**, not per day:
  * - One fee covers all selected Mon–Thu days in that week (weekday block).
@@ -21,6 +29,7 @@ function buildWeekUsage(dates: string[]): Map<string, WeekUsage> {
   const weekMap = new Map<string, WeekUsage>();
 
   dates.forEach(dateStr => {
+    adDateSchema.parse(dateStr);
     const date = new Date(`${dateStr}T00:00:00.000Z`);
     const day = date.getUTCDay(); // 0 (Sun) .. 6 (Sat)
 

@@ -1,3 +1,4 @@
+import { buildQuickGamePayload } from '@/utils/quickGamePayload';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -891,137 +892,10 @@ function CommunityDiscoverScreen() {
 
   const handleQuickGameSave = useCallback(
     async (data: QuickGameData) => {
-      if (isCreatingGame) return; // Prevent duplicate submissions
+      if (isCreatingGame) return false; // Prevent duplicate submissions
       setIsCreatingGame(true);
       try {
-        // Validate date format
-        if (!data.date || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
-          throw new Error('Invalid date format. Please use YYYY-MM-DD format.');
-        }
-
-        // Parse date and time
-        const [year, month, day] = data.date.split('-').map(Number);
-
-        // Validate date values
-        if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
-          throw new Error('Invalid date values.');
-        }
-        if (month < 1 || month > 12 || day < 1 || day > 31) {
-          throw new Error('Invalid date values. Month must be 1-12, day must be 1-31.');
-        }
-
-        // Parse time with more flexible regex
-        const timeParts = data.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-        if (!timeParts) {
-          throw new Error('Invalid time format. Please use HH:MM AM/PM format.');
-        }
-
-        let hours = parseInt(timeParts[1], 10);
-        const minutes = parseInt(timeParts[2], 10);
-        const isPM = timeParts[3].toUpperCase() === 'PM';
-
-        // Validate time values
-        if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-          throw new Error('Invalid time values.');
-        }
-        if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
-          throw new Error('Invalid time values. Hours must be 1-12, minutes must be 0-59.');
-        }
-
-        // Convert to 24-hour format
-        if (isPM && hours !== 12) hours += 12;
-        if (!isPM && hours === 12) hours = 0;
-
-        const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-
-        // Validate resulting date
-        if (isNaN(gameDateTime.getTime())) {
-          throw new Error('Invalid date. Please check the date and time values.');
-        }
-
-        // Check if date is in the past
-        if (gameDateTime < new Date()) {
-          throw new Error(
-            'Cannot create events in the past. Please select a future date and time.'
-          );
-        }
-
-        // Create game payload. For non-competitive events `data.currentTeam`
-        // carries the user-entered event title (buildQuickGameData) — use it
-        // verbatim; every event is one-of-one, never "<title> Event".
-        const gamePayload: Record<string, any> = {
-          title: data.isCompetitive ? `${data.currentTeam} vs ${data.opponent}` : data.currentTeam,
-          date: gameDateTime.toISOString(),
-          description:
-            data.description ||
-            (data.isCompetitive
-              ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
-              : data.currentTeam),
-        };
-
-        // Only add team fields if this is a competitive game
-        if (data.isCompetitive) {
-          gamePayload.home_team = data.type === 'home' ? data.currentTeam : data.opponent;
-          gamePayload.away_team = data.type === 'home' ? data.opponent : data.currentTeam;
-
-          if (data.currentTeamId)
-            gamePayload.home_team_id = data.type === 'home' ? data.currentTeamId : null;
-          if (data.opponentTeamId) {
-            gamePayload.away_team_id =
-              data.type === 'home' ? data.opponentTeamId : data.currentTeamId;
-          } else if (data.opponent) {
-            gamePayload.away_team_name = data.opponent;
-          }
-        } else {
-          // For non-competitive events, still send home_team_id for approval workflow
-          if (data.currentTeamId) {
-            gamePayload.home_team_id = data.currentTeamId;
-          }
-        }
-
-        // Add expected attendance if provided
-        if (data.expectedAttendance) {
-          gamePayload.expected_attendance = data.expectedAttendance;
-        }
-
-        // Add event type
-        if (data.eventType) {
-          gamePayload.event_type = data.eventType;
-        }
-
-        // Add event type-specific fields
-        if (data.donationGoal) {
-          gamePayload.donation_goal = data.donationGoal;
-        }
-        if (data.watchLocation) {
-          gamePayload.watch_location = data.watchLocation;
-          if (data.watchLocationLat) gamePayload.watch_location_lat = data.watchLocationLat;
-          if (data.watchLocationLng) gamePayload.watch_location_lng = data.watchLocationLng;
-          if (data.watchLocationPlaceId)
-            gamePayload.watch_location_place_id = data.watchLocationPlaceId;
-        }
-        if (data.destination) {
-          gamePayload.destination = data.destination;
-        }
-
-        if (data.banner_url) {
-          gamePayload.banner_url = data.banner_url;
-          gamePayload.cover_image_url = data.banner_url;
-        } else if (data.cover_image_url) {
-          gamePayload.cover_image_url = data.cover_image_url;
-        }
-
-        if (data.appearance) {
-          gamePayload.appearance = data.appearance;
-        }
-
-        // Validate required fields before API call
-        if (!gamePayload.title || gamePayload.title.trim().length === 0) {
-          throw new Error('Event title is required.');
-        }
-        if (!gamePayload.date) {
-          throw new Error('Event date is required.');
-        }
+        const gamePayload = buildQuickGamePayload(data);
 
         // Create game using the API
         await Game.create(gamePayload);
@@ -1047,6 +921,7 @@ function CommunityDiscoverScreen() {
           const errorMessage = error?.data?.error || error?.message || 'Failed to add event.';
           Alert.alert('Error', errorMessage);
         }
+        return false;
       } finally {
         setIsCreatingGame(false);
       }

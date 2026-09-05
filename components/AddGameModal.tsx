@@ -1,3 +1,9 @@
+import EventPreviewImageField from './EventPreviewImageField';
+import EventLiveWindowPicker from './EventLiveWindowPicker';
+import {
+  EVENT_BANNER_ASPECT_RATIO,
+  type EventLiveWindowHours,
+} from '@/constants/eventPresentation';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { buildTeamPickerSports } from '@/utils/teamPickerCascade';
@@ -10,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from '@/api/entities';
 import {
   ActivityIndicator,
+  Alert,
   findNodeHandle,
   KeyboardAvoidingView,
   Modal,
@@ -24,14 +31,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MatchBanner from '../app/components/MatchBanner';
-import ImageEditor from './ImageEditor';
 import LocationPicker from './LocationPicker';
-import { getApiBaseUrl } from '../apiclient/http';
 
 interface AddGameModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (gameData: GameFormData) => void;
+  onSave: (gameData: GameFormData) => void | boolean | Promise<void | boolean>;
   currentTeamName?: string;
 }
 
@@ -49,6 +54,7 @@ export interface GameFormData {
   longitude?: number | null;
   autoGeocode?: boolean;
   attendance?: number | null;
+  liveWindowHours?: EventLiveWindowHours;
 }
 
 type TeamOption = {
@@ -88,6 +94,7 @@ export default function AddGameModal({
     time: new Date(),
     location: '',
     type: 'home',
+    liveWindowHours: 5,
     notes: '',
     autoGeocode: true, // Auto-geocode by default
   });
@@ -95,9 +102,9 @@ export default function AddGameModal({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [editorVisible, setEditorVisible] = useState(false);
-  const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(320);
   const scrollRef = useRef<ScrollView>(null);
 
   // Scroll the focused field into view above the keyboard
@@ -255,14 +262,20 @@ export default function AddGameModal({
   };
 
   const handleSave = async () => {
-    if (!validateForm() || submitting) {
+    if (!validateForm() || submitting || uploadingImage) {
       return;
     }
     setSubmitting(true);
     try {
-      onSave({ ...formData, opponent_team_id: opponentTeamId });
+      const saved = await onSave({ ...formData, opponent_team_id: opponentTeamId });
+      if (saved === false) return;
       resetForm();
       onClose();
+    } catch (error) {
+      Alert.alert(
+        'Unable to save event',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -277,6 +290,7 @@ export default function AddGameModal({
       time: new Date(),
       location: '',
       type: 'home',
+      liveWindowHours: 5,
       notes: '',
       autoGeocode: true,
     });
@@ -333,7 +347,11 @@ export default function AddGameModal({
 
             <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Add Game</Text>
 
-            <Pressable style={styles.headerButton} onPress={handleSave} disabled={submitting}>
+            <Pressable
+              style={styles.headerButton}
+              onPress={handleSave}
+              disabled={submitting || uploadingImage}
+            >
               {submitting ? (
                 <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
               ) : (
@@ -446,6 +464,20 @@ export default function AddGameModal({
                   </Pressable>
                   {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
                 </View>
+
+                <EventLiveWindowPicker
+                  value={formData.liveWindowHours ?? 5}
+                  onChange={hours =>
+                    setFormData(previous => ({ ...previous, liveWindowHours: hours }))
+                  }
+                />
+                <EventPreviewImageField
+                  value={formData.banner_url}
+                  disabled={submitting}
+                  onUploadingChange={setUploadingImage}
+                  onChange={url => setFormData(previous => ({ ...previous, banner_url: url }))}
+                  label="Game Banner"
+                />
 
                 {/* Game Type */}
                 <View style={styles.formSection}>
@@ -757,43 +789,28 @@ export default function AddGameModal({
                   <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>
                     Game Preview
                   </Text>
-                  <MatchBanner
-                    leftImage={
-                      (
-                        teams.find(
-                          t => t.name.toLowerCase() === String(formData.currentTeam).toLowerCase()
-                        ) as any
-                      )?.logo
-                    }
-                    rightImage={
-                      (
-                        teams.find(
-                          t => t.name.toLowerCase() === String(formData.opponent).toLowerCase()
-                        ) as any
-                      )?.logo
-                    }
-                    leftName={formData.currentTeam}
-                    rightName={formData.opponent}
-                    height={240}
-                    variant="compact"
-                  />
-                  <Pressable
-                    style={{ marginTop: 8, alignSelf: 'flex-end' }}
-                    onPress={() => {
-                      // Open editor with current preview (if team logos exist, we can't easily compose — open with left logo or null)
-                      const leftLogo = (
-                        teams.find(
-                          t => t.name.toLowerCase() === String(formData.currentTeam).toLowerCase()
-                        ) as any
-                      )?.logo;
-                      setEditingImageUri(leftLogo || null);
-                      setEditorVisible(true);
-                    }}
-                  >
-                    <Text style={{ color: Colors[colorScheme].tint, fontWeight: '700' }}>
-                      Edit Preview
-                    </Text>
-                  </Pressable>
+                  <View onLayout={event => setPreviewWidth(event.nativeEvent.layout.width)}>
+                    <MatchBanner
+                      leftImage={
+                        (
+                          teams.find(
+                            t => t.name.toLowerCase() === String(formData.currentTeam).toLowerCase()
+                          ) as any
+                        )?.logo
+                      }
+                      rightImage={
+                        (
+                          teams.find(
+                            t => t.name.toLowerCase() === String(formData.opponent).toLowerCase()
+                          ) as any
+                        )?.logo
+                      }
+                      leftName={formData.currentTeam}
+                      rightName={formData.opponent}
+                      height={previewWidth / EVENT_BANNER_ASPECT_RATIO}
+                      variant="compact"
+                    />
+                  </View>
                 </View>
               </View>
             </ScrollView>
@@ -820,27 +837,6 @@ export default function AddGameModal({
           )}
         </View>
       </Modal>
-
-      <ImageEditor
-        visible={editorVisible}
-        imageUri={editingImageUri}
-        onClose={() => setEditorVisible(false)}
-        onSave={async uri => {
-          setEditorVisible(false);
-          // Upload edited image and set as cover or banner in formData
-          try {
-            const uploaded = await (
-              await import('@/api/upload')
-            ).uploadFile(getApiBaseUrl(), uri, 'edited-banner.png', 'image/png');
-            const url = uploaded?.url || uploaded?.path || null;
-            if (url) {
-              setFormData(prev => ({ ...prev, banner_url: url }));
-            }
-          } catch (e) {
-            if (__DEV__) console.warn('Upload edited image failed', e);
-          }
-        }}
-      />
 
       {/* Current Team Picker Modal */}
       <Modal

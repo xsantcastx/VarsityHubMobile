@@ -54,15 +54,32 @@ check(
   conditionalPendingWrite.test(orgRoutes)
 );
 
-// 3. POST /organizations/create routes through the shared create handler with
-// the force-pending decision computed for that route too.
-const createRouteHasConditionalPending =
-  /organizationsRouter\.post\(\s*['"]\/create['"][\s\S]*?shouldForcePendingApprovalOnOrganizationCreate[\s\S]*?handleOrganizationCreateRequest[\s\S]*?routeTag:\s*['"]\/create['"]/m.test(
-    orgRoutes
-  );
+// 3. Both aliases use the shared route/preflight pipeline. The pending decision
+// moved into prepareOrganizationCreatePreflight; it must still reach the shared
+// transactional writer. coach-flow-invariants.test.ts also exercises both aliases
+// over HTTP with forged approval/owner fields against the local database.
+const sharedRouteStart = orgRoutes.indexOf('async function handleOrganizationCreateRoute(');
+const sharedRouteEnd = orgRoutes.indexOf('// Create organization', sharedRouteStart);
+const sharedRoute = orgRoutes.slice(sharedRouteStart, sharedRouteEnd);
+const preflightStart = orgRoutes.indexOf('async function prepareOrganizationCreatePreflight(');
+const preflightEnd = orgRoutes.indexOf(
+  'async function handleOrganizationCreateRequest(',
+  preflightStart
+);
+const preflight = orgRoutes.slice(preflightStart, preflightEnd);
 check(
-  'POST /organizations/create uses shared conditional pending approval flow',
-  createRouteHasConditionalPending
+  'Both organization create aliases use shared conditional pending approval flow',
+  ['/', '/create'].every(route =>
+    orgRoutes.includes(`return handleOrganizationCreateRoute(req, res, '${route}');`)
+  ) &&
+    sharedRoute.includes('createOrganizationSchema.safeParse(req.body)') &&
+    sharedRoute.includes('prepareOrganizationCreatePreflight({') &&
+    sharedRoute.includes('if (!preflight) return;') &&
+    sharedRoute.includes('handleOrganizationCreateRequest(req, res, data, {') &&
+    sharedRoute.includes('shouldForcePendingApproval: preflight.shouldForcePendingApproval') &&
+    preflight.includes('await shouldForcePendingApprovalOnOrganizationCreate({') &&
+    preflight.includes('return { authorizedInviteInputs, shouldForcePendingApproval };') &&
+    conditionalPendingWrite.test(orgRoutes)
 );
 
 // 4. League approval sets league owner to APPROVED

@@ -1,4 +1,5 @@
-import { Text, useColorScheme } from 'react-native';
+import { Text } from 'react-native';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import {
   LegalDocumentScreen,

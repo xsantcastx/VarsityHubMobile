@@ -13,8 +13,8 @@ import {
   Text,
   useWindowDimensions,
   View,
-  useColorScheme,
 } from 'react-native';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { safeGoBack } from '@/utils/navigation';

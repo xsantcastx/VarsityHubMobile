@@ -218,10 +218,24 @@ function SwitchRow({
 }
 
 export default function SettingsScreen() {
+  const { user } = useAuth();
+  // Each account gets its own confirmed/optimistic state and pending callbacks.
+  return <SettingsContent key={user?.id ?? 'guest'} />;
+}
+
+function SettingsContent() {
   const router = useRouter();
   const colorScheme = useCustomColorScheme();
   const { themePreference, setThemePreference } = useThemePreference();
-  const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
+  const {
+    user,
+    checkAuth,
+    savePreferences,
+    preferenceSaveState,
+    markOnboardingIncompleteLocally,
+    signOut,
+    isAdmin,
+  } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
   const initialLinkedProviders = getLinkedProvidersSnapshot(user);
@@ -266,7 +280,11 @@ export default function SettingsScreen() {
   const [downgradingToFan, setDowngradingToFan] = useState(false);
   const [pushDiagnostics, setPushDiagnostics] = useState<PushDiagnostics | null>(null);
   const [pushDiagnosticsError, setPushDiagnosticsError] = useState<string | null>(null);
-  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const mountedRef = useRef(true);
+  const confirmedPrefs = useRef(prefs);
+  const pendingChanges = useRef<Array<{ patch: PrefsPatch }>>([]);
+  const activeUserId = useRef(user?.id);
+  activeUserId.current = user?.id;
 
   const getSettingsSnapshot = useCallback(
     async (options?: { forceRefresh?: boolean; fallback?: UserMeResponse | null }) => {
@@ -292,11 +310,10 @@ export default function SettingsScreen() {
     }
   }, []);
 
-  // Clear all debounce timers on unmount to prevent memory leaks
   useEffect(() => {
-    const activeTimers = timers.current;
+    mountedRef.current = true;
     return () => {
-      Object.values(activeTimers).forEach(clearTimeout);
+      mountedRef.current = false;
     };
   }, []);
 
@@ -307,58 +324,45 @@ export default function SettingsScreen() {
     setLinkedProviders(snapshot);
   }, [computeDeleteRequiresPassword, user]);
 
-  // Debounced PATCH updater for preferences
-  // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
   type PrefsPatch = Omit<Partial<Preferences>, 'notifications'> & {
     notifications?: Partial<Preferences['notifications']>;
   };
-  // Single debounce timer to batch all preference changes together
-  const pendingPatch = useRef<PrefsPatch>({});
+  const mergePrefs = (current: Preferences, patch: PrefsPatch): Preferences => ({
+    ...current,
+    ...patch,
+    notifications: { ...current.notifications, ...patch.notifications },
+  });
   const patchPrefs = (patch: PrefsPatch) => {
-    // Clear any existing timer — we'll send one merged patch
-    if (timers.current['__prefs__']) clearTimeout(timers.current['__prefs__']);
-
-    // Accumulate patches
-    pendingPatch.current = {
-      ...pendingPatch.current,
-      ...patch,
-      notifications: {
-        ...(pendingPatch.current.notifications || {}),
-        ...(patch.notifications || {}),
-      },
-    };
-
-    // Use functional update to get the latest state
-    setPrefs(cur => {
-      const prevPrefs = cur; // capture snapshot for revert on server error
-      const newPrefs = {
-        ...cur,
-        ...patch,
-        notifications: {
-          ...cur.notifications,
-          ...(patch.notifications || {}),
+    const change = { patch };
+    const userId = user?.id;
+    pendingChanges.current.push(change);
+    setPrefs(current => mergePrefs(current, patch));
+    // AuthProvider owns the write queue, so leaving this screen cannot cancel
+    // a save. Only still-pending changes are layered over the confirmed state.
+    void savePreferences(patch)
+      .then(
+        saved => {
+          if (activeUserId.current === userId) {
+            confirmedPrefs.current = mergePrefs(confirmedPrefs.current, saved as PrefsPatch);
+          }
         },
-      };
-
-      // Debounce: send the accumulated patch after 300ms of inactivity
-      const merged = pendingPatch.current;
-      timers.current['__prefs__'] = setTimeout(async () => {
-        const patchToSend = merged.notifications
-          ? { ...merged, notifications: { ...newPrefs.notifications } }
-          : { ...merged };
-        // Clear accumulated patch
-        pendingPatch.current = {};
-        try {
-          await User.updatePreferences(patchToSend);
-        } catch (e: any) {
-          if (__DEV__) console.error('[settings] Failed to update preferences:', e);
-          Alert.alert('Update failed', 'Could not save your preference. Please try again.');
-          setPrefs(prevPrefs); // revert optimistic update
+        () => {
+          if (mountedRef.current && activeUserId.current === userId) {
+            Alert.alert('Update failed', 'Could not save your preference. Please try again.');
+          }
         }
-      }, 300);
-
-      return newPrefs;
-    });
+      )
+      .finally(() => {
+        pendingChanges.current = pendingChanges.current.filter(item => item !== change);
+        if (mountedRef.current && activeUserId.current === userId) {
+          setPrefs(
+            pendingChanges.current.reduce(
+              (current, item) => mergePrefs(current, item.patch),
+              confirmedPrefs.current
+            )
+          );
+        }
+      });
   };
 
   const applyMeSnapshot = useCallback(
@@ -366,7 +370,7 @@ export default function SettingsScreen() {
       if (!mounted) return;
       setEmail(me?.email || null);
       const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
-      setPrefs({
+      const snapshotPrefs: Preferences = {
         notifications: {
           game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
           team_updates: !!serverPrefs?.notifications?.team_updates,
@@ -382,7 +386,11 @@ export default function SettingsScreen() {
           serverPrefs?.comment_permission === 'none'
             ? serverPrefs.comment_permission
             : 'everyone',
-      });
+      };
+      if (pendingChanges.current.length === 0) {
+        confirmedPrefs.current = snapshotPrefs;
+        setPrefs(snapshotPrefs);
+      }
       const billingState = getCanonicalBillingState(me as any);
       setPlan(billingState.selected_plan);
       const effectiveRole = getCanonicalCoachRole(me as any);
@@ -662,6 +670,30 @@ export default function SettingsScreen() {
           </View>
         )}
 
+        {preferenceSaveState?.pending ||
+        preferenceSaveState?.error ||
+        preferenceSaveState?.saved ? (
+          <View style={styles.statusRow}>
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[
+                styles.statusText,
+                {
+                  color: preferenceSaveState.error
+                    ? Colors[colorScheme ?? 'light'].destructive
+                    : Colors[colorScheme ?? 'light'].mutedText,
+                },
+              ]}
+            >
+              {preferenceSaveState.pending
+                ? 'Saving preferences…'
+                : preferenceSaveState.error
+                  ? 'Some changes were not saved. Please try again.'
+                  : 'Preferences saved'}
+            </Text>
+          </View>
+        ) : null}
+
         <ScrollView>
           {/* Account */}
           <SectionCard title="Account" initiallyOpen>
@@ -865,31 +897,19 @@ export default function SettingsScreen() {
                     {
                       text: 'Everyone',
                       onPress: () => {
-                        setPrefs(p => ({ ...p, comment_permission: 'everyone' }));
-                        User.updatePreferences({ comment_permission: 'everyone' }).catch(() => {
-                          setPrefs(p => ({ ...p, comment_permission: prefs.comment_permission }));
-                          Alert.alert('Error', 'Failed to save preference. Please try again.');
-                        });
+                        patchPrefs({ comment_permission: 'everyone' });
                       },
                     },
                     {
                       text: 'People I Follow',
                       onPress: () => {
-                        setPrefs(p => ({ ...p, comment_permission: 'following' }));
-                        User.updatePreferences({ comment_permission: 'following' }).catch(() => {
-                          setPrefs(p => ({ ...p, comment_permission: prefs.comment_permission }));
-                          Alert.alert('Error', 'Failed to save preference. Please try again.');
-                        });
+                        patchPrefs({ comment_permission: 'following' });
                       },
                     },
                     {
                       text: 'Nobody',
                       onPress: () => {
-                        setPrefs(p => ({ ...p, comment_permission: 'none' }));
-                        User.updatePreferences({ comment_permission: 'none' }).catch(() => {
-                          setPrefs(p => ({ ...p, comment_permission: prefs.comment_permission }));
-                          Alert.alert('Error', 'Failed to save preference. Please try again.');
-                        });
+                        patchPrefs({ comment_permission: 'none' });
                       },
                     },
                     { text: 'Cancel', style: 'cancel' },

@@ -191,6 +191,8 @@ describe('Email template helpers', () => {
       organizationId: 'org_123',
       organizationName: 'Example League',
       requestId: 'req_456',
+      reviewerUserId: 'owner_789',
+      requestCreatedAt: new Date('2026-09-05T10:00:00.000Z'),
       action: 'approve',
     });
     const parsed = new URL(url);
@@ -201,6 +203,8 @@ describe('Email template helpers', () => {
     expect(verifyJwt(token!)).toMatchObject({
       requestId: 'req_456',
       orgId: 'org_123',
+      reviewerUserId: 'owner_789',
+      requestCreatedAt: '2026-09-05T10:00:00.000Z',
       action: 'approve_join_request',
     });
   });

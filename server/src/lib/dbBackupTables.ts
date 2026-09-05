@@ -51,6 +51,7 @@ export const TABLES_IN_ORDER = [
   'EventDesignatedPoster', // needs User + Event
 
   'AdReservation',
+  'AdSlotHold',
   'GroupChatMember',
   'GroupChatMessage',
   'Notification', // needs User, Post, Comment, Message

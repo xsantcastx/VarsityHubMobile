@@ -169,17 +169,18 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(payments).toMatch(/updateTransactionStatus/);
     });
 
-    it('PaymentIntent ad activation uses a conditional update guard, not an unconditional ad.update', () => {
+    it('PaymentIntent activation carries its purchase identity through the guarded reservation pipeline', () => {
       const helper =
         payments.match(/async function activateApprovedAdPaymentIntent[\s\S]{0,2500}?\n\}/)?.[0] ||
         '';
       const block =
         payments.match(/if \(event\.type === 'payment_intent\.succeeded'\)[\s\S]{0,5000}/)?.[0] ||
         '';
-      expect(block).toMatch(/activateApprovedAdPaymentIntent\(tx, adId, piDates\)/);
-      expect(helper).toMatch(/updateMany\(\{/);
-      expect(helper).toMatch(/status:\s*\{\s*in:\s*\['approved', 'active'\]\s*\}/);
-      expect(helper).toMatch(/updated\.count === 0/);
+      expect(block).toMatch(/activateApprovedAdPaymentIntent\(tx, adId, piDates, pi.id\)/);
+      expect(helper).toMatch(/!\['approved', 'active', 'archived'\]\.includes\(ad.status\)/);
+      expect(helper).toMatch(/AD_NOT_APPROVED/);
+      expect(helper).toMatch(/reserveAdSlots\(tx/);
+      expect(helper).toMatch(/purchaseReference/);
     });
 
     it('Stripe processing fee is computed and stored per transaction', () => {

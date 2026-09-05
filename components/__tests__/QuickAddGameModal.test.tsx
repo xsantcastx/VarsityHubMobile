@@ -1,8 +1,12 @@
-import { render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import QuickAddGameModal, { buildQuickGameData } from '../QuickAddGameModal';
 
 jest.mock('@/hooks/useTeamOptions', () => ({
   useTeamOptions: () => ({ teams: [{ id: 'team-1', name: 'My Team' }] }),
+}));
+
+jest.mock('@/hooks/useManagedTeamOptions', () => ({
+  useManagedTeamOptions: () => ({ teams: [{ id: 'team-1', name: 'My Team' }] }),
 }));
 
 jest.mock('@/hooks/useColorScheme', () => ({
@@ -66,6 +70,55 @@ describe('QuickAddGameModal', () => {
     currentTeamName: 'My Team',
     currentTeamId: 'team-1',
   };
+
+  it('shows banner upload before an opponent is entered and keeps it visible for noncompetitive events', () => {
+    const screen = render(<QuickAddGameModal {...baseProps} />);
+    expect(screen.getByText('Game Banner')).toBeTruthy();
+    expect(screen.getByText('Add Preview Photo')).toBeTruthy();
+    expect(
+      screen.getByLabelText('5-hour live posting window').props.accessibilityState.checked
+    ).toBe(true);
+    fireEvent.press(screen.getByLabelText('Competitive game'));
+    expect(screen.getByText('Event Banner')).toBeTruthy();
+    expect(screen.getByText('Add Preview Photo')).toBeTruthy();
+  });
+
+  it('awaits confirmed save, retains data on failure, then submits the chosen duration and banner', async () => {
+    const onSave = jest.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const onClose = jest.fn();
+    const screen = render(
+      <QuickAddGameModal
+        {...baseProps}
+        onSave={onSave}
+        onClose={onClose}
+        initialData={{
+          id: 'upcoming',
+          opponent: 'Manual Rivals',
+          date: '01/02/2027',
+          time: '7:30 PM',
+          type: 'home',
+          status: 'upcoming',
+          location: 'My Stadium',
+          banner_url: 'https://example.com/banner.jpg',
+        }}
+      />
+    );
+    fireEvent.press(screen.getByLabelText('12-hour live posting window'));
+    fireEvent.press(screen.getByText('Save'));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onClose).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText('Save')).toBeTruthy());
+    fireEvent.press(screen.getByText('Save'));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[1][0]).toMatchObject({
+      opponent: 'Manual Rivals',
+      type: 'home',
+      homeVenue: 'My Stadium',
+      liveWindowHours: 12,
+      banner_url: 'https://example.com/banner.jpg',
+      cover_image_url: 'https://example.com/banner.jpg',
+    });
+  });
 
   it('locks advanced fields when editing a live event', async () => {
     const { getByText, getAllByTestId } = render(
