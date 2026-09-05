@@ -85,9 +85,17 @@ cd "$DEPLOY_DIR"
 
 echo "Deploying static bundle to Vercel..."
 if [[ ${#VERCEL_ARGS[@]} -gt 0 ]]; then
-  DEPLOY_OUTPUT="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"
+  if ! DEPLOY_OUTPUT="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"; then
+    printf '%s\n' "$DEPLOY_OUTPUT" >&2
+    echo "Vercel deployment failed before aliasing custom domains." >&2
+    exit 1
+  fi
 else
-  DEPLOY_OUTPUT="$(npx vercel --prod --yes)"
+  if ! DEPLOY_OUTPUT="$(npx vercel --prod --yes)"; then
+    printf '%s\n' "$DEPLOY_OUTPUT" >&2
+    echo "Vercel deployment failed before aliasing custom domains." >&2
+    exit 1
+  fi
 fi
 echo "$DEPLOY_OUTPUT"
 DEPLOY_URL="$(DEPLOY_OUTPUT="$DEPLOY_OUTPUT" node -e '
