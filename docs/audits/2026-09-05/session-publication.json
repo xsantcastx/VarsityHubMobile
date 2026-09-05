@@ -1,0 +1,27 @@
+{
+  "sourceCommit": "8b8543e30789d637c8a1960a95b8d3420f11b4ea",
+  "api": {
+    "id": "54143be0-d7ae-4a40-bfb0-2b830bf44384",
+    "status": "SUCCESS",
+    "createdAt": "2026-09-05T19:50:43.970Z",
+    "cliMessage": "Session recovery fixes 8b8543e3",
+    "source": "8b8543e3"
+  },
+  "ota": {
+    "group": "1795b001-3f7e-4fbd-9084-220556f042fe",
+    "runtime": "1.0.5",
+    "channel": "production",
+    "sourceMapsUploaded": true,
+    "verifiedDelivery": "session-ota-delivery.json"
+  },
+  "web": {
+    "id": "dpl_5zcEYR1AEqh24M96SoCV9bDgzd9k",
+    "url": "varsityhub-4c6v8g2wz-emilmancero-devs-projects.vercel.app",
+    "readyState": "READY",
+    "target": "production",
+    "createdAt": 1788638316831,
+    "source": "8b8543e30789d637c8a1960a95b8d3420f11b4ea",
+    "aliases": ["varsityhub.app", "www.varsityhub.app"]
+  },
+  "nativeSourceHashesMatchRelease": true
+}

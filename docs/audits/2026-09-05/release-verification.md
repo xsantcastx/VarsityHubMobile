@@ -1,5 +1,11 @@
 # September 5 remediation release verification
 
+## Latest follow-up: session recovery
+
+Current production product source is `8b8543e3`: API Railway `54143be0`, production OTA `1795b001` for iOS/Android runtime 1.0.5, and the matching website. The [session release record](session-restoration-remediation.md) includes 217 client suites / 1,534 assertions, six focused server suites / 38 assertions, five passing iPhone simulator scenarios, both public OTA delivery checks and eight public website checks. The owner's physical weekly logout remains unconfirmed. No new migration or native build was needed.
+
+The earlier integration, schema cutover and publication evidence below is preserved for API `6bb32c40` / client `e6af820d`. Its other fixes remain included in the current product source. A separate [settings export gap](data-export-readiness-gap.md) is now explicitly open; a passing API readiness gate does not prove the export journey works.
+
 ## Release intent and source
 
 Owner authorized fixes, verification and production API, OTA and website publication so they can perform device testing. This is a remediation release for testing; it does not certify A+ or every conceivable scenario. Audited base was `ec27781e`; integration began on `374a785b` on `fix/desktop-notes-map-collage-share`. No native dependency/config upgrade, EAS build or store submission is part of this release.

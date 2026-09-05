@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-05T19:59:09.129698+00:00",
+  "newSimulatorDeleted": true,
+  "ownedPortsClosed": {
+    "4015": true,
+    "8095": true
+  },
+  "originalSimulatorState": "Shutdown",
+  "originalSimulatorLastBootedAt": "2026-09-01T19:28:52Z",
+  "originalPort4000Listener": ["node", "37686"],
+  "testDatabaseRetained": "Dedicated local fixture DB retained with evidence; no production data"
+}

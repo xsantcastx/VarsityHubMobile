@@ -6,7 +6,11 @@ The remediation baseline is `374a785b`, one commit after audited `ec27781e`. Tha
 
 ## Published remediation — September 5
 
-The remediation is published for owner testing: API `6bb32c40` / Railway `44e31b96`, client `e6af820d` / production OTA `6f4b1579` for iOS and Android runtime 1.0.5, and the matching website. Final evidence is 215 client suites / 1,511 assertions, 319 server suites / 2,982 assertions (aggregated reruns), passing type/build/runtime gates, and 14 live browser route/theme checks. See the [release record](../audits/2026-09-05/release-verification.md) and [device handoff](../audits/2026-09-05/device-test-handoff.md).
+The subsequent session-recovery step is now published from `8b8543e3`: API `54143be0`, OTA `1795b001` for iOS/Android runtime 1.0.5, and the matching website. Full client tests pass (217 suites / 1,534 assertions), focused server tests pass (six suites / 38 assertions), and five iPhone simulator lifecycle/recovery scenarios pass. The physical iPhone's approximately weekly sign-out still needs observation. See the [session evidence](../audits/2026-09-05/session-restoration-remediation.md).
+
+The next bounded settings repair is [data-export readiness](../audits/2026-09-05/data-export-readiness-gap.md): private export storage is unconfigured, the worker lacks production startup wiring, and availability/expiry need enforcement. The advertised queued export cannot be marked complete from its current tests or whole-API health alone.
+
+The earlier remediation was published for owner testing: API `6bb32c40` / Railway `44e31b96`, client `e6af820d` / production OTA `6f4b1579` for iOS and Android runtime 1.0.5, and the matching website. Final evidence is 215 client suites / 1,511 assertions, 319 server suites / 2,982 assertions (aggregated reruns), passing type/build/runtime gates, and 14 live browser route/theme checks. See the [release record](../audits/2026-09-05/release-verification.md) and [device handoff](../audits/2026-09-05/device-test-handoff.md).
 
 This supersedes the publication-pending language in the historical checkpoint below. A+ remains unmet: direct Instagram Stories and authorized minor-league population are not implemented; native/provider journeys and operational/performance/recovery acceptance remain open. The existing review-account privilege and refund-copy questions remain explicit product decisions.
 

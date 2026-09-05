@@ -1,0 +1,94 @@
+{
+  "checkedAt": "2026-09-05T19:54:37.918873+00:00",
+  "deployment": {
+    "id": "54143be0-d7ae-4a40-bfb0-2b830bf44384",
+    "status": "SUCCESS",
+    "createdAt": "2026-09-05T19:50:43.970Z",
+    "cliMessage": "Session recovery fixes 8b8543e3",
+    "source": "8b8543e3"
+  },
+  "runtimeGate": {
+    "exitCode": 0,
+    "log": "runtime-production.log"
+  },
+  "health": {
+    "httpStatus": 200,
+    "status": "ok",
+    "ready": true,
+    "integrations": {
+      "database": true,
+      "jwt": true,
+      "cloudinary": true,
+      "twilio": true,
+      "stripe": true,
+      "sendgrid": true,
+      "googleOAuth": true,
+      "googleMaps": true,
+      "appleIAP": true,
+      "appleIAPLegacyReceipt": true,
+      "sentry": true,
+      "redis": true,
+      "dataExportStorage": false
+    },
+    "paymentsConfigured": true,
+    "webhookSecretConfigured": true
+  },
+  "unauthenticatedProbes": [
+    {
+      "name": "login_missing",
+      "method": "POST",
+      "path": "/auth/login",
+      "expectedStatus": 400,
+      "status": 400,
+      "errorEnvelope": {
+        "error": "Invalid credentials"
+      },
+      "passed": true
+    },
+    {
+      "name": "refresh_missing",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 401,
+      "status": 401,
+      "errorEnvelope": {
+        "error": "Invalid refresh token"
+      },
+      "passed": true
+    },
+    {
+      "name": "refresh_invalid",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "expectedStatus": 401,
+      "status": 401,
+      "errorEnvelope": {
+        "error": "Invalid refresh token"
+      },
+      "passed": true
+    },
+    {
+      "name": "me_unauthenticated",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectedStatus": 401,
+      "status": 401,
+      "errorEnvelope": {
+        "error": "Unauthorized"
+      },
+      "passed": true
+    }
+  ],
+  "migrations": {
+    "schemaOrMigrationChangesSincePriorApiSource": false,
+    "previousApiSource": "6bb32c40",
+    "observedStartupMessages": [
+      "151 migrations found in prisma/migrations",
+      "No pending migrations to apply."
+    ],
+    "noPendingMigrationsObserved": true
+  },
+  "accountOrTokenMutationsAttempted": false,
+  "emailOrChargeCallsAttempted": false,
+  "passed": true
+}
