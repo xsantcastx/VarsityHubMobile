@@ -124,5 +124,11 @@
   },
   "deliveredSourceCommit": "cab5b1339feadf4db5c06466fb4022f53e23912d",
   "otaGroup": "7e09e4a5-4dd3-4437-bf3b-a32535ab96e1",
-  "webDeployment": "dpl_3b6PfEGQVob7BzvTGE9ziFe3Zh1F"
+  "webDeployment": "dpl_3b6PfEGQVob7BzvTGE9ziFe3Zh1F",
+  "serverFollowup": {
+    "sourceCommit": "e7f38857fd5964dcc897d4807d90a0b6ad48c6a9",
+    "evidence": "data-export-preferences-verification.json",
+    "runtimeEvidence": "data-export-api-verification.json",
+    "clientUnchangedSince": "cab5b1339feadf4db5c06466fb4022f53e23912d"
+  }
 }

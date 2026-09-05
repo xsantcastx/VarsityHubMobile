@@ -112,9 +112,9 @@ private archives through media storage.
 
 ## Release and rollback
 
-Published product source: `cab5b1339feadf4db5c06466fb4022f53e23912d`.
+Client source: `cab5b1339feadf4db5c06466fb4022f53e23912d`. Final server source: `e7f38857fd5964dcc897d4807d90a0b6ad48c6a9`. The server follow-up includes the actual saved notification switches; its ZIP assertions preserve false values and reject unknown nested token fields. The local release gate, both typechecks, worker/lifecycle regressions and real private-storage journey passed again: [field-level follow-up evidence](data-export-preferences-verification.json). Client code is unchanged.
 
-- API: Railway `fc1e39a0-aced-4016-8e61-0c2f5cdbf6f6`, SUCCESS; runtime gate passed, zero pending migrations.
+- API: Railway `1afb5524-95d5-4242-8f8d-a8b1f92072e4`, SUCCESS (supersedes `fc1e39a0`); runtime gate passed, zero pending migrations.
 - OTA: production `7e09e4a5-4dd3-4437-bf3b-a32535ab96e1`, iOS/Android runtime 1.0.5; both served manifests verified and Sentry source maps uploaded.
 - Website: Vercel `dpl_3b6PfEGQVob7BzvTGE9ziFe3Zh1F`, READY; both public aliases serve matching export bytes. Ten guest route/theme checks pass with no page errors or attempted API writes.
 - [Publication record](data-export-publication.json), [API evidence](data-export-api-verification.json), [OTA evidence](data-export-ota-delivery.json), [web evidence](data-export-web-verification.json).

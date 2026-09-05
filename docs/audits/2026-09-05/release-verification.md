@@ -1,6 +1,6 @@
 # September 5 remediation release verification
 
-Latest follow-up: [data-export remediation](data-export-remediation.md), published from `cab5b133` to API `fc1e39a0`, OTA `7e09e4a5` (runtime 1.0.5) and the matching website. Code/delivery checks pass; private storage activation and physical iPhone archive handling remain open. [Matrix verification ledger](matrix-verification-ledger.md).
+Latest follow-up: [data-export remediation](data-export-remediation.md), server source `e7f38857` published to API `1afb5524`; client source `cab5b133` published to OTA `7e09e4a5` (runtime 1.0.5) and the matching website. Code/delivery checks pass; private storage activation and physical iPhone archive handling remain open. [Matrix verification ledger](matrix-verification-ledger.md).
 
 ## Latest follow-up: session recovery
 

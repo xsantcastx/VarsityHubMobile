@@ -1,6 +1,6 @@
 # September 5 release — device test handoff
 
-Latest installed-client update: production OTA `7e09e4a5`, runtime 1.0.5, source `cab5b133`; API `fc1e39a0`. Close and reopen twice under the app’s background-update model. **Settings → Download My Data should currently show Temporarily Unavailable** because dedicated private storage is not configured. After [storage setup](data-export-remediation.md#production-storage-setup--outstanding), verify request → ready → ZIP download/save/open on the physical iPhone. Do not mark this device journey passed from the local storage tests.
+Latest installed-client update: production OTA `7e09e4a5`, runtime 1.0.5, source `cab5b133`; API `1afb5524` (server source `e7f38857`). Close and reopen twice under the app’s background-update model. **Settings → Download My Data should currently show Temporarily Unavailable** because dedicated private storage is not configured. After [storage setup](data-export-remediation.md#production-storage-setup--outstanding), verify request → ready → ZIP download/save/open on the physical iPhone. Do not mark this device journey passed from the local storage tests.
 
 Use the exact production update/runtime in the [release record](release-verification.md). Test both installed iOS and Android clients. Open the app online, allow its background update to download, then close and reopen it. A runtime other than 1.0.5 does not receive this release.
 

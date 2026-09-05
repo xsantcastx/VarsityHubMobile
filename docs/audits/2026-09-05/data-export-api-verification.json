@@ -1,15 +1,15 @@
 {
-  "checkedAt": "2026-09-05T21:23:51.434880+00:00",
+  "checkedAt": "2026-09-05T21:44:07.991210+00:00",
   "deployment": {
-    "id": "fc1e39a0-aced-4016-8e61-0c2f5cdbf6f6",
+    "id": "1afb5524-95d5-4242-8f8d-a8b1f92072e4",
     "status": "SUCCESS",
-    "createdAt": "2026-09-05T21:21:07.466Z",
-    "cliMessage": "Data export lifecycle fixes cab5b133",
-    "source": "cab5b133"
+    "createdAt": "2026-09-05T21:40:18.399Z",
+    "cliMessage": "Export notification preferences e7f38857",
+    "source": "e7f38857"
   },
   "runtimeGate": {
     "exitCode": 0,
-    "log": "runtime-production.log"
+    "log": "runtime-preferences.log"
   },
   "health": {
     "httpStatus": 200,
@@ -114,7 +114,7 @@
   ],
   "migrations": {
     "schemaOrMigrationChangesSincePriorApiSource": false,
-    "previousApiSource": "8b8543e3",
+    "previousApiSource": "cab5b133",
     "observedStartupMessages": [
       "151 migrations found in prisma/migrations",
       "No pending migrations to apply."
