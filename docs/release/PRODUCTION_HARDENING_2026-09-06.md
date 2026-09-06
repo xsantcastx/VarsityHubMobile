@@ -109,3 +109,11 @@ References: [Sentry debug-file API](https://docs.sentry.io/api/projects/list-a-p
 - PR #281 remains open and mergeable; fork branch contains the release source. Upstream merge access remains unavailable. API deployment and OTA publication are independently verified, not inferred from the PR.
 - The temporary isolated PostgreSQL cluster and restored customer data were removed. GitHub retains only aggregate restore evidence.
 - Native build gates are prepared for a subsequent archive. No native binary was built or shipped, and the native crashes remain unresolved. Existing legacy/needs-action purchases and unconnected league providers remain documented open work.
+
+## Follow-up implementation verification for review
+
+- Reproduced a late receipt error from a previous account closing a different account's current checkout. The new test failed before the fix. Receipt failure callbacks now require the original checkout object, current account and matching intent token before changing checkout state; token matching is case-insensitive. Unrelated failures still emit structured `ad_iap_receipt_recovery` telemetry with the original intent ID.
+- Ten focused purchase-recovery tests pass, including the late-failure regression, telemetry assertion and a matching-checkout failure control. Full local release workflow passed (160 client regression tests and 125 server regression tests at that run); the additional control/telemetry checks passed afterward. Both client and server TypeScript checks passed, as did staged-file guardrails.
+- Runtime verification passed. Build readiness passed with four warnings and no blocking errors. These commands did not build or submit a native binary.
+- Fresh independent restore drill [34060166554](https://github.com/emilmancero-dev/VarsityHubMobile/actions/runs/34060166554) passed at 2026-09-06T21:10:29Z: 62 tables / 4,338 rows, exact content match, migrations, purchase recovery and constraints; disposable database cleaned up. No backend/schema change was needed for this follow-up.
+- The remaining native crashes, missing providers, legacy/needs-action purchases and physical/TestFlight verification gates remain open. This verification is not blanket certification of every app flow.

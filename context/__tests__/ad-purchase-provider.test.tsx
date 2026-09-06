@@ -1,4 +1,5 @@
 import React from 'react';
+import { captureException } from '@/utils/sentry';
 import { act, create } from 'react-test-renderer';
 import { AdPurchaseProvider, useAdPurchaseContext } from '../AdPurchaseProvider';
 import { createAdIntent, recoverAdReceipt, reconcileAdIntents } from '@/lib/adPurchaseRecovery';
@@ -215,5 +216,101 @@ it('starts recovery for a newly signed-in account after superseded recovery fini
   });
   expect(mockPending).toHaveBeenCalledTimes(2);
   expect(reconcileAdIntents).toHaveBeenCalledTimes(1);
+  act(() => tree.unmount());
+});
+
+it('does not let a late receipt failure cancel a different account checkout', async () => {
+  let rejectOld!: (error: Error) => void;
+  jest.mocked(recoverAdReceipt).mockImplementationOnce(
+    () =>
+      new Promise((_, reject) => {
+        rejectOld = reject;
+      })
+  );
+  let tree: any;
+  await act(async () => {
+    tree = create(
+      <AdPurchaseProvider>
+        <Child />
+      </AdPurchaseProvider>
+    );
+    await flush();
+  });
+  await act(async () => {
+    mockCallbacks.onPurchaseSuccess({
+      id: 'old-transaction',
+      productId: 'MOND_THURS',
+      appAccountToken: 'old-intent',
+    });
+    await flush();
+  });
+  await act(async () => {
+    mockOwner = 'account-b';
+    tree.update(
+      <AdPurchaseProvider>
+        <Child />
+      </AdPurchaseProvider>
+    );
+    await flush();
+  });
+  jest.mocked(createAdIntent).mockResolvedValue({ ...intent, id: 'new-intent' });
+  let checkout!: Promise<any>;
+  await act(async () => {
+    checkout = value.purchaseAd({ adId: 'ad-b', dates: [], weekdayBlocks: 0, weekendBlocks: 1 });
+    await flush();
+  });
+  expect(value.purchasing).toBe(true);
+  await act(async () => {
+    rejectOld(new Error('old receipt failed'));
+    await flush();
+  });
+  expect(captureException).toHaveBeenCalledWith(expect.any(Error), {
+    tags: { context: 'ad_iap_receipt_recovery' },
+    extra: { intent_id: 'old-intent' },
+  });
+  expect(value.purchasing).toBe(true);
+  await act(async () => {
+    mockCallbacks.onPurchaseError({ code: 'E_USER_CANCELLED' });
+    await flush();
+  });
+  await expect(checkout).resolves.toEqual({ ok: false, error: undefined });
+  act(() => tree.unmount());
+});
+
+it('still reports a matching checkout receipt failure with a differently cased Apple token', async () => {
+  jest.mocked(createAdIntent).mockResolvedValue(intent);
+  jest.mocked(recoverAdReceipt).mockRejectedValueOnce(new Error('verification unavailable'));
+  let tree: any;
+  await act(async () => {
+    tree = create(
+      <AdPurchaseProvider>
+        <Child />
+      </AdPurchaseProvider>
+    );
+    await flush();
+  });
+  let checkout!: Promise<any>;
+  await act(async () => {
+    checkout = value.purchaseAd({
+      adId: intent.ad_id,
+      dates: [],
+      weekdayBlocks: 0,
+      weekendBlocks: 1,
+    });
+    await flush();
+  });
+  await act(async () => {
+    mockCallbacks.onPurchaseSuccess({
+      id: 'current-transaction',
+      productId: 'FRI_SUN',
+      appAccountToken: intent.id.toUpperCase(),
+    });
+    await flush();
+  });
+  expect(value.purchasing).toBe(false);
+  await expect(checkout).resolves.toMatchObject({
+    ok: false,
+    error: expect.stringContaining('Reconnect'),
+  });
   act(() => tree.unmount());
 });

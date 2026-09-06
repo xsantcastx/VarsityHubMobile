@@ -77,11 +77,18 @@ export function AdPurchaseProvider({ children }: { children: React.ReactNode }) 
   };
   const store = useStore({
     onPurchaseSuccess: (purchase: any) => {
-      if (!skus.includes(purchase?.productId) || !ownerRef.current) return;
-      void processPurchase(purchase, ownerRef.current).catch(() => {
+      const account = ownerRef.current;
+      const checkout = active.current;
+      if (!skus.includes(purchase?.productId) || !account) return;
+      void processPurchase(purchase, account).catch(() => {
         report('ad_iap_receipt_recovery', purchase?.appAccountToken);
-        const checkout = active.current;
-        if (checkout)
+        if (
+          checkout &&
+          active.current === checkout &&
+          ownerRef.current === account &&
+          checkout.owner === account &&
+          checkout.intentId?.toLowerCase() === String(purchase?.appAccountToken || '').toLowerCase()
+        )
           finishCheckout(checkout, {
             ok: false,
             error:
