@@ -191,10 +191,11 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
         } else if (result.error?.includes('not configured')) {
           // Silent skip — no backup URL set
         } else {
-          console.error('[Scheduler] DB backup sync failed:', result.error);
+          throw new Error(`DB backup sync failed: ${result.error || 'unknown failure'}`);
         }
       } catch (error) {
-        console.error('[Scheduler] DB backup sync error:', error);
+        // Let the scheduler worker record failure and report it through Sentry.
+        throw error;
       }
     },
   },
