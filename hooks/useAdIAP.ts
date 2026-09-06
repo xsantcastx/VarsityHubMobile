@@ -7,7 +7,7 @@ import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
-import { captureBreadcrumb } from '@/utils/sentry';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import {
   enqueuePendingAdVerification,
   hasPendingAdVerification,
@@ -151,6 +151,10 @@ export function useAdIAP() {
           ad_id: pending.adId,
         });
       } catch (err) {
+        captureException(new Error('Ad receipt processing failed before verification'), {
+          tags: { context: 'ad_iap_receipt_processing' },
+          extra: { ad_id: pending.adId, error_kind: err instanceof Error ? err.name : 'unknown' },
+        });
         if (__DEV__) console.warn('[useAdIAP] Receipt/finish failed:', (err as Error)?.message);
         captureBreadcrumb(
           'Ad purchase processing failed',

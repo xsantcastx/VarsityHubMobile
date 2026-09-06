@@ -10,7 +10,7 @@ const dirs: string[] = [];
 afterAll(() => dirs.forEach(dir => rmSync(dir, { recursive: true, force: true })));
 const quote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
 
-async function runStartup(options: { migrationFails?: boolean; backupFails?: boolean } = {}) {
+async function runStartup(options: { migrationFails?: boolean; backupConfigured?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'varsityhub-startup-test-'));
   dirs.push(dir);
   mkdirSync(join(dir, 'node_modules', '.bin'), { recursive: true });
@@ -40,7 +40,7 @@ async function runStartup(options: { migrationFails?: boolean; backupFails?: boo
         PORT: '0',
         HOST: '127.0.0.1',
         DATABASE_URL: 'postgresql://audit@127.0.0.1:5432/unused_local_fixture',
-        ...(options.backupFails
+        ...(options.backupConfigured
           ? {
               DATABASE_BACKUP_URL: 'postgresql://audit@127.0.0.1:5432/unused_backup_fixture',
               FAIL_BACKUP: '1',
@@ -122,12 +122,12 @@ describe('deployment readiness before the real API', () => {
     expect(result.output).toContain('TIMEOUT_BOUND=10');
     expect(result.output).not.toContain('REAL_API_STARTED');
   });
-  it('starts the real API after successful migration and treats a bounded backup failure as nonfatal', async () => {
-    const result = await runStartup({ backupFails: true });
+  it('starts the API without mutating the backup schema even when a backup is configured', async () => {
+    const result = await runStartup({ backupConfigured: true });
     expect(result.code).toBe(0);
     expect(result.output).toContain('Migrations applied successfully');
-    expect(result.output).toContain('TIMEOUT_BOUND=180');
-    expect(result.output).toContain('Backup schema push failed (non-fatal)');
+    expect(result.output).not.toContain('PRISMA_STUB:db push');
+    expect(result.output).toContain('Backup schema mutations skipped');
     expect(result.output).toContain('REAL_API_STARTED');
     expect(result.output.indexOf('Migrations applied successfully')).toBeLessThan(
       result.output.indexOf('REAL_API_STARTED')

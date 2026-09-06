@@ -107,22 +107,13 @@ if [ "$migrate_ok" -ne 1 ]; then
   exit 1
 fi
 
-# The backup Postgres never receives `prisma migrate deploy` — its schema only
-# changes here. Without this step, every new migration adding a table/column
-# makes the 6-hourly db-backup-sync fail that table with 42P01 until someone
-# reconciles by hand (Sentry VARSITYHUB-1D: SportProgram, CoachApplication).
-# `db push` (not `migrate deploy`) because the backup has no migration
-# history — it diffs the live schema against schema.prisma and converges.
-# --accept-data-loss is safe here: the backup is a mirror whose rows are
-# rewritten from the primary on every sync. Non-fatal: a backup outage must
-# never block API startup; the sync job reports per-table failures instead.
+# Preserve the last complete backup during deployment. The primary can contain
+# columns outside schema.prisma; db push --accept-data-loss silently deleted
+# those backup columns at every startup. Apply reviewed additive backup schema
+# changes separately. The atomic backup job validates schema before any writes
+# and reports drift as a failed scheduler job without clearing prior data.
 if [ -n "${DATABASE_BACKUP_URL:-}" ]; then
-  echo "[startup] Reconciling backup DB schema (prisma db push)..."
-  if DATABASE_URL="$DATABASE_BACKUP_URL" timeout --kill-after=5 180 ./node_modules/.bin/prisma db push --skip-generate --accept-data-loss; then
-    echo "[startup] ✓ Backup DB schema in sync"
-  else
-    echo "[startup] ⚠️  Backup schema push failed (non-fatal); db-backup-sync will surface per-table failures"
-  fi
+  echo "[startup] Backup schema mutations skipped; atomic backup job validates schema coverage"
 fi
 
 stop_startup_placeholder

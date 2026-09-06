@@ -101,3 +101,7 @@ Release only after [LAUNCH_READINESS_GATE.md](/Users/varsityhub/Desktop/CODE/Var
 - `EMAIL_GO_LIVE_CHECKLIST.md`: SendGrid-specific appendix
 - `FINAL_LAUNCH_SEQUENCE.md`: compatibility pointer to this workflow
 - `PRODUCTION_READINESS*.md`, `READY_FOR_PRODUCTION.md`: historical context only
+
+### Backup schema changes
+
+API startup does not mutate the backup schema. Before deploying primary schema additions, apply reviewed additive equivalents to the backup and verify column/type coverage. Do not use `prisma db push --accept-data-loss`: it removes primary-only columns and can destroy the last complete backup. The atomic backup job rejects missing tables/columns and preserves the prior data on refresh failure. Primary migrations still run at startup.
