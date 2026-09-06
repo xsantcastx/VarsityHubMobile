@@ -87,3 +87,7 @@ and the exact rerun that resolved it.
 ## September 6 local root-cause patch
 
 See [root-cause fixes and verification](root-cause-fixes-2026-09-06.md) for the local fixes to ROLE-C01/C02/C03, AD-C01/C02, SET-C01, durable feedback and monitoring. Reproducing scenarios now pass locally; production closure remains pending release and deployed acceptance. NATIVE-C01, OPS-C01 and live provider/alert receipt checks remain open. Earlier production failures are retained as before-fix evidence.
+
+## September 6 publication update
+
+[Release record](release-2026-09-06.md): source `63f5a8b1` is pushed; Railway `c46c3898` is successful; production OTA `6db590e9` covers iOS/Android runtime 1.0.5; the website is published to both custom domains. Production health/configuration checks passed. Release delivery does not replace authenticated device/provider scenario acceptance. Snyk ran on the release commit: dependency scans clean at the configured high threshold; code scans reported 48/60 findings requiring triage. Native map crash, private export activation, provider receipt and the other documented acceptance gaps remain open.

@@ -1,5 +1,7 @@
 # Matrix root-cause fixes — September 6, 2026
 
+**Publication update:** the implementation below is now committed, pushed and released through Railway, EAS OTA and web. See the [September 6 release record](release-2026-09-06.md) for exact versions and live Snyk results. The original local checkpoint below is retained as dated evidence.
+
 Local implementation on `fix/desktop-notes-map-collage-share`, based on `fccdc186d07d8f7588f0195e9655d0eb3ecb70a3`. These changes have not been committed, deployed to Railway, published as an OTA, or built into iOS. The [production audit](current-production-reaudit.md) retains the separate Railway, EAS and web version evidence; a latest Git commit does not prove production deployment.
 
 ## Findings and fixes
