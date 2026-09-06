@@ -13,10 +13,10 @@
 
 ## Verification
 
-- `npm run release:verify:local`: passed twice after the local database repair; subsequent purchase-timeout identity guard is also covered by the commit type/lint checks.
-- `npm run release:verify:build`: passed with four nonblocking warnings.
-- Focused queue/search/preview tests: 11 passed; an additional hung-trim/overlap/late-result test passed. Native trim source contract: two passed. These are JavaScript and source checks, not native crash reproductions.
-- Backup verdict/SQL/order tests: 30 passed. ESPN and rolling-ingestion tests: 22 passed. Existing database-backed payment-finalization tests: 11 passed.
+- `npm run release:verify:local`: passed on the final repair source, including client/server typechecks and access/regression gates; commit and pre-push hooks also passed.
+- `npm run release:verify:build`: passed on the final repair source with three nonblocking native submission credential warnings (Apple ID entries and Android service-account file).
+- Focused queue/search/video tests: 12 passed, including hung-trim/overlap/late-result behavior. Native trim source contract: two passed. These are JavaScript and source checks, not native crash reproductions.
+- Backup verdict/SQL/order tests: 30 passed. ESPN and rolling-ingestion tests: 22 passed. Existing database-backed payment-finalization tests: 11 passed. Backup scheduler/fallback tests: six passed; startup readiness tests: three passed.
 - Disposable PostgreSQL: injected middle-table insert failure preserved both previous backup tables; successful refresh replaced both; missing-column drift rejected refresh without clearing data. Reusable command: `DATABASE_URL=<local-postgres-url> npx tsx scripts/verify-backup-atomicity.ts` from `server/`. It creates and drops its own temporary local databases and refuses remote hosts.
 - The initial access-matrix failure was traced to the local database missing existing September 3/5 migrations, including AdSlotHold. Applied those migrations locally; the access matrix subsequently passed. No primary production migration was made.
 
@@ -26,7 +26,14 @@ Read-only comparison found 616 primary columns versus 606 backup columns. Nine b
 
 ## Release status
 
-Source commit, server deployment, runtime checks and OTA identifiers will be recorded after completion. Publication is not established by this document alone.
+- Repair source: `14c6b8373bf0e6f75eaa7d176c69421dd146534a` (preceded by `4849b420` and `ae42b8c7`). Pushed to the fork; upstream PR #281 remains open and mergeable. The available upstream GitHub account has pull-only access.
+- Final Railway deployment: `b9fa122e-32b1-4091-a57f-30ac2cedabb9`, status SUCCESS. Runtime verification passed after this deployment. Startup logs confirm backup schema mutations are skipped.
+- Production scheduler verification job: `forensic-backup-14c6b837-20260906`, completed. Logs confirm 58 tables and 4,179 rows copied. Subsequent read-only count check: primary 4,179, backup 4,179, missing tables zero, row-count deficit zero. This is not content equality or a full restore drill.
+- Production OTA group: `69ac3326-5bd1-4f44-9f00-65840275bef6`, branch production, runtime `1.0.5`, iOS and Android, repair source `14c6b837`.
+- iOS update: `01a077eb-de53-7373-a8ee-9ed3ccd9b57a`; Android: `01a077eb-de53-77cc-b28f-2569f6a69fd9`.
+- Sentry artifact uploads completed. iOS Debug ID: `6748a1f8-767d-4c48-8d1c-32248e117ec7`; Android: `0b796ca0-e989-489e-adaa-e25cd3ee342b`. Checked that each actual exported Hermes bundle contains its corresponding source-map Debug ID.
+- Previous mobile OTA rollback candidate: `99d1b7cb-24bc-4b35-b756-db6ac525c0e5` (also runtime `1.0.5`). A server rollback must retain the backup-preservation changes; older startup code can remove primary-only backup columns again.
+- Web export succeeded, but Vercel rejected deployment with **Not authorized** before domain alias changes. CLI login is `emilmancero-dev`; its accessible team list does not include the linked VarsityHub web project team. No Vercel token override is supplied by the EAS production environment. Web remains on its previous deployment. Finishing web publication requires an account/token authorized for the existing project, then the documented production web command. Do not deploy a substitute project or move its domains to work around access.
 
 ## Still open
 
