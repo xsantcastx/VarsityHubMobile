@@ -575,10 +575,8 @@ function SettingsContent() {
   const pushStatus = pushDiagnostics?.delivery_ready
     ? {
         icon: 'checkmark-circle' as const,
-        title: 'Push Delivery Ready',
-        subtitle: pushDiagnostics.push_token?.preview
-          ? `Registered token ${pushDiagnostics.push_token.preview}`
-          : 'Registered token',
+        title: 'Notifications enabled',
+        subtitle: 'This device is registered to receive notifications.',
         color: STATUS_COLORS.success,
       }
     : pushDiagnostics?.preferences?.notifications_enabled === false

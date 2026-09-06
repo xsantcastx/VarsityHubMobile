@@ -1,3 +1,4 @@
+import { fetchDiscoveryItems } from '@/api/eventDiscovery';
 import { EVENT_BANNER_ASPECT_RATIO } from '@/constants/eventPresentation';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
@@ -45,18 +46,12 @@ import * as Location from 'expo-location';
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import { queryClient } from '@/lib/queryClient';
-import {
-  buildFeedGameQueries,
-  mergeFeedGames,
-  type FeedGameQueryPlan,
-} from '@/utils/feedGameQueries';
+import { FEED_PAST_WINDOW_MS, mergeFeedGames } from '@/utils/feedGameQueries';
 import { getDeterministicGameCardGradient, proGameCardGradient } from '@/utils/feedGameCard';
 import {
   dedupeFeedEntities,
-  filterProEventsAlreadyRepresentedByGames,
   getFeedItemSport,
-  normalizeFeedEvents,
-  normalizeGamesPage,
+  toFeedDiscoveryGames,
   type FeedBundleParams,
   type GameItem,
 } from '@/utils/feedNormalization';
@@ -476,9 +471,6 @@ export default function FeedScreen() {
   const [error, setError] = useState<string | null>(null);
   const [webHydrated, setWebHydrated] = useState(Platform.OS !== 'web');
   const [games, setGames] = useState<GameItem[]>([]);
-  const [gamesCursor, setGamesCursor] = useState<string | null>(null);
-  const [hasMoreGames, setHasMoreGames] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedFeedSport, setSelectedFeedSport] = useState<string | null>(null);
   const [query] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -537,10 +529,6 @@ export default function FeedScreen() {
   const lastLoadTimestampRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const loadRequestIdRef = useRef(0);
-  // The query plan of the latest load. _loadMore must reuse the SAME dateFrom
-  // anchor the cursor was minted against — recomputing it mid-pagination
-  // shifts the where-clause under the cursor.
-  const feedQueryPlanRef = useRef<FeedGameQueryPlan | null>(null);
   const feedBundleParamsRef = useRef<FeedBundleParams | null>(null);
   const hasFocusedOnceRef = useRef(false);
   const LOAD_COOLDOWN_MS = 30_000;
@@ -670,22 +658,16 @@ export default function FeedScreen() {
             return null;
           });
 
-        // Resolve viewer coords BEFORE the games queries so the server can
-        // select nearest-first games ("always show games closest to them").
+        // Last-known location is only for at-venue pinning, never discovery eligibility.
         // Last-known position only — never getCurrentPositionAsync here, it
         // can block the feed for seconds. No coords is fine: the server falls
         // back to the signed-in viewer's zip preference. Coords are rounded
         // to 2 decimals (~1km) so cache keys stay stable across small moves.
-        let viewerCoords: { lat: number; lng: number } | null = null;
         try {
           const { status } = await Location.getForegroundPermissionsAsync();
           if (status === 'granted') {
             const loc = await Location.getLastKnownPositionAsync().catch(() => null);
             if (loc) {
-              viewerCoords = {
-                lat: Math.round(loc.coords.latitude * 100) / 100,
-                lng: Math.round(loc.coords.longitude * 100) / 100,
-              };
               // Unrounded — the at-venue check runs against a 3km radius, which
               // the ~1km rounding above would blur.
               setViewerPosition({
@@ -698,223 +680,43 @@ export default function FeedScreen() {
           if (__DEV__) console.warn('Feed: location for game proximity failed', e);
         }
 
-        // Load games with better error handling. Route through the shared
-        // react-query cache so the games list is deduped across screens and a
-        // cold remount of the feed renders instantly from cache (the 30s
-        // staleTime mirrors this screen's own LOAD_COOLDOWN_MS).
-        // Upcoming and the past recap are separate queries with separate page
-        // budgets (see utils/feedGameQueries.ts); the upcoming query is the
-        // primary one — it owns the pagination cursor and the error state.
-        const queryPlan = buildFeedGameQueries(Date.now());
-        const proLookaheadTo = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
-        feedQueryPlanRef.current = queryPlan;
-        // First paint waits only for the core game pages. Pro/NCAA/event-only
-        // rows are useful enrichment, but they should not hold the feed spinner.
-        const [upcomingData, pastGamesData, marqueeGamesData] = await Promise.all([
-          queryClient
-            .fetchQuery({
-              queryKey: [
-                'feed-games-upcoming',
-                queryPlan.upcoming.options.dateFrom,
-                viewerCoords?.lat ?? null,
-                viewerCoords?.lng ?? null,
-              ],
-              queryFn: () => Game.list(queryPlan.upcoming.sort, queryPlan.upcoming.options),
-            })
-            .catch((err: any) => {
-              if (!isCurrentRequest()) return null;
-              if (__DEV__) console.error('[Feed] Failed to load games:', err);
-              // If it's a network error, show a more helpful message
-              if (err?.isNetworkError || err?.status === 0) {
-                setError('Unable to connect to server. Please check your internet connection.');
-              } else if (err?.status === 401 || err?.status === 403) {
-                setError('Unable to load games right now.');
-              } else {
-                setError('Unable to load games. Please try again.');
-              }
-              return null;
-            }),
-          queryClient
-            .fetchQuery({
-              queryKey: [
-                'feed-games-past',
-                queryPlan.past.options.dateFrom,
-                viewerCoords?.lat ?? null,
-                viewerCoords?.lng ?? null,
-              ],
-              queryFn: () => Game.list(queryPlan.past.sort, queryPlan.past.options),
-            })
-            .catch((err: any) => {
-              if (__DEV__) console.warn('[Feed] Failed to load past games:', err);
-              return null;
-            }),
-          queryClient
-            .fetchQuery({
-              queryKey: [
-                'feed-games-marquee',
-                queryPlan.marquee.options.dateFrom,
-                viewerCoords?.lat ?? null,
-                viewerCoords?.lng ?? null,
-              ],
-              queryFn: () => Game.list(queryPlan.marquee.sort, queryPlan.marquee.options),
-            })
-            .catch((err: any) => {
-              if (__DEV__) console.warn('[Feed] Failed to load marquee games:', err);
-              return null;
-            }),
-        ]);
-
-        const upcomingPage = normalizeGamesPage(upcomingData);
-        const cursor = upcomingPage.cursor;
-        const gameRows = [
-          ...normalizeGamesPage(pastGamesData).games,
-          ...upcomingPage.games,
-          ...normalizeGamesPage(marqueeGamesData).games,
-        ];
-        const normalizedGames = dedupeFeedEntities(mergeFeedGames(gameRows));
-
+        // One canonical event dataset, shared with the map. The loader follows
+        // bounded candidate pages, including empty intermediate pages.
+        const normalizedGames = toFeedDiscoveryGames(
+          await queryClient.fetchQuery({
+            queryKey: ['feed-discovery', user?.id ?? null, 'upcoming'],
+            staleTime: force ? 0 : 30_000,
+            queryFn: ({ signal }) => fetchDiscoveryItems({ surface: 'feed' }, signal),
+          })
+        );
         if (isCurrentRequest()) {
           setGames(normalizedGames);
-          setGamesCursor(cursor);
-          setHasMoreGames(!!cursor);
           if (!silent) setLoading(false);
         }
-
+        const pastTo = new Date();
+        const pastFrom = new Date(pastTo.getTime() - FEED_PAST_WINDOW_MS);
         void (async () => {
           try {
-            const [
-              proUpcomingData,
-              proPastData,
-              varsityhubUpcomingEventsData,
-              varsityhubPastEventsData,
-            ] = await Promise.all([
-              queryClient
-                .fetchQuery({
-                  queryKey: ['feed-pro-events-upcoming', queryPlan.upcoming.options.dateFrom],
-                  queryFn: () =>
-                    Event.filter(
-                      {
-                        event_type: 'game',
-                        pro_only: true,
-                        event_only: true,
-                        from: queryPlan.upcoming.options.dateFrom,
-                        to: proLookaheadTo,
-                      },
-                      'date',
-                      300
-                    ),
-                })
-                .catch((err: any) => {
-                  if (__DEV__) console.warn('[Feed] Failed to load pro upcoming events:', err);
-                  return null;
-                }),
-              queryClient
-                .fetchQuery({
-                  queryKey: [
-                    'feed-pro-events-past',
-                    queryPlan.past.options.dateFrom,
-                    queryPlan.past.options.dateTo ?? null,
-                  ],
-                  queryFn: () =>
-                    Event.filter(
-                      {
-                        event_type: 'game',
-                        pro_only: true,
-                        event_only: true,
-                        from: queryPlan.past.options.dateFrom,
-                        to: queryPlan.past.options.dateTo,
-                      },
-                      '-date',
-                      30
-                    ),
-                })
-                .catch((err: any) => {
-                  if (__DEV__) console.warn('[Feed] Failed to load pro past events:', err);
-                  return null;
-                }),
-              queryClient
-                .fetchQuery({
-                  queryKey: [
-                    'feed-varsityhub-events-upcoming',
-                    queryPlan.upcoming.options.dateFrom,
-                    queryPlan.upcoming.options.dateTo ?? null,
-                  ],
-                  queryFn: () =>
-                    Event.filter(
-                      {
-                        event_only: true,
-                        from: queryPlan.upcoming.options.dateFrom,
-                        to: queryPlan.upcoming.options.dateTo,
-                      },
-                      'date',
-                      100
-                    ),
-                })
-                .catch((err: any) => {
-                  if (__DEV__)
-                    console.warn('[Feed] Failed to load VarsityHub upcoming events:', err);
-                  return null;
-                }),
-              queryClient
-                .fetchQuery({
-                  queryKey: [
-                    'feed-varsityhub-events-past',
-                    queryPlan.past.options.dateFrom,
-                    queryPlan.past.options.dateTo ?? null,
-                  ],
-                  queryFn: () =>
-                    Event.filter(
-                      {
-                        event_only: true,
-                        from: queryPlan.past.options.dateFrom,
-                        to: queryPlan.past.options.dateTo,
-                      },
-                      '-date',
-                      100
-                    ),
-                })
-                .catch((err: any) => {
-                  if (__DEV__) console.warn('[Feed] Failed to load VarsityHub past events:', err);
-                  return null;
-                }),
-            ]);
-
-            if (!isCurrentRequest()) return;
-            setEventEnrichmentFailed(
-              [
-                proUpcomingData,
-                proPastData,
-                varsityhubUpcomingEventsData,
-                varsityhubPastEventsData,
-              ].some(data => data === null)
-            );
-            const proPastRows = filterProEventsAlreadyRepresentedByGames(
-              gameRows,
-              normalizeFeedEvents(proPastData)
-            );
-            const proUpcomingRows = filterProEventsAlreadyRepresentedByGames(
-              gameRows,
-              normalizeFeedEvents(proUpcomingData)
-            );
-            const varsityhubEventRows = filterProEventsAlreadyRepresentedByGames(
-              gameRows,
-              normalizeFeedEvents(varsityhubUpcomingEventsData)
-            );
-            const varsityhubPastEventRows = filterProEventsAlreadyRepresentedByGames(
-              gameRows,
-              normalizeFeedEvents(varsityhubPastEventsData)
-            );
-            const enrichmentRows = [
-              proPastRows,
-              proUpcomingRows,
-              varsityhubEventRows,
-              varsityhubPastEventRows,
-            ];
-            if (!enrichmentRows.some(rows => rows.length > 0)) return;
-            setGames(prev => dedupeFeedEntities(mergeFeedGames(prev, ...enrichmentRows)));
-          } catch (enrichmentErr) {
+            const pastCards = await queryClient.fetchQuery({
+              queryKey: [
+                'feed-discovery',
+                user?.id ?? null,
+                'past',
+                pastFrom.toISOString(),
+                pastTo.toISOString(),
+              ],
+              queryFn: ({ signal }) =>
+                fetchDiscoveryItems(
+                  { surface: 'feed', from: pastFrom.toISOString(), to: pastTo.toISOString() },
+                  signal
+                ),
+            });
+            if (isCurrentRequest())
+              setGames(prev =>
+                dedupeFeedEntities(mergeFeedGames(prev, toFeedDiscoveryGames(pastCards)))
+              );
+          } catch {
             if (isCurrentRequest()) setEventEnrichmentFailed(true);
-            if (__DEV__) console.warn('[Feed] Event enrichment failed:', enrichmentErr);
           } finally {
             if (isCurrentRequest()) setEventEnrichmentPending(false);
           }
@@ -1094,40 +896,6 @@ export default function FeedScreen() {
     },
     [checkAuth, user]
   );
-
-  const _loadMore = useCallback(async () => {
-    if (loadingMore || !hasMoreGames || !gamesCursor) return;
-
-    setLoadingMore(true);
-    try {
-      // Continue the upcoming query the cursor belongs to (fall back to a
-      // fresh plan if a hot reload cleared the ref).
-      const plan = feedQueryPlanRef.current ?? buildFeedGameQueries(Date.now());
-      const nextData = await Game.list(plan.upcoming.sort, {
-        ...plan.upcoming.options,
-        cursor: gamesCursor,
-      });
-
-      // Handle cursor-based response or legacy array
-      let normalizedGames: any[] = [];
-      let cursor: string | null = null;
-      if (nextData && typeof nextData === 'object' && !Array.isArray(nextData)) {
-        const list = nextData.games || nextData.items || [];
-        normalizedGames = Array.isArray(list) ? list : [];
-        cursor = nextData.nextCursor || null;
-      } else {
-        normalizedGames = Array.isArray(nextData) ? nextData : [];
-      }
-
-      setGames(prev => [...prev, ...normalizedGames]);
-      setGamesCursor(cursor);
-      setHasMoreGames(!!cursor);
-    } catch (e: any) {
-      if (__DEV__) console.error('Failed to load more games', e);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [loadingMore, hasMoreGames, gamesCursor]);
 
   const loadMoreSocialPosts = useCallback(
     async (section: 'people' | 'teams') => {
@@ -1982,10 +1750,8 @@ export default function FeedScreen() {
                   targetUrl={adData.target_url}
                   businessName={adData.business_name}
                   description={adData.description}
-                  // Pre-load placeholder ratio only — a 'contain' ad snaps to
-                  // its image's true ratio on load (no letterbox bars). A wide
-                  // 3.5:1 box here just wasted vertical space around the image.
-                  aspectRatio={16 / 9}
+                  fixedFrame
+                  aspectRatio={EVENT_BANNER_ASPECT_RATIO}
                 />
               ) : (
                 <View
@@ -2315,12 +2081,6 @@ export default function FeedScreen() {
                   </View>
                 </Pressable>
               </View>
-
-              {loadingMore ? (
-                <View style={styles.loadingMore}>
-                  <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
-                </View>
-              ) : null}
             </View>
           );
 
@@ -2342,7 +2102,6 @@ export default function FeedScreen() {
       verticalFeedSubtitleText,
       verticalFeedAuthorText,
       openVerticalFeed,
-      loadingMore,
       followedFeedMeta,
       followedTeamsFeedMeta,
       setFollowedPosts,
@@ -2665,7 +2424,6 @@ export default function FeedScreen() {
             />
           }
           showsVerticalScrollIndicator={false}
-          onEndReached={_loadMore}
           onEndReachedThreshold={0.3}
           initialNumToRender={8}
           maxToRenderPerBatch={6}
@@ -3027,7 +2785,8 @@ const styles = StyleSheet.create({
   },
   // Sponsored ad styles for feed
   sponsoredFeedCard: {
-    width: '100%',
+    marginHorizontal: 16,
+    marginBottom: 20,
     borderRadius: 18,
     overflow: 'hidden',
     ...(Platform.OS === 'web'
@@ -3070,7 +2829,7 @@ const styles = StyleSheet.create({
   },
   adPlaceholder: {
     width: '100%',
-    aspectRatio: 3.5,
+    aspectRatio: EVENT_BANNER_ASPECT_RATIO,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -3249,7 +3008,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   adInviteSubtitle: { fontSize: 13, lineHeight: 18 },
-  loadingMore: { paddingVertical: 16, alignItems: 'center' },
   socialLoadMoreWrap: {
     paddingHorizontal: 16,
     paddingBottom: 18,

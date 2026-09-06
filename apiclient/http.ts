@@ -13,6 +13,19 @@ import { Platform } from 'react-native';
 import { emitSessionExpired } from '@/utils/sessionEvents';
 import { getClientDeviceId } from './deviceIdentity';
 
+// Only terminal failures escape transient-noise suppression. Never include query
+// parameters (search strings, coordinates, tokens) in the searchable route tag.
+function captureTerminalTransportError(error: unknown, path: string, method: string) {
+  captureException(error, {
+    tags: {
+      component: 'http-client',
+      endpoint: path.split('?')[0],
+      method,
+      terminal_transport: 'true',
+    },
+  });
+}
+
 export type HttpBehaviorOptions = {
   omitAuthToken?: boolean;
   skipAuthRetry?: boolean;
@@ -294,6 +307,11 @@ async function request(
   behavior: HttpBehaviorOptions = {}
 ): Promise<any> {
   const ensureCurrentSession = () => {
+    if (options.signal?.aborted) {
+      const error = new Error('Request cancelled');
+      error.name = 'AbortError';
+      throw error;
+    }
     if (behavior.isSessionCurrent && !behavior.isSessionCurrent()) {
       const error = new Error('Your account changed. Please reopen settings.');
       (error as any).code = 'SESSION_CHANGED';
@@ -326,6 +344,9 @@ async function request(
   // the inflight set so abortAllInflight() on sign-out can cancel this
   // request before user A's response leaks into user B's session.
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  options.signal?.addEventListener('abort', abortFromCaller);
+  if (options.signal?.aborted) controller.abort();
   inflightControllers.add(controller);
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -343,6 +364,7 @@ async function request(
     });
     clearTimeout(timeoutId);
     inflightControllers.delete(controller);
+    options.signal?.removeEventListener('abort', abortFromCaller);
     ensureCurrentSession();
     // HTTP response received
     captureBreadcrumb(`HTTP ${res.status} ${path}`, 'http', { status: res.status, path });
@@ -498,6 +520,8 @@ async function request(
   } catch (error: any) {
     clearTimeout(timeoutId);
     inflightControllers.delete(controller);
+    options.signal?.removeEventListener('abort', abortFromCaller);
+    if (options.signal?.aborted) throw error;
     if (error?.code === 'SESSION_CHANGED') throw error;
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
@@ -533,11 +557,8 @@ async function request(
       if (__DEV__) console.error('[http] Request failed:', errorDetails);
 
       // Capture non-network errors to Sentry (network errors already handled below)
-      if (error.status && error.status >= 500) {
-        captureException(error, {
-          tags: { component: 'http-client', endpoint: path },
-          extra: errorDetails,
-        });
+      if (error.status && error.status >= 500 && error.status !== 502) {
+        captureTerminalTransportError(error, path, options.method || 'GET');
         capturedResponseError = true;
       }
     }
@@ -586,22 +607,6 @@ async function request(
           '- retries left:',
           retries
         );
-      captureException(error, {
-        tags: {
-          component: 'http-client',
-          endpoint: path,
-          errorType: 'bad-gateway',
-          railwayInfraError: String(isRailwayInfraError),
-        },
-        extra: {
-          path,
-          method: options.method || 'GET',
-          base,
-          retries,
-          isRailwayErrorPage: error.isRailwayErrorPage,
-          hasCorrelationKey,
-        },
-      });
 
       // v1.0.2: Only retry 502s for idempotent requests (GET) or safe auth endpoints.
       // Retrying POST/PUT/DELETE/PATCH mutations on 502 can create duplicate records
@@ -613,6 +618,7 @@ async function request(
           console.warn(
             `[http] 502 on non-idempotent ${method} ${path} — NOT retrying to avoid duplicate mutations`
           );
+        captureTerminalTransportError(error, path, method);
         throw error;
       }
 
@@ -660,6 +666,7 @@ async function request(
       err.status = 502;
       err.data = error.data;
       err.isRailwayErrorPage = error.isRailwayErrorPage;
+      captureTerminalTransportError(err, path, method);
       throw err;
     }
 
@@ -681,9 +688,6 @@ async function request(
     if (error.name === 'AbortError') {
       const err: any = new Error('Request timeout - server did not respond');
       err.status = 408;
-      if (!isExpectedDevError && !__DEV__) {
-        captureException(err, { path, base, timeoutMs, method: options.method || 'GET' });
-      }
       // Retry once on timeout if allowed — but never for non-idempotent
       // methods outside the safe auth allowlist: a timed-out request may
       // have already been processed server-side (see isRetryable above).
@@ -692,6 +696,7 @@ async function request(
         await new Promise(r => setTimeout(r, Math.min(1000, timeoutMs * 0.1)));
         return request(path, options, timeoutMs, retries - 1, behavior);
       }
+      captureTerminalTransportError(err, path, method);
       throw err;
     }
 
@@ -712,14 +717,6 @@ async function request(
       err.originalError = error;
       err.status = 0;
       err.isNetworkError = true;
-      if (!isExpectedDevError && !isKnownMissingEndpoint) {
-        captureException(err, {
-          path,
-          base,
-          method: options.method || 'GET',
-          isNetworkError: true,
-        });
-      }
       // Retry network errors with exponential backoff — but never for
       // non-idempotent methods outside the safe auth allowlist: the
       // request may have already reached and been processed by the server.
@@ -728,6 +725,7 @@ async function request(
         await new Promise(r => setTimeout(r, delay));
         return request(path, options, timeoutMs, retries - 1, behavior);
       }
+      captureTerminalTransportError(err, path, method);
       throw err;
     }
     if (

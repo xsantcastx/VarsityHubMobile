@@ -161,6 +161,14 @@ describe('EventMap', () => {
     expect(onEventPress).not.toHaveBeenCalled();
   });
 
+  it('removes a selected preview when filtering removes its event', async () => {
+    const screen = render(<EventMap {...baseProps()} />);
+    fireEvent.press(await screen.findByTestId('Marker'));
+    expect(screen.queryByTestId('map-marker-preview')).toBeTruthy();
+    screen.rerender(<EventMap {...baseProps({ events: [] })} />);
+    expect(screen.queryByTestId('map-marker-preview')).toBeNull();
+  });
+
   it('closes marker previews without navigating', async () => {
     const onEventPress = jest.fn();
     const { findByTestId, queryByText } = render(<EventMap {...baseProps({ onEventPress })} />);
@@ -190,7 +198,7 @@ describe('EventMap', () => {
 
   it('renders empty state when no events', async () => {
     const { findByText } = render(<EventMap {...baseProps({ events: [] })} />);
-    const empty = await findByText(/no games or events with locations yet/i);
+    const empty = await findByText(/no matching events/i);
     expect(empty).toBeTruthy();
   });
 

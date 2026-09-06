@@ -5,6 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { safeGoBack } from '@/utils/navigation';
+import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useEventListener } from 'expo';
@@ -1305,10 +1306,15 @@ function GameVerticalFeedScreen({
     if (post.media_type === 'video' && post.media_url) {
       try {
         const localUri = await getCachedShareableVideoUri(post);
-        await Share.share({ url: localUri });
-        void Post.share(post.id).catch(() => {});
+        const result = await Share.share({ url: localUri });
+        if (result.action === Share.sharedAction) {
+          void Post.share(post.id).catch(error =>
+            captureException(error, { tags: { context: 'share_tracking', kind: 'post' } })
+          );
+        }
         return;
       } catch (error) {
+        captureException(error, { tags: { context: 'share_video', kind: 'post' } });
         if (__DEV__) {
           console.warn(
             '[GameVerticalFeed] Video file share failed, falling back to link share:',
@@ -1323,17 +1329,22 @@ function GameVerticalFeedScreen({
         buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl)
       );
       if (result.action === Share.sharedAction) {
-        void Post.share(post.id).catch(() => {});
+        void Post.share(post.id).catch(error =>
+          captureException(error, { tags: { context: 'share_tracking', kind: 'post' } })
+        );
       }
     } catch (error) {
+      captureException(error, { tags: { context: 'share_sheet', kind: 'post' } });
       if (__DEV__) {
         console.warn('[GameVerticalFeed] Link share failed, copying link instead:', error);
       }
       try {
         const Clipboard = await import('expo-clipboard');
-        await Clipboard.setStringAsync(shareLink.webUrl);
+        const copied = await Clipboard.setStringAsync(shareLink.webUrl);
+        if (copied === false) throw new Error('Clipboard write failed');
         Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');
-      } catch {
+      } catch (error) {
+        captureException(error, { tags: { context: 'share_copy', kind: 'post' } });
         Alert.alert('Share unavailable', 'Unable to open the share sheet or copy the link.');
       }
     }
@@ -1343,9 +1354,11 @@ function GameVerticalFeedScreen({
     try {
       const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
       const Clipboard = await import('expo-clipboard');
-      await Clipboard.setStringAsync(shareLink.webUrl);
+      const copied = await Clipboard.setStringAsync(shareLink.webUrl);
+      if (copied === false) throw new Error('Clipboard write failed');
       Alert.alert('Copied', 'Link copied to clipboard.');
-    } catch {
+    } catch (error) {
+      captureException(error, { tags: { context: 'share_copy', kind: 'post' } });
       Alert.alert('Error', 'Failed to copy link.');
     }
   }, []);

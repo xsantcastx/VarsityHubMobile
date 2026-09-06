@@ -1,7 +1,8 @@
+import { DISCOVERY_UPCOMING_DAYS } from '@/shared/runtime/discoveryPolicy.js';
 export function shouldShowEventOnMap(
   dateValue: string | null | undefined,
   now = new Date(),
-  maxFutureDays = 14
+  maxFutureDays = DISCOVERY_UPCOMING_DAYS
 ): boolean {
   if (!dateValue) return true;
   const parsed = new Date(dateValue);

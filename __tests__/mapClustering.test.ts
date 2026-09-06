@@ -4,9 +4,30 @@
  * individual. Regression guard for components/EventMap.tsx clustering.
  */
 import { describe, expect, it } from '@jest/globals';
-import { clusterByCoordinate, DEFAULT_CLUSTER_PRECISION } from '@/utils/mapClustering';
+import {
+  clusterByCoordinate,
+  DEFAULT_CLUSTER_PRECISION,
+  stableMapGroups,
+  mapMarkerKey,
+} from '@/utils/mapClustering';
 
 const at = (id: string, latitude: number, longitude: number) => ({ id, latitude, longitude });
+
+describe('native marker identity and order', () => {
+  it('keeps identical sibling keys and cluster lead coordinates after input reorder', () => {
+    const events = [at('b', 40, -74), at('a', 40.00001, -74), at('c', 41, -75)];
+    expect(stableMapGroups(events)).toEqual(stableMapGroups([...events].reverse()));
+    expect(events.map(event => event.id)).toEqual(['b', 'a', 'c']);
+  });
+  it('namespaces game and event IDs and stabilizes approximate cluster identity', () => {
+    const marker = at('shared', 40, -74);
+    expect(mapMarkerKey([{ ...marker, type: 'game' }])).not.toBe(
+      mapMarkerKey([{ ...marker, type: 'event' }])
+    );
+    const group = [marker, at('b', 40.00001, -74)];
+    expect(mapMarkerKey(group)).toBe(mapMarkerKey([...group].reverse()));
+  });
+});
 
 describe('clusterByCoordinate', () => {
   it('collapses many events at the same venue into one cluster (the reported bug)', () => {

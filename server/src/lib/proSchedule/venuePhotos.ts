@@ -10,6 +10,14 @@
 export type VenuePhoto = { url: string; credit: string };
 
 export const VENUE_PHOTOS: Record<string, VenuePhoto> = {
+  'California Memorial Stadium': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/8/8f/California_Memorial_Stadium_aerial_view.jpg',
+    credit: 'Quintin Soloviev / Wikimedia Commons, CC BY 4.0',
+  },
+  'Mackay Stadium': {
+    url: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Mackay_10oct2015.jpg',
+    credit: 'Lanski / Wikimedia Commons, CC BY-SA 4.0',
+  },
   'Acrisure Stadium': {
     url: 'https://commons.wikimedia.org/wiki/Special:FilePath/Ptr-HeinzField-FILE.jpg',
     credit: 'Fo2grfr / Wikimedia Commons, CC BY-SA 4.0',

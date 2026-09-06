@@ -2,8 +2,10 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { listEventDiscoveryItems } from '../lib/eventDiscovery.js';
-import { EVENT_POSTING_UNLOCK_DURATION_MS } from '../lib/geofencing.js';
+// Resolve the shared Prisma/geofencing dependency graph once before importing
+// its constant directly; concurrent VM-module linking is unreliable in Jest.
+const { listEventDiscoveryItems } = await import('../lib/eventDiscovery.js');
+const { EVENT_POSTING_UNLOCK_DURATION_MS } = await import('../lib/geofencing.js');
 
 describe('event discovery contract', () => {
   it('returns game-backed and event-only fixtures through one payload', async () => {
@@ -108,7 +110,7 @@ describe('event discovery contract', () => {
         where: expect.objectContaining({
           date: {
             gte: now,
-            lte: new Date('2026-09-05T12:00:00.000Z'),
+            lte: new Date('2026-09-14T12:00:00.000Z'),
           },
         }),
       })
@@ -119,14 +121,14 @@ describe('event discovery contract', () => {
           game_id: null,
           date: {
             gte: now,
-            lte: new Date('2026-09-05T12:00:00.000Z'),
+            lte: new Date('2026-09-14T12:00:00.000Z'),
           },
         }),
       })
     );
   });
 
-  it('caps the map window to the five-day range even when the pick is in the past', async () => {
+  it('caps the map window to the shared bounded range even when the pick is in the past', async () => {
     const now = new Date('2026-08-31T12:00:00.000Z');
     const db: any = {
       game: { findMany: jest.fn(async () => []) },
@@ -150,14 +152,14 @@ describe('event discovery contract', () => {
         where: expect.objectContaining({
           date: {
             gte: new Date('2026-08-01T00:00:00.000Z'),
-            lte: new Date('2026-08-06T00:00:00.000Z'),
+            lte: new Date('2026-08-15T18:00:00.000Z'),
           },
         }),
       })
     );
   });
 
-  it('still clamps the map forward edge to +5 days', async () => {
+  it('still clamps the map forward edge to +14 days', async () => {
     const now = new Date('2026-08-31T12:00:00.000Z');
     const db: any = {
       game: { findMany: jest.fn(async () => []) },
@@ -176,7 +178,7 @@ describe('event discovery contract', () => {
     expect(db.game.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          date: { gte: now, lte: new Date('2026-09-05T12:00:00.000Z') },
+          date: { gte: now, lte: new Date('2026-09-14T12:00:00.000Z') },
         }),
       })
     );

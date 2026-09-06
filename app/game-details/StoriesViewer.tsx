@@ -287,6 +287,7 @@ export default function StoriesViewer({
                   key={item.id}
                   uri={item.url}
                   poster={item.thumbnail_url}
+                  contentFit="cover"
                   autoPlay={!paused}
                   nativeControls={false}
                   paused={paused}

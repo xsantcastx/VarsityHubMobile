@@ -210,7 +210,10 @@ export function initSentry() {
         }
         // Client transport failures are noisy and usually user/network/transient
         // conditions rather than actionable product bugs.
-        if (isTransientClientTransportError(originalException)) {
+        if (
+          isTransientClientTransportError(originalException) &&
+          event.tags?.terminal_transport !== 'true'
+        ) {
           return null;
         }
         // Expected auth UX states (invalid credentials, expired/invalid codes,
@@ -278,7 +281,7 @@ export function setUserContext(user: { id: string; email?: string; username?: st
 
 export function captureException(error: Error | unknown, context?: Record<string, any>) {
   if (
-    isTransientClientTransportError(error) ||
+    (isTransientClientTransportError(error) && context?.tags?.terminal_transport !== 'true') ||
     isExpectedAuthUxError(error, context as { tags?: Record<string, unknown> } | undefined) ||
     isExpectedGeofenceBusinessError(
       error,

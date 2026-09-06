@@ -11,6 +11,7 @@ import {
 import { getPostVisibilityFilters, mergeAndWhere } from '../lib/privacyUtils.js';
 import { detectMediaType } from '../lib/mediaUtils.js';
 import { isAllowedMediaUrl } from '../lib/mediaHosts.js';
+import { eventPreviewImage } from '../lib/eventPreviewImage.js';
 
 /**
  * Open Graph link-preview pages for event/game share links.
@@ -158,6 +159,7 @@ ogRouter.get(
     const imageUrl =
       firstAllowedImageUrl(game.banner_url, game.cover_image_url) ||
       (await representativePostImageUrl({ game_id: id })) ||
+      eventPreviewImage(game) ||
       DEFAULT_OG_IMAGE_URL;
 
     return res.send(
@@ -216,6 +218,7 @@ ogRouter.get(
       (await representativePostImageUrl({
         OR: [{ event_id: id }, ...(event.game?.id ? [{ game_id: event.game.id }] : [])],
       })) ||
+      eventPreviewImage(event) ||
       DEFAULT_OG_IMAGE_URL;
 
     return res.send(

@@ -19,7 +19,7 @@ export default function DMCAScreen() {
         colorScheme={colorScheme}
         title="Report Copyright Infringement"
         body={
-          'To report copyright infringement, contact our Designated Agent:\n\nName: Emil Mancero-Sanchez\nOrganization: VarsityHub LLC\nEmail: support@varsityhub.app\nWebsite: varsityhub.app\nLocation: Stamford, Connecticut, United States'
+          'To report copyright infringement, contact VarsityHub:\n\nOrganization: VarsityHub LLC\nEmail: support@varsityhub.app\nWebsite: varsityhub.app'
         }
       />
 

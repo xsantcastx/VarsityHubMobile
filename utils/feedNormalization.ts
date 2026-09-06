@@ -1,3 +1,4 @@
+import type { EventCard } from '@/api/schemas/eventCard';
 import { normalizeSportSlug } from '@/constants/sports';
 
 export type GameItem = {
@@ -21,6 +22,29 @@ export type GameItem = {
   away_score?: number | null;
   winner?: string | null;
 };
+
+/** Keep the renderer's legacy flat live fields while both surfaces use EventCard. */
+export function toFeedDiscoveryGames(cards: EventCard[]): GameItem[] {
+  return cards.map(card => {
+    const live = card.live_window as
+      | { starts_at?: string | null; live_from?: string | null; live_until?: string | null }
+      | undefined;
+    return {
+      ...card,
+      id: card.id,
+      title: card.title ?? undefined,
+      date: card.date ?? undefined,
+      location: card.location ?? undefined,
+      venue_photo:
+        typeof card.venue_photo === 'object' && card.venue_photo
+          ? { url: card.venue_photo.url, credit: card.venue_photo.credit ?? '' }
+          : null,
+      starts_at: live?.starts_at ?? card.date,
+      live_from: live?.live_from ?? null,
+      live_until: live?.live_until ?? null,
+    };
+  });
+}
 
 export type FeedBundleParams = {
   country?: string;

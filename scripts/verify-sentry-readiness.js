@@ -179,8 +179,10 @@ async function main() {
     }
   }
 
+  const since = new Date(Date.now() - 14 * 86400000).toISOString();
+  const issueQuery = `environment:production is:unresolved lastSeen:>=${since}${RELEASE ? ` release:${JSON.stringify(RELEASE)}` : ''}`;
   const unresolved = await sentryGet(
-    `/projects/${ORG}/${PROJECT}/issues/?limit=10&query=${encodeURIComponent('is:unresolved lastSeen:>=2026-08-26')}`
+    `/projects/${ORG}/${PROJECT}/issues/?limit=10&query=${encodeURIComponent(issueQuery)}`
   );
   const productionUnresolved = unresolved.filter(issue =>
     String(issue.metadata?.type || issue.title || '').trim()
@@ -219,7 +221,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('\nSentry readiness check passed.');
+  console.log(
+    '\nSentry configuration checks passed. Runtime stability and alert delivery are not certified by this command.'
+  );
 }
 
 main().catch(error => {

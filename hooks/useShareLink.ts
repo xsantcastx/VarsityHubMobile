@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import AppLinks, { buildNativeSharePayload, ShareableLink } from '@/utils/links';
+import { captureException } from '@/utils/sentry';
 
 export type ShareLinkKind =
   | 'post'
@@ -19,7 +20,7 @@ interface ShareLinkOptions {
   caption?: string | null;
   contextLines?: Array<string | null | undefined>;
   /** Called when user completes a share (e.g. to track share for notifications). Only for kind='post'. */
-  onShareSuccess?: (postId: string) => void;
+  onShareSuccess?: (postId: string) => void | Promise<void>;
 }
 
 const formatLink = (options: ShareLinkOptions): ShareableLink | null => {
@@ -61,17 +62,20 @@ export function useShareLink(options: ShareLinkOptions) {
     async (silent = false) => {
       if (!link) {
         if (!silent) Alert.alert('Share unavailable', 'Link is still loading.');
-        return;
+        return false;
       }
       try {
-        await Clipboard.setStringAsync(link.webUrl);
+        const copied = await Clipboard.setStringAsync(link.webUrl);
+        if (copied === false) throw new Error('Clipboard write failed');
         if (!silent) Alert.alert('Link copied', 'You can paste it anywhere to share.');
+        return true;
       } catch (error) {
-        if (__DEV__) console.error('[share] Failed to copy link', error);
+        captureException(error, { tags: { context: 'share_copy', kind } });
         if (!silent) Alert.alert('Copy failed', 'Unable to copy the link right now.');
+        return false;
       }
     },
-    [link]
+    [kind, link]
   );
 
   const share = useCallback(async () => {
@@ -84,14 +88,24 @@ export function useShareLink(options: ShareLinkOptions) {
         buildNativeSharePayload(contextMessage || link.shareMessage, link.webUrl)
       );
       if (result.action === Share.sharedAction && kind === 'post' && id && onShareSuccess) {
-        onShareSuccess(String(id));
+        try {
+          await onShareSuccess(String(id));
+        } catch (error) {
+          // The OS share completed; recording it must not announce a share failure.
+          captureException(error, { tags: { context: 'share_tracking', kind } });
+        }
       }
     } catch (error) {
-      if (__DEV__) console.warn('[share] Failed to open share sheet', error);
-      await copyLink(true);
-      Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');
+      captureException(error, { tags: { context: 'share_sheet', kind } });
+      const copied = await copyLink(true);
+      Alert.alert(
+        'Share unavailable',
+        copied
+          ? 'Link copied to clipboard so you can paste it manually.'
+          : 'Unable to share or copy the link. Please try again.'
+      );
     }
-  }, [contextMessage, copyLink, id, kind, link, onShareSuccess, title]);
+  }, [contextMessage, copyLink, id, kind, link, onShareSuccess]);
 
   return {
     share,

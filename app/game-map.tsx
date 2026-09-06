@@ -21,9 +21,10 @@ import {
 } from 'react-native';
 // SafeAreaView removed — native header handles safe area
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { httpGet } from '@/api/http';
-import { buildMapDiscoveryPath, buildRecentDateButtons, toMapEvents } from '@/utils/mapDiscovery';
-import { validateEventCards } from '@/api/schemas/eventCard';
+import { fetchDiscoveryItems } from '@/api/eventDiscovery';
+import { SPORT_OPTIONS } from '@/constants/sports';
+import { matchesDiscoveryLevel } from '@/shared/runtime/discoveryPolicy.js';
+import { buildRecentDateButtons, toMapEvents } from '@/utils/mapDiscovery';
 
 const USA_WIDE_REGION = {
   latitude: 39.8,
@@ -52,41 +53,68 @@ function GameMapScreen() {
   const [pickerDate, setPickerDate] = useState<Date>(() => new Date());
 
   const defaultQuery = useQuery({
-    queryKey: ['game-map', user?.id ?? null, 'default'],
-    queryFn: async () => {
-      const res: unknown = await httpGet(buildMapDiscoveryPath());
-      return validateEventCards('/event-discovery?surface=map', res);
-    },
+    queryKey: ['game-map', user?.id ?? null, 'default', selectedSport, selectedLevel],
+    enabled: !selectedDate,
+    queryFn: ({ signal }) =>
+      fetchDiscoveryItems({ surface: 'map', sport: selectedSport, level: selectedLevel }, signal),
   });
   const selectedDayQuery = useQuery({
-    queryKey: ['game-map', user?.id ?? null, 'date', selectedDate],
+    queryKey: ['game-map', user?.id ?? null, 'date', selectedDate, selectedSport, selectedLevel],
     enabled: Boolean(selectedDate),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const [year, month, day] = selectedDate.split('-').map(Number);
       const start = new Date(year, month - 1, day);
       start.setHours(0, 0, 0, 0);
       const end = new Date(start);
       end.setHours(23, 59, 59, 999);
-      const path = `/event-discovery?surface=map&from=${encodeURIComponent(start.toISOString())}&to=${encodeURIComponent(end.toISOString())}&limit=200`;
-      const res: unknown = await httpGet(path);
-      const items = validateEventCards('/event-discovery?surface=map', res);
+      const items = await fetchDiscoveryItems(
+        {
+          surface: 'map',
+          from: start.toISOString(),
+          to: end.toISOString(),
+          sport: selectedSport,
+          level: selectedLevel,
+        },
+        signal
+      );
       return toMapEvents(items, new Date(), { includePast: true });
     },
   });
   // Each request writes only its own query key. Late responses cannot change
-  // the selected day, and the calendar keeps the independent upcoming dataset.
+  // the selected day. Calendar counts use their own historical query below.
   const activeQuery = selectedDate ? selectedDayQuery : defaultQuery;
   const loading = activeQuery.isPending;
   const error = activeQuery.isError ? 'Unable to load events. Please check your connection.' : null;
-  const events = useMemo(() => toMapEvents(defaultQuery.data, new Date()), [defaultQuery.data]);
-  const calendarEvents = useMemo(
-    () => toMapEvents(defaultQuery.data, new Date(), { requireCoords: false }),
+  const events = useMemo(
+    () => toMapEvents(defaultQuery.data, new Date(), { includePast: true }),
     [defaultQuery.data]
+  );
+  const historyWindow = useMemo(() => {
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    from.setDate(from.getDate() - 6);
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }, []);
+  const historyQuery = useQuery({
+    queryKey: ['game-map', user?.id ?? null, 'history', historyWindow],
+    enabled: calendarOpen,
+    queryFn: ({ signal }) => fetchDiscoveryItems({ surface: 'map', ...historyWindow }, signal),
+  });
+  const calendarEvents = useMemo(
+    () =>
+      toMapEvents(historyQuery.data, new Date(), { includePast: true }).filter(
+        event =>
+          matchesDiscoveryLevel(event.league_level, selectedLevel) &&
+          (!selectedSport || event.sport === selectedSport)
+      ),
+    [historyQuery.data, selectedLevel, selectedSport]
   );
   const levelMarkers = useMemo(() => {
     const dateMarkers = selectedDate ? (selectedDayQuery.data ?? []) : events;
     return selectedLevel
-      ? dateMarkers.filter(event => event.league_level === selectedLevel)
+      ? dateMarkers.filter(event => matchesDiscoveryLevel(event.league_level, selectedLevel))
       : dateMarkers;
   }, [selectedDate, selectedDayQuery.data, events, selectedLevel]);
   const loadGames = () => {
@@ -120,13 +148,7 @@ function GameMapScreen() {
     [router]
   );
 
-  const presentSports = useMemo(
-    () =>
-      Array.from(
-        new Set(levelMarkers.map(event => event.sport).filter((sport): sport is string => !!sport))
-      ),
-    [levelMarkers]
-  );
+  const presentSports = SPORT_OPTIONS.map(sport => sport.slug);
   const clearDate = useCallback(() => {
     setSelectedDate('');
     setSelectedSport(null);
@@ -215,6 +237,7 @@ function GameMapScreen() {
                 { label: 'Major', value: 'major' },
                 { label: 'Minor', value: 'minor' },
                 { label: 'NCAA', value: 'college' },
+                { label: 'Other', value: 'other' },
               ].map(level => (
                 <Pressable
                   key={level.label}
@@ -284,7 +307,7 @@ function GameMapScreen() {
                       },
                     ]}
                     accessibilityRole="button"
-                    accessibilityLabel={`${day.day} ${day.label}, ${day.count} events`}
+                    accessibilityLabel={`${day.day} ${day.label}${historyQuery.isSuccess ? `, ${day.count} events` : ', count unavailable'}`}
                   >
                     <Text
                       style={[
@@ -294,7 +317,7 @@ function GameMapScreen() {
                     >
                       {day.day} {day.label}
                     </Text>
-                    {day.count > 0 ? (
+                    {historyQuery.isSuccess && day.count > 0 ? (
                       <View
                         style={[
                           styles.dateChipDot,

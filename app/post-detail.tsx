@@ -688,10 +688,8 @@ export default function PostDetailScreen() {
     title: sanitizeTitle(post?.title) || 'VarsityHub Post',
     caption: post?.caption,
     contextLines: postShareContext,
-    onShareSuccess: postId => {
-      PostApi.share(postId).catch(err => {
-        if (__DEV__) console.warn('[post-detail] Share tracking failed:', err);
-      });
+    onShareSuccess: async postId => {
+      await PostApi.share(postId);
     },
   });
 
@@ -1100,6 +1098,7 @@ export default function PostDetailScreen() {
                   <VideoPlayer
                     uri={media.mediaUrl!}
                     style={styles.heroVideo}
+                    contentFit="cover"
                     autoPlay
                     paused={!isActivePost || fullscreenMedia}
                   />
@@ -1938,6 +1937,7 @@ export default function PostDetailScreen() {
             <VideoPlayer
               uri={post.media_url}
               style={styles.fullscreenVideo}
+              contentFit="cover"
               autoPlay
               nativeControls
             />

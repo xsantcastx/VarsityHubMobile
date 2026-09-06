@@ -1,3 +1,9 @@
+import {
+  DISCOVERY_UPCOMING_MS,
+  DISCOVERY_LIVE_LOOKBACK_MS,
+  matchesDiscoveryLevel,
+} from '@varsityhub/shared/runtime/discoveryPolicy';
+import { decodeDiscoveryCursor, encodeDiscoveryCursor, discoveryAfter } from './discoveryCursor.js';
 import type { PrismaClient } from '@prisma/client';
 import { serializeGameCard, serializeEventCard, type SerializeCtx } from './eventCardSerializer.js';
 import { getViewerTeamScopeDetails } from './viewerTeamScope.js';
@@ -18,13 +24,16 @@ export type EventDiscoveryParams = {
   limit?: number;
   viewerId?: string | null;
   now?: Date;
+  paginated?: boolean;
+  cursor?: string | null;
+  level?: 'major' | 'minor' | 'college' | 'other' | null;
 };
 
-const MAP_LOOKAHEAD_MS = 5 * 24 * 60 * 60 * 1000;
-const FEED_PAST_LOOKBACK_MS = 12 * 60 * 60 * 1000;
-const MAX_DISCOVERY_RANGE_MS = MAP_LOOKAHEAD_MS;
+const MAP_LOOKAHEAD_MS = DISCOVERY_UPCOMING_MS;
+const FEED_PAST_LOOKBACK_MS = DISCOVERY_LIVE_LOOKBACK_MS;
+const MAX_DISCOVERY_RANGE_MS = MAP_LOOKAHEAD_MS + DISCOVERY_LIVE_LOOKBACK_MS;
 // Following scope is a personal calendar of the viewer's teams — future-only and
-// effectively unbounded, NOT the public 5-day map/feed clamp.
+// effectively unbounded, NOT the public discovery clamp.
 const FOLLOWING_LOOKAHEAD_MS = 365 * 24 * 60 * 60 * 1000;
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 300;
@@ -43,7 +52,7 @@ function clampWindow(surface: DiscoverySurface, requestedFrom: Date, requestedTo
   // The map's date-picker can reach arbitrarily far back (past event pages, since
   // VarsityHub's start), so the map surface has no past floor. Feed keeps its short
   // lookback; everything else is now-forward. The forward edge and the max range
-  // are unchanged — a single request still can't span more than the 5-day policy.
+  // are unchanged — a single request still can't span more than the shared discovery policy.
   const earliest =
     surface === 'map'
       ? new Date(0)
@@ -227,21 +236,41 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
   const now = params.now ?? new Date();
   const surface = params.surface ?? 'all';
   const scope = params.scope ?? 'public';
-  const limit = Math.max(1, Math.min(params.limit ?? DEFAULT_LIMIT, MAX_LIMIT));
+  const limit = Math.max(
+    params.paginated ? 2 : 1,
+    Math.min(params.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+  );
+  const fingerprint = JSON.stringify([
+    surface,
+    scope,
+    params.viewerId ?? null,
+    params.from?.toISOString(),
+    params.to?.toISOString(),
+    params.sport ?? null,
+    params.type ?? null,
+    params.level ?? null,
+  ]);
+  const cursor = params.cursor ? decodeDiscoveryCursor(params.cursor, fingerprint, now) : null;
+  const anchor = cursor ? new Date(cursor.anchor) : now;
   const explicitWindow = params.from != null || params.to != null;
 
   let from: Date;
   let to: Date;
   if (scope === 'following') {
-    from = now;
-    to = new Date(now.getTime() + FOLLOWING_LOOKAHEAD_MS);
+    from = anchor;
+    to = new Date(anchor.getTime() + FOLLOWING_LOOKAHEAD_MS);
   } else {
-    const defaults = defaultWindow(surface, now);
+    const defaults = params.paginated
+      ? {
+          from: new Date(anchor.getTime() - DISCOVERY_LIVE_LOOKBACK_MS),
+          to: new Date(anchor.getTime() + MAP_LOOKAHEAD_MS),
+        }
+      : defaultWindow(surface, anchor);
     ({ from, to } = clampWindow(
-      surface,
+      params.paginated ? 'map' : surface,
       params.from ?? defaults.from,
       params.to ?? defaults.to,
-      now
+      anchor
     ));
   }
 
@@ -254,6 +283,7 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
   if (scope === 'following' && (!followingTeamIds || followingTeamIds.size === 0)) {
     return {
       items: [],
+      next_cursor: null,
       meta: {
         surface,
         from: from.toISOString(),
@@ -265,12 +295,27 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
     };
   }
 
+  if (from > to) {
+    return {
+      items: [],
+      next_cursor: null,
+      meta: {
+        surface,
+        from: from.toISOString(),
+        to: from.toISOString(),
+        limit,
+        out_of_window: true,
+        sources: { games: 0, events: 0 },
+        filtered: { private_team_items: 0 },
+      },
+    };
+  }
   const dateWhere = { gte: from, lte: to };
   const queryLimit = Math.min(limit * 2, MAX_LIMIT);
-  const mapPastGate =
-    surface === 'map' ? mapPastMediaGate(now, params.viewerId) : null;
-  const mapPastGameGate =
-    surface === 'map' ? mapPastGameMediaGate(now, params.viewerId) : null;
+  const usePastGate =
+    (surface === 'map' || params.paginated) && (explicitWindow || !params.paginated);
+  const mapPastGate = usePastGate ? mapPastMediaGate(now, params.viewerId) : null;
+  const mapPastGameGate = usePastGate ? mapPastGameMediaGate(now, params.viewerId) : null;
   const followingTeamIdList = followingTeamIds ? [...followingTeamIds] : [];
   const managedTeamIdList = managedTeamIds ? [...managedTeamIds] : [];
   const followingGameTeamScope =
@@ -316,16 +361,28 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
           ...(mapPastGameGate ? mapPastGameGate : {}),
         };
 
-  const [games, events] = await Promise.all([
+  const gameBudget = params.paginated ? Math.ceil(limit / 2) : queryLimit;
+  const eventBudget = params.paginated ? Math.floor(limit / 2) : queryLimit;
+  const [gameCandidates, eventCandidates] = await Promise.all([
     db.game.findMany({
-      where: gameWhere,
-      orderBy: { date: 'asc' },
-      take: queryLimit,
+      where: cursor?.games ? { AND: [gameWhere, discoveryAfter(cursor.games)] } : gameWhere,
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      take: gameBudget + (params.paginated ? 1 : 0),
       include: {
         events: {
           orderBy: { date: 'asc' },
           take: 1,
           include: {
+            sportsLeague: {
+              select: {
+                id: true,
+                slug: true,
+                name: true,
+                sport_slug: true,
+                level: true,
+                gender: true,
+              },
+            },
             proHomeTeam: { select: { league: true, primary_color: true } },
             proAwayTeam: { select: { league: true, primary_color: true } },
           },
@@ -345,9 +402,10 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
         // A specific viewer with active upload access still sees their empty
         // past event so they can add the first post/story.
         ...(mapPastGate ? mapPastGate : {}),
+        AND: [discoveryAfter(cursor?.events)],
       },
-      orderBy: { date: 'asc' },
-      take: queryLimit,
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      take: eventBudget + (params.paginated ? 1 : 0),
       include: {
         team: { select: { sport: true } },
         sportsLeague: {
@@ -358,6 +416,24 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
       },
     } as any),
   ]);
+  const games = gameCandidates.slice(0, gameBudget);
+  const events = eventCandidates.slice(0, eventBudget);
+  const hasMore =
+    params.paginated &&
+    (gameCandidates.length > gameBudget || eventCandidates.length > eventBudget);
+  const position = (rows: any[], previous: any) =>
+    rows.length
+      ? { id: rows[rows.length - 1].id, date: new Date(rows[rows.length - 1].date).toISOString() }
+      : (previous ?? null);
+  const nextCursor = hasMore
+    ? encodeDiscoveryCursor({
+        version: 1,
+        anchor: anchor.toISOString(),
+        fingerprint,
+        games: position(games, cursor?.games),
+        events: position(events, cursor?.events),
+      })
+    : null;
   const candidateTeamIds = [
     ...games.flatMap((game: any) => [game.home_team_id, game.away_team_id]),
     ...events.map((event: any) => event.team_id),
@@ -413,23 +489,22 @@ export async function listEventDiscoveryItems(db: Db, params: EventDiscoveryPara
     return at - bt;
   });
 
-  // Optional card-level filters. Applied post-serialization on the card's own
-  // fields (same basis the map filters on client-side). Note: filtering after
-  // the queryLimit fetch means a very selective filter can return fewer than
-  // `limit` even when more matches exist beyond the fetch window — acceptable
-  // for a filter. When neither is supplied the result is unchanged.
-  const wantType = params.type ?? null;
+  // Candidate cursors advance even over hidden/nonmatching records. Empty
+  // pages are not exhaustion; the client must follow next_cursor.
   const wantSport = params.sport ? normalizeSportToSlug(params.sport) : null;
-  const filtered =
-    wantType || wantSport
-      ? merged.filter(item => {
-          if (wantType && item.source_type !== wantType) return false;
-          if (wantSport && normalizeSportToSlug(item.sport) !== wantSport) return false;
-          return true;
-        })
-      : merged;
+  const filtered = merged.filter(item => {
+    if (params.type && item.source_type !== params.type) return false;
+    if (wantSport && normalizeSportToSlug(item.sport) !== wantSport) return false;
+    if (!matchesDiscoveryLevel(item.league_level, params.level)) return false;
+    if (params.paginated && scope === 'public' && !explicitWindow) {
+      const until = item.live_window.live_until;
+      if (item.date && new Date(item.date) < now && (!until || new Date(until) < now)) return false;
+    }
+    return true;
+  });
 
   return {
+    next_cursor: nextCursor,
     items:
       surface === 'map'
         ? filtered.filter(item => item.map_visibility.visible).slice(0, limit)

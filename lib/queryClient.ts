@@ -56,7 +56,7 @@ export const queryClient = new QueryClient({
  * `CACHE_BUSTER` must be bumped whenever a persisted query's shape changes or
  * when the persistence policy changes so stale/oversized entries are dropped.
  */
-export const CACHE_BUSTER = 'vh-rq-2';
+export const CACHE_BUSTER = 'vh-rq-3';
 
 const VOLATILE_PERSIST_PREFIXES = [
   'feed',

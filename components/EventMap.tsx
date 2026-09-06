@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { getMapProvider } from '@/utils/maps';
-import { clusterByCoordinate, isValidMapCoordinate } from '@/utils/mapClustering';
+import { stableMapGroups, mapMarkerKey, isValidMapCoordinate } from '@/utils/mapClustering';
 
 import { EventMapData, EventMapProps } from './EventMap.types';
 
@@ -224,9 +224,28 @@ export default function EventMap({
   // picker. Pure JS (no native clustering module) → OTA-safe. Pinned by
   // __tests__/mapClustering.test.ts.
   const clusters: EventMapData[][] = useMemo(
-    () => clusterByCoordinate(eventsWithCoordinates),
+    () => stableMapGroups(eventsWithCoordinates),
     [eventsWithCoordinates]
   );
+
+  // A preview must obey the same current filters as the pins underneath it.
+  useEffect(() => {
+    setSelectedMarker(previous =>
+      previous
+        ? (eventsWithCoordinates.find(
+            item => item.id === previous.id && item.type === previous.type
+          ) ?? null)
+        : null
+    );
+    setSelectedCluster(previous => {
+      if (!previous?.length) return null;
+      return (
+        clusters.find(
+          group => group.length > 1 && mapMarkerKey(group) === mapMarkerKey(previous)
+        ) ?? null
+      );
+    });
+  }, [clusters, eventsWithCoordinates]);
 
   // Center map on all events
   const fitToEvents = useCallback(() => {
@@ -354,13 +373,14 @@ export default function EventMap({
           if (group.length > 1) {
             return (
               <Marker
-                key={`cluster-${coordinate.latitude},${coordinate.longitude}`}
+                key={mapMarkerKey(group)}
                 coordinate={coordinate}
                 onPress={() => {
                   captureBreadcrumb('Map cluster pressed', 'map.navigation', {
                     cluster_size: group.length,
                   });
                   setSelectedCluster(group);
+                  setSelectedMarker(null);
                 }}
               >
                 <View style={[styles.clusterPin, { backgroundColor: Colors[colorScheme].tint }]}>
@@ -372,7 +392,7 @@ export default function EventMap({
 
           return (
             <Marker
-              key={lead.id}
+              key={mapMarkerKey(group)}
               coordinate={coordinate}
               pinColor={getMarkerColor(lead)}
               onPress={() => {
@@ -516,10 +536,10 @@ export default function EventMap({
           >
             <Ionicons name="map-outline" size={48} color={Colors[colorScheme].tint} />
             <Text style={[styles.noEventsTitle, { color: Colors[colorScheme].text }]}>
-              No Games or Events with Locations Yet
+              No matching events
             </Text>
             <Text style={[styles.noEventsDescription, { color: Colors[colorScheme].mutedText }]}>
-              Games and events appear on the map once location data has been added.
+              Try another date, sport, or league. Events need a location to appear on the map.
             </Text>
             <View style={styles.emptyStateHints}>
               <View style={styles.hint}>

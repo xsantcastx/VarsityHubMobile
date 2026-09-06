@@ -31,6 +31,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
+import { eventPreviewImage } from '../lib/eventPreviewImage.js';
 import { isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
 import {
   canViewGameRecord,
@@ -281,6 +282,8 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
       select: {
         ...GAME_VISIBILITY_SELECT,
         title: true,
+        banner_url: true,
+        cover_image_url: true,
         location: true,
         date: true,
         approval_status: true,
@@ -297,6 +300,7 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
   const meta: LandingMeta = visibleGame
     ? {
         title: visibleGame.title || 'VarsityHub Game',
+        imageUrl: eventPreviewImage(visibleGame),
         description:
           [
             visibleGame.location && `at ${visibleGame.location}`,
@@ -503,7 +507,7 @@ async function eventLanding(req: Request, res: Response, next: NextFunction) {
             .filter(Boolean)
             .join(' · ') ||
           undefined,
-        imageUrl: visibleEvent.banner_url || undefined,
+        imageUrl: eventPreviewImage(visibleEvent),
         url: fullUrl(req),
       }
     : genericLanding(req);

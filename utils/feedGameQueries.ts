@@ -1,3 +1,7 @@
+import {
+  DISCOVERY_UPCOMING_MS,
+  DISCOVERY_LIVE_LOOKBACK_HOURS,
+} from '@/shared/runtime/discoveryPolicy.js';
 /**
  * Feed game query planning.
  *
@@ -38,16 +42,16 @@ export const FEED_PAST_WINDOW_MS = 4 * 24 * 60 * 60 * 1000;
  * server-computed live_until (utils/liveWindow.ts), so a normal 3h game still
  * drops into the past recap on time — it is not held open for 18h.
  */
-export const MAX_LIVE_WINDOW_HOURS = 18;
+export const MAX_LIVE_WINDOW_HOURS = DISCOVERY_LIVE_LOOKBACK_HOURS;
 export const FEED_LIVE_LOOKBACK_MS = MAX_LIVE_WINDOW_HOURS * 60 * 60 * 1000;
 
 /**
  * How far FORWARD the feed's upcoming rail looks. The map restricts to the same
- * rolling window server-side (games.ts map_view: now → +14 days), so the feed and
- * the map cover the same set of upcoming games and stay in sync ("heart & lungs").
- * If this changes, change the map_view window in server/src/routes/games.ts to match.
+ * rolling window through /event-discovery. Change shared/runtime/discoveryPolicy.js
+ * to update the common policy. The current feed consumes that endpoint; the
+ * query builders below remain compatibility helpers for older callers.
  */
-export const FEED_UPCOMING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+export const FEED_UPCOMING_WINDOW_MS = DISCOVERY_UPCOMING_MS;
 
 type GameListOptions = {
   limit: number;

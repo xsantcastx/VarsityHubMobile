@@ -22,6 +22,7 @@ interface BannerAdProps {
   description?: string;
   fitMode?: 'cover' | 'contain' | 'fill' | 'rotate' | 'stretch' | 'letterbox' | `rotate:${number}`;
   aspectRatio?: number;
+  fixedFrame?: boolean;
   onPress?: () => void; // Optional override for click behavior
 }
 
@@ -36,6 +37,7 @@ export function BannerAd({
   // fill. Advertisers who pick an explicit fit at checkout still override this.
   fitMode = 'contain',
   aspectRatio = 16 / 9,
+  fixedFrame = false,
   onPress,
 }: BannerAdProps) {
   const colorScheme = useColorScheme() ?? 'light';
@@ -170,7 +172,8 @@ export function BannerAd({
   // dominate the feed or render as a sliver. Explicit non-contain fits
   // (cover/fill/rotate, chosen by the advertiser) keep the caller's aspectRatio.
   const [intrinsicRatio, setIntrinsicRatio] = useState<number | null>(null);
-  const effectiveAspectRatio = base === 'contain' && intrinsicRatio ? intrinsicRatio : aspectRatio;
+  const effectiveAspectRatio =
+    !fixedFrame && base === 'contain' && intrinsicRatio ? intrinsicRatio : aspectRatio;
 
   // If no banner URL, show placeholder
   if (!bannerUrl) {

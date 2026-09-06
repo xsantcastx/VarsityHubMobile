@@ -7,7 +7,10 @@ const mockHttpGet = jest.fn();
 const mockRouter = { push: jest.fn(), back: jest.fn() };
 let mockMapProps: any;
 let mockSports: string[] = [];
-jest.mock('@/api/http', () => ({ httpGet: (...args: any[]) => mockHttpGet(...args) }));
+jest.mock('@/api/http', () => ({
+  httpGet: (...args: any[]) =>
+    Promise.resolve(mockHttpGet(...args)).then(data => ({ ...data, next_cursor: null })),
+}));
 jest.mock('@/context/AuthProvider', () => ({ useAuth: () => ({ user: { id: 'map-viewer' } }) }));
 jest.mock('@/hooks/useColorScheme', () => ({ useColorScheme: () => 'light' }));
 jest.mock('expo-router', () => ({ useRouter: () => mockRouter, Stack: { Screen: () => null } }));
@@ -90,6 +93,7 @@ async function openMap() {
   );
   await waitFor(() => expect(mockMapProps.dataLoaded).toBe(true));
   fireEvent.press(screen.getByLabelText('Open calendar'));
+  await waitFor(() => expect(screen.getByLabelText('Fri 9/4, 0 events')).toBeTruthy());
   return view;
 }
 async function settle(action: () => void) {
@@ -132,11 +136,11 @@ describe('Game map active-date query and filters', () => {
       })
     );
     await waitFor(() => expect(screen.getByText('B football')).toBeTruthy());
-    expect(mockSports).toEqual(['football', 'soccer']);
+    expect(mockSports).toEqual(expect.arrayContaining(['football', 'soccer', 'basketball']));
     await settle(() => a.resolve({ items: [card('A basketball', '2026-09-03', 'basketball')] }));
     expect(screen.queryByText('A basketball')).toBeNull();
     expect(screen.getByText('B football')).toBeTruthy();
-    expect(mockSports).toEqual(['football', 'soccer']);
+    expect(mockSports).toEqual(expect.arrayContaining(['football', 'soccer', 'basketball']));
     expect(screen.getByLabelText('Showing 2026-09-04, tap to clear')).toBeTruthy();
   });
   it('date failure shows retry and retries the selected day without pretending success', async () => {
@@ -178,13 +182,14 @@ describe('Game map active-date query and filters', () => {
       ['NCAA', 'NCAA game'],
       ['Major', 'Major game'],
       ['Minor', 'Minor game'],
+      ['Other', 'School event'],
     ]) {
       fireEvent.press(screen.getByLabelText(`${label} leagues`));
-      expect(mockMapProps.events.map((e: any) => e.title)).toEqual([title]);
+      await waitFor(() => expect(mockMapProps.events.map((e: any) => e.title)).toEqual([title]));
     }
     fireEvent.press(screen.getByLabelText('All leagues'));
-    expect(mockMapProps.events).toHaveLength(4);
-    expect(mockHttpGet).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockMapProps.events).toHaveLength(4));
+    expect(mockHttpGet.mock.calls.some(call => call[0].includes('level=other'))).toBe(true);
   });
   it('background refresh failure retains markers while exposing retry', async () => {
     await openMap();

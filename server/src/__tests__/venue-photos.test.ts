@@ -3,6 +3,12 @@ import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
 
 describe('venuePhotoFor', () => {
   it('returns attributed photos for NCAA football venues', () => {
+    for (const venue of ['California Memorial Stadium', 'Mackay Stadium']) {
+      expect(venuePhotoFor(`${venue}, USA`)).toMatchObject({
+        url: expect.stringContaining('https://upload.wikimedia.org/'),
+        credit: expect.stringContaining('Wikimedia Commons'),
+      });
+    }
     expect(venuePhotoFor('Los Angeles Memorial Coliseum, Los Angeles, CA, USA')).toMatchObject({
       url: expect.stringContaining('USC_vs_University_of_Oregon_November_2019.png'),
       credit: expect.stringContaining('Wikimedia Commons'),

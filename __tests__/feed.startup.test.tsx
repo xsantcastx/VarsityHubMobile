@@ -25,14 +25,8 @@ let capturedFocusEffect: null | (() => void | (() => void)) = null;
 let authDeferred: Deferred<any>;
 let firstGameDeferred: Deferred<any>;
 let gameDeferredQueue: Deferred<any>[] = [];
-// feed.tsx loads THREE game sections per refresh — upcoming (the main list),
-// past recap, and curated/marquee events — fanned out in a single Promise.all
-// (they were serialized until the ~1.2s-per-load fix). So one feed load is
-// three Game.list calls, and this constant is what keeps the invariant these
-// tests actually protect honest: ONE load per focus, never a duplicate.
-// If a section is added or removed, update this deliberately rather than
-// letting the expected call count drift.
-const GAME_LIST_CALLS_PER_LOAD = 3;
+// One canonical upcoming discovery load; historical recap hydrates separately.
+const GAME_LIST_CALLS_PER_LOAD = 1;
 
 const EMPTY_GAMES_PAGE = { games: [], nextCursor: null };
 
@@ -110,6 +104,14 @@ jest.mock('@/api/entities', () => ({
   },
   User: {
     me: jest.fn(),
+  },
+}));
+
+jest.mock('@/api/eventDiscovery', () => ({
+  fetchDiscoveryItems: async (request: any) => {
+    if (request.from) return mockEventFilter(request);
+    const page = await mockGameList();
+    return page.games.map((game: any) => ({ source_type: 'game', ...game }));
   },
 }));
 
@@ -244,7 +246,7 @@ describe('Feed startup performance', () => {
 
     expect(screen.queryByTestId('feed-skeleton')).toBeNull();
     expect(mockCheckAuth).toHaveBeenCalledTimes(1);
-    // Exactly one load — its three section queries, and no duplicate load.
+    // Exactly one upcoming load, with no duplicate on initial focus.
     expect(mockGameList).toHaveBeenCalledTimes(GAME_LIST_CALLS_PER_LOAD);
   });
 
@@ -303,7 +305,7 @@ describe('Feed startup performance', () => {
     });
     jest.useRealTimers();
   });
-  it('does not report an empty feed while standalone events are still loading', async () => {
+  it('does not report an empty feed while historical events are still loading', async () => {
     const events = createDeferred<any[]>();
     mockEventFilter.mockImplementation(() => events.promise);
     const screen = render(<FeedScreen />);

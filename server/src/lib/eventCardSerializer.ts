@@ -165,7 +165,22 @@ export function serializeGameCard(game: any, ctx: SerializeCtx) {
     location: linkedEvent?.location ?? game.location ?? game.venue_address ?? null,
     latitude: coords.latitude,
     longitude: coords.longitude,
-    sport: game.homeTeam?.sport ?? game.awayTeam?.sport ?? null,
+    sport:
+      game.homeTeam?.sport ??
+      game.awayTeam?.sport ??
+      linkedEvent?.sportsLeague?.sport_slug ??
+      proLeagueToSport(linkedEvent?.proHomeTeam?.league ?? linkedEvent?.proAwayTeam?.league) ??
+      null,
+    sports_league_id: linkedEvent?.sportsLeague?.id ?? null,
+    league_slug: linkedEvent?.sportsLeague?.slug ?? null,
+    league_name: linkedEvent?.sportsLeague?.name ?? null,
+    league_level: linkedEvent?.sportsLeague?.level ?? null,
+    league_gender: linkedEvent?.sportsLeague?.gender ?? null,
+    home_score: game.home_score ?? null,
+    away_score: game.away_score ?? null,
+    winner: game.winner ?? null,
+    home_team: game.home_team ?? null,
+    away_team: game.away_team ?? null,
     status: null,
     banner_url: game.banner_url ?? game.cover_image_url ?? linkedEvent?.banner_url ?? null,
     pro_home_color: linkedEvent?.proHomeTeam?.primary_color ?? null,

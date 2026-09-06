@@ -16,6 +16,21 @@ export interface Coordinated {
 
 export const DEFAULT_CLUSTER_PRECISION = 4;
 
+type IdentifiedCoordinate = Coordinated & { id: string; type?: string };
+export function mapMarkerKey(group: IdentifiedCoordinate[]): string {
+  const lead = group[0];
+  return group.length > 1
+    ? `cluster:${lead.latitude!.toFixed(DEFAULT_CLUSTER_PRECISION)},${lead.longitude!.toFixed(DEFAULT_CLUSTER_PRECISION)}`
+    : `${lead.type ?? 'event'}:${lead.id}`;
+}
+
+/** Preserve native sibling order when an API refresh merely reorders records. */
+export function stableMapGroups<T extends IdentifiedCoordinate>(markers: T[]): T[][] {
+  return clusterByCoordinate(markers)
+    .map(group => [...group].sort((a, b) => `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`)))
+    .sort((a, b) => mapMarkerKey(a).localeCompare(mapMarkerKey(b)));
+}
+
 export function isValidMapCoordinate(marker: Coordinated): marker is Coordinated & {
   latitude: number;
   longitude: number;
