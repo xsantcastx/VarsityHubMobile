@@ -1,5 +1,8 @@
 # September 6 desktop-notes repair release
 
+**Published:** API, iOS/Android OTA and web from code commit `cf46471c`.
+Account-specific grants and physical-device acceptance remain pending as detailed below.
+
 Publication authorized by the owner in this session: “keep going … then push to
 production through EAS or OTA. I will verify on my end.” The owner owns physical
 device acceptance after publication. This is a scoped repair release, not a claim
@@ -73,3 +76,48 @@ the previous API deployment if needed. Do not roll back to pre-ad-hold writers.
 Record actual deployment IDs, commit, OTA group and post-deploy counts in the
 publication follow-up. Abort client publication if API health, cursor traversal,
 or feed/map parity fails. Owner's device review remains an explicit follow-up.
+
+## Publication evidence
+
+- Code commit: `cf46471c9c34bfd91407f14bfdae0c96a829cd31`, pushed to the fork;
+  [PR #281](https://github.com/xsantcastx/VarsityHubMobile/pull/281) remains open
+  and mergeable. Upstream merge is still unavailable to this account. A future
+  upstream deployment must include these changes to avoid overwriting them.
+- Railway API deployment: `212ba615-b7c4-4d63-9d7b-1196774e9c02`, SUCCESS.
+  Runtime gate was rerun using production Railway environment variables kept
+  in memory, and passed. `/health` returned OK after publication.
+- [OTA group](https://expo.dev/accounts/varsity-hub/projects/varsityhub/updates/f6d00d02-0588-45d2-a569-753f476002a7):
+  `f6d00d02-0588-45d2-a569-753f476002a7`, published 2026-09-06 07:47:32 UTC,
+  production branch, runtime 1.0.5, both platforms.
+  iOS update `01a075af-d4ac-76c8-b431-4de276a5501c`;
+  Android update `01a075af-d4ac-777e-b372-f906e5fd8fab`.
+  Sentry artifact-bundle upload completed successfully for bundles/source maps.
+- Web deployment: `https://varsityhub-6arntbeyo-emilmancero-devs-projects.vercel.app`.
+  Both `www.varsityhub.app` and `varsityhub.app` aliases updated successfully;
+  website returned 200.
+- Live query, September 6 07:45 UTC: September 6 00:00 through September 19
+  23:59:59 UTC returned **379 feed and 379 map items**, identical eligible IDs,
+  four pages on each surface. League counts: 154 NCAA football, 180 MLB, 17 NFL,
+  12 FIBA women's basketball, 10 WNBA, 5 WWE, 1 WTA.
+  September 12 UTC NCAA-football filter returned 71. Other returned 12 with
+  no major/minor/college leakage. Anonymous August 28 historical query returned
+  one media-bearing event. Forged cursor returned 400.
+- Both photographed NCAA examples returned venue-photo data and venue-image OG
+  previews. Both visible wrestling URLs returned 200 and event-specific title
+  plus image metadata through the production website's Applebot route.
+- Additional native stress acceptance: temporarily changed only the diagnostic
+  fixture count from 220 to 500, leaving production EventMap unchanged. It
+  completed all 30 cycles, final timestamp `1788681149418`, and a simulator
+  screenshot showed COMPLETE with 500 events. The diagnostic source was restored
+  to its committed 220-fixture baseline afterward. This supplements three
+  successful 220-fixture candidate runs; it remains simulator evidence.
+- Sentry 4A latest event `940351bed9db4527acea20f72d872ceb` identifies
+  `stage=thumbnail_gen`, `uri_scheme=file`, `native_module=present`. The captured
+  failure is thumbnail generation, not evidence the actual trim operation failed.
+  The original media file is unavailable; no speculative trim fix was shipped.
+
+The owner still needs to supply Nico's exact account/Yankees game and the grant
+expiration requested in the pending clarification. No grant was silently applied.
+Physical-device checks, OS preview behavior and alert delivery are not certified
+by this publication. Unknown venue photos remain honest fallbacks rather than
+invented imagery or fixture data.

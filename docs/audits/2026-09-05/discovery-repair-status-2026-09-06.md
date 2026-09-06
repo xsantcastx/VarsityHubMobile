@@ -1,6 +1,9 @@
 # Map, discovery and reporting repairs — September 6, 2026
 
-Status: implemented locally on top of `8176fd78`; not committed, merged or deployed.
+Status update: code committed as `cf46471c` and published to API, OTA and web.
+See [the release ledger](../../release/DESKTOP_NOTES_2026-09-06.md) for deployment
+IDs, live checks and remaining acceptance. The implementation notes below record
+the local investigation before publication.
 This supplements the earlier confidence review and native investigation, which
 describe the pre-repair state. It does not certify every PDF note or the whole app.
 
