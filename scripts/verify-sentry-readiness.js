@@ -74,6 +74,13 @@ function sentryPluginFromExpoConfig(config) {
 }
 
 function checkLocalSourceMapConfig(failures) {
+  const metroSource = fs.readFileSync('metro.config.js', 'utf8');
+  if (
+    !metroSource.includes("require('@sentry/react-native/metro')") ||
+    !metroSource.includes('getSentryExpoConfig(__dirname)')
+  ) {
+    failures.push('Metro is missing Sentry Expo runtime Debug ID injection');
+  }
   const config = resolveExpoConfig();
   const sentryPlugin = sentryPluginFromExpoConfig(config);
   if (!sentryPlugin) {

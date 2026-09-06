@@ -167,3 +167,60 @@ OTA/native build was published for this database-only grant operation.
 Physical-device checks, OS preview behavior and alert delivery are not certified
 by this publication. Unknown venue photos remain honest fallbacks rather than
 invented imagery or fixture data.
+
+## Broader crash/reporting follow-up
+
+**Open native incident 49:** production event
+`e5197dda7329450c825ce13392e90ad7`, September 6 **15:40:49 UTC**, explicitly tags
+the published iOS OTA `01a075af-d4ac-76c8-b431-4de276a5501c` on build 56.
+The issue has two occurrences. Stack: `SharedObjectRegistry.clear` →
+`EXJavaScriptWeakObject .cxx_destruct` → `jsi::WeakObject` / `jsi::Pointer`
+destruction. Installed expo-modules-core 3.0.30 clears its registry asynchronously
+on a lock queue. This identifies a runtime-teardown lifetime investigation,
+not a demonstrated AIRMap regression. Do not claim the published app is free
+of native crashes. A matched native reproduction and physical-device validation
+remain required; changing compiled Expo Modules code needs a native release.
+
+**Confirmed reporting configuration gap:** Metro used Expo's default config,
+without Sentry's `getSentryExpoConfig` serializer plugin. The installed Sentry
+7.2 implementation adds a runtime `_sentryDebugIds` module that connects event
+frames to matching source-map Debug IDs. Upload success alone did not verify
+that runtime connection. Changed Metro's base configuration to the Sentry Expo
+integration while retaining existing aliases/resolvers; readiness now checks
+that integration too. Reference: [Expo Sentry setup](https://docs.expo.dev/guides/using-sentry/).
+
+Local iOS/Android release exports both passed and contained `_sentryDebugIds`
+plus the exact Debug ID from their matching source map (3,648 iOS sources;
+3,695 Android). Twelve targeted Sentry filtering/terminal-transport tests passed.
+This is artifact-level verification, not proof of end-to-end production alert
+delivery. Publication details for this reporting fix are recorded separately below.
+
+The retained 4A event has no processing errors, but displayed mapped frames
+(for example NativeShareModule at raw `CodedError`) do not correspond to its
+raw function names. Treat those historical mapped lines as unreliable. 3M's
+event-list endpoint returns 200 with an empty list; latest-event remains 404,
+so its original payload is unavailable through these lookups.
+
+**4A controlled native probe:** `scripts/diagnostics/thumbnail-repro-entry.tsx`
+runs outside the production entry, against synthetic H.264 MP4 clips generated
+with ffmpeg (`testsrc2`, 320×240, 30fps; 0.5 seconds and 3 seconds). On the existing
+iOS 26.2 simulator/native dev build, both exact-endpoint and interior-only
+sampling returned all ten thumbnails for both videos. The exact-endpoint
+hypothesis did not reproduce. Original failing media is still unavailable;
+no speculative VideoTrimmer behavior change was made. The harness uses local
+HTTP port 8765 and foreground downloads; it sends no Sentry events.
+
+**4B ingestion reporting is working:** the 08:00 production run persisted MLB
+as partial: fetched 337, updated 291, rejected 46. All 25 sampled rejection
+messages in Railway were `NO_TITLE`. ESPN summary for rejected
+`mlb:401907896` identifies a September 29 fixture with both teams TBD. These
+unresolved placeholders must not be published with invented identities. NCAA
+football independently completed 418 updates with zero failures over the
+45-day ingestion horizon; that differs intentionally from the 14-day public
+discovery horizon. Other league work continued despite MLB's partial run.
+No validator was weakened and no schedule records were fabricated.
+
+Alert-rule readback initially returned seven production email rules, including
+the new-error rule; a later readiness query returned HTTP 410 for that API.
+Do not equate configured rules with delivered notifications. No alert was sent
+to another person as part of these checks.

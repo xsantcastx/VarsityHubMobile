@@ -1,7 +1,9 @@
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const path = require('path');
 
-const config = getDefaultConfig(__dirname);
+// Inject runtime Debug IDs as well as source-map IDs so each OTA resolves to
+// its own source, even when several updates share a native release/build.
+const config = getSentryExpoConfig(__dirname);
 
 // Fast Refresh - REAL-TIME UPDATES CONFIGURATION
 config.transformer = {
