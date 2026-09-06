@@ -322,6 +322,7 @@ model User {
   categoryFollows   CategoryFollow[]
   promoRedemptions  PromoRedemption[]
   transactionLogs   TransactionLog[]
+  adPurchaseIntents AdPurchaseIntent[]
 
   // Follows (self-relation)
   following           Follows[]            @relation("following")
@@ -1065,8 +1066,8 @@ model AdReservation {
   // NULL preserves legacy inventory whose purchase cannot be established safely.
   purchase_reference String?
 
-  @@index([purchase_reference])
   @@unique([ad_id, date]) // unique per ad per date
+  @@index([purchase_reference])
 }
 
 model Ad {
@@ -1101,8 +1102,9 @@ model Ad {
   created_at                 DateTime                  @default(now())
   updated_at                 DateTime                  @updatedAt
 
-  reservations AdReservation[]
-  slot_holds   AdSlotHold[]
+  reservations     AdReservation[]
+  slot_holds       AdSlotHold[]
+  purchase_intents AdPurchaseIntent[]
 
   @@index([user_id, created_at])
   @@index([status])
@@ -1811,7 +1813,8 @@ model TransactionLog {
   updated_at DateTime @updatedAt
 
   // Relations
-  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  user                User?             @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  completed_ad_intent AdPurchaseIntent?
 
   @@index([user_id])
   @@index([stripe_session_id])
@@ -1953,4 +1956,49 @@ model UserWarning {
   @@index([user_id, created_at])
   @@index([severity])
   @@index([user_id, source_type])
+}
+
+// Server-owned intent exists before StoreKit is asked to charge. Its UUID is
+// passed as appAccountToken; receipt ownership never comes from client flags.
+model AdPurchaseIntent {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  user_id                  String
+  ad_id                    String
+  client_transaction_id    String                 @unique @db.Uuid
+  dates                    String[]
+  status                   String                 @default("pending") @db.VarChar(24)
+  completed_transaction_id String?                @unique
+  last_error_code          String?                @db.VarChar(80)
+  attempt_count            Int                    @default(0)
+  created_at               DateTime               @default(now())
+  updated_at               DateTime               @updatedAt
+  user                     User                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  ad                       Ad                     @relation(fields: [ad_id], references: [id], onDelete: Cascade)
+  completed_transaction    TransactionLog?        @relation(fields: [completed_transaction_id], references: [id], onDelete: Restrict)
+  items                    AdPurchaseIntentItem[]
+
+  @@index([user_id, status])
+  @@index([status, updated_at])
+}
+
+model AdPurchaseIntentItem {
+  intent_id  String              @db.Uuid
+  sku        String              @db.VarChar(40)
+  quantity   Int
+  unit_cents Int
+  intent     AdPurchaseIntent    @relation(fields: [intent_id], references: [id], onDelete: Cascade)
+  receipts   AdPurchaseReceipt[]
+
+  @@id([intent_id, sku])
+}
+
+model AdPurchaseReceipt {
+  apple_transaction_id String               @id @db.VarChar(100)
+  intent_id            String               @db.Uuid
+  sku                  String               @db.VarChar(40)
+  quantity             Int
+  received_at          DateTime             @default(now())
+  item                 AdPurchaseIntentItem @relation(fields: [intent_id, sku], references: [intent_id, sku], onDelete: Cascade)
+
+  @@index([intent_id])
 }

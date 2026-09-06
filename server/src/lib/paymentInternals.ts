@@ -946,167 +946,184 @@ async function reserveAppleTransactionClaims(
   };
 }
 
-export async function finalizeAppleAdPurchase(params: {
-  userId: string;
-  userEmail?: string | null;
-  adId: string;
-  dates: string[];
-  appleTransactionIds: string[];
-  receiptsCount: number;
-}) {
-  return prisma.$transaction(
-    async tx => {
-      const orderId = String(params.adId);
-      const claimResult = await reserveAppleTransactionClaims(tx, {
-        appleTransactionIds: params.appleTransactionIds,
-        transactionType: 'AD_PURCHASE',
-        userId: params.userId,
-        adId: String(params.adId),
-        orderId,
-        metadata: {
-          source: 'apple_iap',
-          receipts_count: params.receiptsCount,
-        },
-      });
+export async function finalizeAppleAdPurchase(
+  params: {
+    userId: string;
+    userEmail?: string | null;
+    adId: string;
+    dates: string[];
+    appleTransactionIds: string[];
+    receiptsCount: number;
+  },
+  transaction?: Prisma.TransactionClient
+) {
+  const fulfill = async (tx: Prisma.TransactionClient) => {
+    const orderId = String(params.adId);
+    const claimResult = await reserveAppleTransactionClaims(tx, {
+      appleTransactionIds: params.appleTransactionIds,
+      transactionType: 'AD_PURCHASE',
+      userId: params.userId,
+      adId: String(params.adId),
+      orderId,
+      metadata: {
+        source: 'apple_iap',
+        receipts_count: params.receiptsCount,
+      },
+    });
 
-      if (!claimResult.idempotent && claimResult.existingAppleTransactionIds.length > 0) {
-        throw buildAppleTransactionClaimConflictError();
-      }
-      const receiptMatch = {
-        OR: [
-          {
-            metadata: { path: ['apple_transaction_ids'], equals: claimResult.appleTransactionIds },
-          },
-          ...(claimResult.appleTransactionIds.length === 1
-            ? [{ apple_transaction_id: claimResult.appleTransactionIds[0] }]
-            : []),
-        ],
-      };
-      const previousTransactions = await tx.transactionLog.findMany({
-        where: {
-          user_id: params.userId,
-          order_id: orderId,
-          transaction_type: 'AD_PURCHASE',
-          ...receiptMatch,
-          status: { in: ['COMPLETED', 'REFUNDED', 'NEEDS_REVIEW'] },
-        } as any,
-        select: { id: true, status: true, metadata: true },
-        orderBy: { created_at: 'desc' },
-        take: 100,
-      });
-      if (previousTransactions.some(isRefundedAdPurchase)) throw refundedAdPurchaseError();
-      if (previousTransactions.length === 100) throw buildAppleTransactionClaimConflictError();
-      const existingTx = previousTransactions.find(purchase => purchase.status === 'COMPLETED');
-      if (existingTx?.status === 'COMPLETED') {
-        const previousDates = (existingTx.metadata as any)?.dates;
-        if (
-          !Array.isArray(previousDates) ||
-          JSON.stringify([...new Set(previousDates)].sort()) !==
-            JSON.stringify([...new Set(params.dates)].sort())
-        ) {
-          throw buildAppleTransactionClaimConflictError();
-        }
-        return { ok: true, idempotent: true, appleTransactionIds: claimResult.appleTransactionIds };
-      }
-      // A new receipt bundle cannot recycle any already-spent receipt from an earlier run.
-      const previousReceiptUses = await tx.transactionLog.findMany({
-        where: {
-          transaction_type: 'AD_PURCHASE',
-          OR: [
-            { apple_transaction_id: { in: claimResult.appleTransactionIds } },
-            ...claimResult.appleTransactionIds.map(id => ({
-              metadata: { path: ['apple_transaction_ids'], array_contains: [id] },
-            })),
-          ],
+    if (!claimResult.idempotent && claimResult.existingAppleTransactionIds.length > 0) {
+      throw buildAppleTransactionClaimConflictError();
+    }
+    const receiptMatch = {
+      OR: [
+        {
+          metadata: { path: ['apple_transaction_ids'], equals: claimResult.appleTransactionIds },
         },
-        select: { id: true, status: true, metadata: true },
-        take: 100,
-      });
+        ...(claimResult.appleTransactionIds.length === 1
+          ? [{ apple_transaction_id: claimResult.appleTransactionIds[0] }]
+          : []),
+      ],
+    };
+    const previousTransactions = await tx.transactionLog.findMany({
+      where: {
+        user_id: params.userId,
+        order_id: orderId,
+        transaction_type: 'AD_PURCHASE',
+        ...receiptMatch,
+        status: { in: ['COMPLETED', 'REFUNDED', 'NEEDS_REVIEW'] },
+      } as any,
+      select: { id: true, status: true, metadata: true },
+      orderBy: { created_at: 'desc' },
+      take: 100,
+    });
+    if (previousTransactions.some(isRefundedAdPurchase)) throw refundedAdPurchaseError();
+    if (previousTransactions.length === 100) throw buildAppleTransactionClaimConflictError();
+    const existingTx = previousTransactions.find(purchase => purchase.status === 'COMPLETED');
+    if (existingTx?.status === 'COMPLETED') {
+      const previousDates = (existingTx.metadata as any)?.dates;
       if (
-        claimResult.idempotent ||
-        previousReceiptUses.length === 100 ||
-        previousReceiptUses.some(
-          purchase => purchase.status === 'COMPLETED' || isRefundedAdPurchase(purchase)
-        )
-      )
+        !Array.isArray(previousDates) ||
+        JSON.stringify([...new Set(previousDates)].sort()) !==
+          JSON.stringify([...new Set(params.dates)].sort())
+      ) {
         throw buildAppleTransactionClaimConflictError();
-      const pendingTx = await tx.transactionLog.findFirst({
-        where: {
-          user_id: params.userId,
-          order_id: orderId,
-          transaction_type: 'AD_PURCHASE',
-          ...receiptMatch,
-          status: { in: ['PENDING', 'NEEDS_REVIEW'] },
-        } as any,
-        select: { id: true, metadata: true },
-        orderBy: { created_at: 'desc' },
-      });
-
-      const adRecord = await tx.ad.findUnique({
-        where: { id: String(params.adId) },
-        select: { target_zip_code: true, status: true },
-      });
-
-      if (!adRecord || !['approved', 'active', 'archived'].includes(adRecord.status)) {
-        throw new Error('AD_NOT_APPROVED');
       }
-      await reserveAdSlots(tx, {
-        adId: String(params.adId),
-        targetZipCode: adRecord?.target_zip_code,
-        isoDates: params.dates,
-        paymentStatus: 'paid',
-        purchaseReference: `apple:${claimResult.appleTransactionIds.join(',')}`,
-        status: 'active',
-      });
-
-      if (!existingTx) {
-        const metadata = mergeTransactionMetadata(pendingTx?.metadata, {
-          source: 'apple_iap',
-          ad_id: String(params.adId),
-          dates: params.dates,
-          receipts_count: params.receiptsCount,
-          apple_transaction_ids: claimResult.appleTransactionIds,
-        });
-
-        if (pendingTx) {
-          await tx.transactionLog.update({
-            where: { id: pendingTx.id },
-            data: {
-              status: 'COMPLETED',
-              user_email: params.userEmail ?? undefined,
-              apple_transaction_id:
-                claimResult.appleTransactionIds.length === 1
-                  ? claimResult.appleTransactionIds[0]
-                  : undefined,
-              metadata: metadata as any,
-            } as any,
-          });
-        } else {
-          await tx.transactionLog.create({
-            data: {
-              transaction_type: 'AD_PURCHASE',
-              status: 'COMPLETED',
-              user_id: params.userId,
-              user_email: params.userEmail ?? undefined,
-              order_id: orderId,
-              apple_transaction_id:
-                claimResult.appleTransactionIds.length === 1
-                  ? claimResult.appleTransactionIds[0]
-                  : null,
-              metadata: metadata as any,
-            } as any,
-          });
-        }
-      }
-
       return {
         ok: true,
-        idempotent: !!existingTx && claimResult.idempotent,
+        idempotent: true,
         appleTransactionIds: claimResult.appleTransactionIds,
+        transactionLogId: existingTx.id,
       };
-    },
-    { isolationLevel: 'Serializable' }
-  );
+    }
+    // A new receipt bundle cannot recycle any already-spent receipt from an earlier run.
+    const previousReceiptUses = await tx.transactionLog.findMany({
+      where: {
+        transaction_type: 'AD_PURCHASE',
+        OR: [
+          { apple_transaction_id: { in: claimResult.appleTransactionIds } },
+          ...claimResult.appleTransactionIds.map(id => ({
+            metadata: { path: ['apple_transaction_ids'], array_contains: [id] },
+          })),
+        ],
+      },
+      select: { id: true, status: true, metadata: true },
+      take: 100,
+    });
+    if (
+      claimResult.idempotent ||
+      previousReceiptUses.length === 100 ||
+      previousReceiptUses.some(
+        purchase => purchase.status === 'COMPLETED' || isRefundedAdPurchase(purchase)
+      )
+    )
+      throw buildAppleTransactionClaimConflictError();
+    const pendingTx = await tx.transactionLog.findFirst({
+      where: {
+        user_id: params.userId,
+        order_id: orderId,
+        transaction_type: 'AD_PURCHASE',
+        ...receiptMatch,
+        status: { in: ['PENDING', 'NEEDS_REVIEW'] },
+      } as any,
+      select: { id: true, metadata: true },
+      orderBy: { created_at: 'desc' },
+    });
+
+    const adRecord = await tx.ad.findUnique({
+      where: { id: String(params.adId) },
+      select: { target_zip_code: true, status: true },
+    });
+
+    if (!adRecord || !['approved', 'active', 'archived'].includes(adRecord.status)) {
+      throw new Error('AD_NOT_APPROVED');
+    }
+    await reserveAdSlots(tx, {
+      adId: String(params.adId),
+      targetZipCode: adRecord?.target_zip_code,
+      isoDates: params.dates,
+      paymentStatus: 'paid',
+      purchaseReference: `apple:${claimResult.appleTransactionIds.join(',')}`,
+      status: 'active',
+    });
+
+    let transactionLogId = existingTx?.id || pendingTx?.id;
+    if (!existingTx) {
+      const metadata = mergeTransactionMetadata(pendingTx?.metadata, {
+        source: 'apple_iap',
+        ad_id: String(params.adId),
+        dates: params.dates,
+        receipts_count: params.receiptsCount,
+        apple_transaction_ids: claimResult.appleTransactionIds,
+      });
+
+      if (pendingTx) {
+        await tx.transactionLog.update({
+          where: { id: pendingTx.id },
+          data: {
+            status: 'COMPLETED',
+            user_email: params.userEmail ?? undefined,
+            apple_transaction_id:
+              claimResult.appleTransactionIds.length === 1
+                ? claimResult.appleTransactionIds[0]
+                : undefined,
+            metadata: metadata as any,
+          } as any,
+        });
+      } else {
+        const completed = await tx.transactionLog.create({
+          data: {
+            transaction_type: 'AD_PURCHASE',
+            status: 'COMPLETED',
+            user_id: params.userId,
+            user_email: params.userEmail ?? undefined,
+            order_id: orderId,
+            apple_transaction_id:
+              claimResult.appleTransactionIds.length === 1
+                ? claimResult.appleTransactionIds[0]
+                : null,
+            metadata: metadata as any,
+          } as any,
+        });
+        transactionLogId = completed.id;
+      }
+    }
+
+    return {
+      ok: true,
+      idempotent: !!existingTx && claimResult.idempotent,
+      appleTransactionIds: claimResult.appleTransactionIds,
+      transactionLogId,
+    };
+  };
+  if (transaction) {
+    const [isolation] = await transaction.$queryRawUnsafe<Array<{ transaction_isolation: string }>>(
+      'SHOW transaction_isolation'
+    );
+    if (isolation.transaction_isolation !== 'serializable')
+      throw new Error('Apple fulfillment requires serializable isolation');
+    return fulfill(transaction);
+  }
+  return prisma.$transaction(fulfill, { isolationLevel: 'Serializable' });
 }
 
 export async function runFinalizeFromSession(session: Stripe.Checkout.Session) {

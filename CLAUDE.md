@@ -452,3 +452,7 @@ Thin routes, logic one layer down · Backend validation is law, frontend is guid
 - Don't refactor or clean up code beyond what was asked
 - Fix real bugs, not theoretical issues
 - When the fix is in one file, don't touch five
+
+### Apple ad purchase durability
+
+- Apple ad checkout (2026-09-06): create an account-bound `AdPurchaseIntent` before StoreKit; pass its UUID as `appAccountToken`. Persist each verified receipt before `finishTransaction`. Inventory, receipt claims, completed ledger and intent completion share one Serializable transaction through `finalizeAppleAdPurchase(..., tx)`. The existing scheduler and root `AdPurchaseProvider` reconcile interrupted fulfillment; re-login never silently charges unpaid parts. Preserve legacy queues and needs-action records. Apple signed payloads use the official verifier pinned to the actual G3 certificate, never issuer-name trust.

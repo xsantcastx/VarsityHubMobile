@@ -148,6 +148,20 @@ try {
     timeout: 120000,
     stdio: 'pipe',
   });
+  phase = 'purchase_recovery';
+  execFileSync(
+    process.execPath,
+    [
+      '--experimental-vm-modules',
+      'node_modules/jest/bin/jest.js',
+      '--runInBand',
+      'src/__tests__/ad-purchase-intents.db.test.ts',
+      'src/__tests__/payments-finalization.test.ts',
+      'src/__tests__/ad-state-invariants.test.ts',
+    ],
+    { env: { ...process.env, DATABASE_URL: targetUrl.toString() }, timeout: 120000, stdio: 'pipe' }
+  );
+  report.purchaseRecoveryPassed = true;
   phase = 'application_constraints';
   const existing = await target.user.findFirst({ select: { email: true } });
   let writePassed = false,

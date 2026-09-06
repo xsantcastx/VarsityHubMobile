@@ -177,6 +177,16 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
   },
   // Event reminder email job removed — non-mandatory engagement email
   {
+    name: 'ad-purchase-reconciliation',
+    cron: '*/5 * * * *',
+    description: 'Reconcile durably received Apple ad purchases',
+    handler: async () => {
+      const { reconcileReadyAdPurchases } = await import('../lib/adPurchaseIntents.js');
+      const result = await reconcileReadyAdPurchases();
+      console.log(`[Scheduler] Reconciled ${result.reconciled} ready ad purchase intents`);
+    },
+  },
+  {
     name: 'db-backup-sync',
     cron: '0 */6 * * *', // Every 6 hours
     description: 'Sync primary database to backup Postgres instance',

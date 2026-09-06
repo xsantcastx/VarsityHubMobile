@@ -116,6 +116,8 @@ New code composes with these single patterns; never stack a parallel mechanism:
 
 ### Payment changes
 
+- Apple ad checkout (2026-09-06): create an account-bound `AdPurchaseIntent` before StoreKit; pass its UUID as `appAccountToken`. Persist each verified receipt before `finishTransaction`. Inventory, receipt claims, completed ledger and intent completion share one Serializable transaction through `finalizeAppleAdPurchase(..., tx)`. The existing scheduler and root `AdPurchaseProvider` reconcile interrupted fulfillment; re-login never silently charges unpaid parts. Preserve legacy queues and needs-action records. Apple signed payloads use the official verifier pinned to the actual G3 certificate, never issuer-name trust.
+
 - iOS: Apple IAP only — never add Stripe links on iOS paths
 - Android subscriptions: Google Play Billing via `react-native-iap`, server-verified at `POST /payments/google/verify-purchase` — never route Android subscription checkout to Stripe (Play policy)
 - Android ads: Stripe PaymentSheet (ads use Stripe on Android + web; only subscriptions use Play Billing)

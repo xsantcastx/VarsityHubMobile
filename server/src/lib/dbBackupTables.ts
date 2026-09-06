@@ -73,6 +73,9 @@ export const TABLES_IN_ORDER = [
   'RefreshToken',
   'PromoRedemption',
   'TransactionLog',
+  'AdPurchaseIntent', // User + Ad + optional completed TransactionLog
+  'AdPurchaseIntentItem',
+  'AdPurchaseReceipt',
   'AbuseReport',
   'UserWarning',
 ];

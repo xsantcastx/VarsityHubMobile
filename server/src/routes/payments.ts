@@ -1,3 +1,15 @@
+import {
+  AdIntentError,
+  createAdPurchaseIntent,
+  listAdPurchaseIntents,
+  recordAdPurchaseReceipt,
+  reconcileReadyAdPurchases,
+} from '../lib/adPurchaseIntents.js';
+import {
+  verifyAppleSignedJws,
+  verifyAppleNotificationJws,
+  verifyAppleRenewalJws,
+} from '../lib/appleSignedJws.js';
 import { releaseAdPurchaseHolds } from '../lib/adInventory.js';
 import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
@@ -3416,75 +3428,6 @@ const APPLE_VERIFY_URL_SANDBOX = 'https://sandbox.itunes.apple.com/verifyReceipt
 
 const APPLE_AD_PRODUCTS = ['MOND_THURS', 'FRI_SUN'] as const;
 
-function verifyAppleSignedJws(token: string): any {
-  const decoded = jwt.decode(token, { complete: true });
-  const header = decoded?.header as any;
-  if (!header?.x5c?.length) {
-    throw new Error('Missing certificate chain');
-  }
-  if (header.alg !== 'ES256') {
-    throw new Error(`Invalid Apple JWS algorithm: ${header.alg}`);
-  }
-
-  const x5cCerts = (header.x5c as string[]).map(
-    (cert: string) => `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----`
-  );
-  const rootCert = new crypto.X509Certificate(x5cCerts[x5cCerts.length - 1]);
-  // SECURITY: Pin to exact CN=Apple Root CA - G3 + O=Apple Inc. to prevent any other
-  // Apple-signed cert (developer certs, intermediate CAs, etc.) from being accepted.
-  // This matches the stricter check already in place for S2S notifications.
-  if (
-    !rootCert.subject.includes('CN=Apple Root CA - G3') ||
-    !rootCert.subject.includes('O=Apple Inc.') ||
-    !rootCert.issuer.includes('Apple Root CA - G3')
-  ) {
-    throw new Error('Invalid Apple root certificate: must be CN=Apple Root CA - G3, O=Apple Inc.');
-  }
-  if (!rootCert.checkIssued(rootCert)) {
-    throw new Error('Apple root certificate is not self-signed');
-  }
-  for (let i = 0; i < x5cCerts.length - 1; i++) {
-    const cert = new crypto.X509Certificate(x5cCerts[i]);
-    const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
-    if (!cert.checkIssued(issuerCert)) {
-      throw new Error(`Broken Apple certificate chain at index ${i}`);
-    }
-  }
-
-  const leafKey = crypto.createPublicKey(x5cCerts[0]);
-  const payload = jwt.verify(token, leafKey, { algorithms: ['ES256'] }) as any;
-
-  const expectedBundleId = process.env.APPLE_BUNDLE_ID?.trim();
-  if (process.env.NODE_ENV === 'production' && !expectedBundleId) {
-    throw new Error('APPLE_BUNDLE_ID is required for Apple JWS verification in production');
-  }
-
-  const bundleId = String(payload.bundleId || payload.appBundleId || payload.bid || '').trim();
-  // SECURITY: Reject when bundleId is present but wrong, AND when it is absent in
-  // production — an omitted field must not silently bypass the check.
-  if (expectedBundleId) {
-    if (!bundleId) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('Apple JWS payload missing bundleId in production');
-      }
-    } else if (bundleId !== expectedBundleId) {
-      throw new Error(`Apple bundle mismatch: ${bundleId}`);
-    }
-  }
-
-  const environment = String(payload.environment || payload.environmentIOS || '').trim();
-  if (environment && environment !== 'Sandbox' && environment !== 'Production') {
-    throw new Error(`Unexpected Apple transaction environment: ${environment}`);
-  }
-  // NOTE: Sandbox transactions are intentionally accepted in production to support
-  // TestFlight testers. This is a deliberate policy decision. Apple's own
-  // guidelines permit it for TestFlight, and blocking Sandbox in production would
-  // break all pre-release IAP testing. The environment value is logged and stored
-  // so any unexpected Sandbox activity in production is auditable.
-
-  return payload;
-}
-
 async function markStripeEventProcessed(eventId: string) {
   await prisma.processedStripeEvent.update({
     where: { event_id: eventId },
@@ -3603,7 +3546,7 @@ paymentsRouter.post(
       if (jws) {
         let signedTransaction: any;
         try {
-          signedTransaction = verifyAppleSignedJws(jws);
+          signedTransaction = await verifyAppleSignedJws(jws);
         } catch (error: any) {
           console.error('[payments] Apple JWS verification failed (subscription):', error?.message);
           captureException(error, { context: 'apple_jws_verify_subscription' });
@@ -3719,6 +3662,66 @@ paymentsRouter.post(
   })
 );
 
+// Durable Apple ad checkout: establish account-bound intent before StoreKit.
+function adIntentHandler(fn: (req: AuthedRequest, res: Response) => Promise<unknown>) {
+  return asyncHandler(async (req: AuthedRequest, res: Response) => {
+    try {
+      await fn(req, res);
+    } catch (error: any) {
+      if (error instanceof z.ZodError)
+        return sendError(res, 400, 'Invalid purchase intent payload', {
+          code: 'INVALID_PURCHASE_INTENT',
+        });
+      if (error instanceof AdIntentError)
+        return sendError(res, error.statusCode, error.message, { code: error.code });
+      captureException(new Error('Ad intent request failed'), {
+        context: 'ad_intent_request',
+        failure_code: error?.code || 'unknown',
+      });
+      return sendError(res, 503, 'Purchase recovery will retry. Do not purchase again.', {
+        code: 'PURCHASE_RECOVERY_RETRY',
+      });
+    }
+  });
+}
+paymentsRouter.post(
+  '/apple/ad-intents',
+  requireAuth as any,
+  paymentLimiter,
+  adIntentHandler(async (req, res) => {
+    if (!(await enforceVerifiedForAdPaymentFlow(req, res, String(req.body?.ad_id || '')))) return;
+    res.json(await createAdPurchaseIntent(req.user!.id, req.body));
+  })
+);
+paymentsRouter.get(
+  '/apple/ad-intents',
+  requireAuth as any,
+  adIntentHandler(async (req, res) => {
+    res.json({ items: await listAdPurchaseIntents(req.user!.id) });
+  })
+);
+paymentsRouter.post(
+  '/apple/ad-intents/reconcile',
+  requireAuth as any,
+  paymentLimiter,
+  adIntentHandler(async (req, res) => {
+    res.json(await reconcileReadyAdPurchases(req.user!.id));
+  })
+);
+paymentsRouter.post(
+  '/apple/ad-intents/:id/receipts',
+  requireAuth as any,
+  paymentLimiter,
+  adIntentHandler(async (req, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    const { jws } = z
+      .object({ jws: z.string().min(1).max(100000) })
+      .strict()
+      .parse(req.body);
+    res.json(await recordAdPurchaseReceipt(req.user!.id, id, jws));
+  })
+);
+
 // Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
 paymentsRouter.post(
   '/apple/verify-ad-receipt',
@@ -3815,11 +3818,25 @@ paymentsRouter.post(
         if (jws) {
           let signedTransaction: any;
           try {
-            signedTransaction = verifyAppleSignedJws(jws);
+            signedTransaction = await verifyAppleSignedJws(jws);
           } catch (error: any) {
             console.error('[payments] Apple JWS verification failed (ad):', error?.message);
             captureException(error, { context: 'apple_jws_verify_ad' });
             return res.status(400).json({ error: 'Invalid Apple transaction signature' });
+          }
+          if (signedTransaction.appAccountToken) {
+            const token = z.string().uuid().safeParse(signedTransaction.appAccountToken);
+            if (
+              token.success &&
+              (await prisma.adPurchaseIntent.findUnique({
+                where: { id: token.data },
+                select: { id: true },
+              }))
+            ) {
+              return sendError(res, 409, 'Continue this purchase through its saved intent', {
+                code: 'PURCHASE_INTENT_REQUIRED',
+              });
+            }
           }
           const signedProductId = String(
             signedTransaction.productId || signedTransaction.product_id || ''
@@ -3961,77 +3978,13 @@ paymentsRouter.post(
         return res.sendStatus(200); // Always 200 to Apple
       }
 
-      // Verify JWS signature using the x5c certificate chain from the header.
-      // The leaf cert signs the payload; we verify the chain against Apple's root CA.
       let payload: any;
       try {
-        // Step 1: Decode header WITHOUT verification to inspect x5c chain
-        const decoded = jwt.decode(signedPayload, { complete: true });
-        const header = decoded?.header as any;
-        if (!header?.x5c?.length) {
-          console.error(
-            '[apple-s2s] No x5c certificate chain in JWS header — rejecting unverified payload'
-          );
-          return res.status(400).json({ error: 'Missing certificate chain' });
-        }
-
-        // Step 2: Enforce ES256 algorithm — reject anything else
-        if (header.alg !== 'ES256') {
-          console.error(
-            '[apple-s2s] Unexpected algorithm:',
-            header.alg,
-            '— only ES256 is accepted'
-          );
-          return res.status(403).json({ error: 'Invalid algorithm' });
-        }
-
-        // Step 3: Build PEM certs from x5c chain
-        const x5cCerts = (header.x5c as string[]).map(
-          (c: string) => `-----BEGIN CERTIFICATE-----\n${c}\n-----END CERTIFICATE-----`
-        );
-        const leafCertPem = x5cCerts[0];
-
-        // Step 4: Pin root cert to Apple Root CA - G3
-        // Apple's App Store S2S notifications always chain to "Apple Root CA - G3"
-        const rootCert = x5cCerts[x5cCerts.length - 1];
-        const rootX509 = new crypto.X509Certificate(rootCert);
-        // PAY-2: Pin to exact Apple Root CA - G3 identity (CN + O) to prevent
-        // any other Apple-signed cert (e.g. developer certs) from being accepted.
-        if (
-          !rootX509.subject.includes('CN=Apple Root CA - G3') ||
-          !rootX509.subject.includes('O=Apple Inc.') ||
-          !rootX509.issuer.includes('Apple Root CA - G3')
-        ) {
-          console.error(
-            '[apple-s2s] Root cert is NOT Apple Root CA - G3 — rejecting. Subject:',
-            rootX509.subject,
-            'Issuer:',
-            rootX509.issuer
-          );
-          return res.status(403).json({ error: 'Invalid certificate chain' });
-        }
-        // Verify root is self-signed
-        if (!rootX509.checkIssued(rootX509)) {
-          console.error('[apple-s2s] Root cert is not self-signed — rejecting');
-          return res.status(403).json({ error: 'Invalid root certificate' });
-        }
-
-        // Step 5: Verify full chain — each cert issued by the next
-        for (let i = 0; i < x5cCerts.length - 1; i++) {
-          const cert = new crypto.X509Certificate(x5cCerts[i]);
-          const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
-          if (!cert.checkIssued(issuerCert)) {
-            console.error(`[apple-s2s] Certificate chain broken at index ${i} — rejecting`);
-            return res.status(403).json({ error: 'Broken certificate chain' });
-          }
-        }
-
-        // Step 6: Verify JWS signature with leaf cert public key — strict ES256 only
-        const leafCert = crypto.createPublicKey(leafCertPem);
-        payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
-      } catch (decodeErr) {
-        console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);
-        return res.sendStatus(503);
+        payload = await verifyAppleNotificationJws(signedPayload);
+      } catch {
+        return sendError(res, 403, 'Invalid Apple notification signature', {
+          code: 'INVALID_APPLE_SIGNATURE',
+        });
       }
 
       if (!payload) {
@@ -4062,49 +4015,18 @@ paymentsRouter.post(
         console.warn('[apple-s2s] Unexpected Apple notification environment:', environment);
       }
 
-      // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).
-      // SECURITY: Verify the full cert chain of the inner JWS (not just the leaf cert) so a
-      // crafted token with a self-signed leaf cannot be accepted as a valid Apple inner token.
-      const verifyInnerJWS = (token: string): any => {
-        try {
-          const innerHeader = jwt.decode(token, { complete: true })?.header as any;
-          if (!innerHeader?.x5c?.length) return {};
-          const innerCerts = (innerHeader.x5c as string[]).map(
-            (c: string) => `-----BEGIN CERTIFICATE-----\n${c}\n-----END CERTIFICATE-----`
-          );
-          // Pin inner chain root to Apple Root CA - G3 as well
-          const innerRoot = new crypto.X509Certificate(innerCerts[innerCerts.length - 1]);
-          if (
-            !innerRoot.subject.includes('CN=Apple Root CA - G3') ||
-            !innerRoot.subject.includes('O=Apple Inc.')
-          ) {
-            console.warn('[apple-s2s] Inner JWS root cert is not Apple Root CA - G3 — skipping');
-            return {};
-          }
-          for (let i = 0; i < innerCerts.length - 1; i++) {
-            const cert = new crypto.X509Certificate(innerCerts[i]);
-            const issuerCert = new crypto.X509Certificate(innerCerts[i + 1]);
-            if (!cert.checkIssued(issuerCert)) {
-              console.warn(`[apple-s2s] Inner JWS cert chain broken at index ${i} — skipping`);
-              return {};
-            }
-          }
-          const innerKey = crypto.createPublicKey(innerCerts[0]);
-          return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
-        } catch (innerErr) {
-          console.warn('[apple-s2s] Failed to verify inner JWS token:', innerErr);
-        }
-        return {};
-      };
-
+      // A verified outer envelope cannot authorize unverified inner transaction data.
       let transactionInfo: any = {};
-      if (data.signedTransactionInfo) {
-        transactionInfo = verifyInnerJWS(data.signedTransactionInfo);
-      }
-
       let renewalInfo: any = {};
-      if (data.signedRenewalInfo) {
-        renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
+      try {
+        if (data.signedTransactionInfo)
+          transactionInfo = await verifyAppleSignedJws(data.signedTransactionInfo);
+        if (data.signedRenewalInfo)
+          renewalInfo = await verifyAppleRenewalJws(data.signedRenewalInfo);
+      } catch {
+        return sendError(res, 403, 'Invalid Apple notification contents', {
+          code: 'INVALID_APPLE_SIGNATURE',
+        });
       }
 
       const appleTransactionId: string = transactionInfo.transactionId || '';
@@ -4120,6 +4042,26 @@ paymentsRouter.post(
         productId,
         environment,
       });
+
+      if (notificationType === 'ONE_TIME_CHARGE' && APPLE_AD_PRODUCTS.includes(productId as any)) {
+        const token = z.string().uuid().safeParse(transactionInfo.appAccountToken);
+        if (!token.success || !data.signedTransactionInfo) {
+          captureException(new Error('Apple ad notification has no purchase intent'), {
+            context: 'ad_intent_notification_unbound',
+          });
+          return res.sendStatus(200); // Legacy unbound purchases remain on their existing path.
+        }
+        try {
+          await recordAdPurchaseReceipt(undefined, token.data, data.signedTransactionInfo);
+          return res.sendStatus(200);
+        } catch {
+          captureException(new Error('Apple ad notification recovery failed'), {
+            context: 'ad_intent_notification',
+            intent_id: token.data,
+          });
+          return res.sendStatus(503);
+        }
+      }
 
       const receiptState = await recordAppleNotificationReceipt(prisma, {
         notificationUUID,

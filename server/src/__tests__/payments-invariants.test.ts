@@ -111,19 +111,19 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(appleAuth.length).toBeGreaterThan(100);
     });
 
-    it('Apple signedPayload verification failures return retriable 5xx responses', () => {
-      const block =
-        payments.match(/Failed to verify\/decode signedPayload[\s\S]{0,200}/)?.[0] || '';
-      expect(block).toMatch(/sendStatus\(503\)/);
+    it('invalid Apple signatures are rejected before notification processing', () => {
+      expect(payments).toContain('await verifyAppleNotificationJws(signedPayload)');
+      expect(payments).toContain("code: 'INVALID_APPLE_SIGNATURE'");
     });
 
-    it('inner Apple JWS payloads are verified instead of falling back to unverified decode', () => {
-      const block =
-        payments.match(
-          /const verifyInnerJWS = \(token: string\): any => \{[\s\S]{0,2600}?\n\s*\};/
-        )?.[0] || '';
-      expect(block).toMatch(/jwt\.verify\(token, innerKey, \{ algorithms: \['ES256'\] \}\)/);
-      expect(block).not.toMatch(/return jwt\.decode\(token\)/);
+    it('inner Apple JWS payloads use the same trusted verifier', () => {
+      expect(payments).toContain('await verifyAppleSignedJws(data.signedTransactionInfo)');
+      expect(payments).toContain('await verifyAppleRenewalJws(data.signedRenewalInfo)');
+      expect(payments).not.toContain('const verifyInnerJWS');
+      const verifier = read('lib/appleSignedJws.ts');
+      expect(verifier).toContain('new SignedDataVerifier([APPLE_ROOT_CA_G3]');
+      expect(verifier).toContain('verifyAndDecodeTransaction');
+      expect(verifier).toContain('verifyAndDecodeNotification');
     });
   });
 

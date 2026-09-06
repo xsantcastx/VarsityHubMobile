@@ -26,6 +26,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
 
+import { AdPurchaseProvider } from '@/context/AdPurchaseProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
@@ -345,9 +346,11 @@ function RootLayout() {
               <PostCacheProvider>
                 <NavigationHistoryProvider>
                   <NavReadyAuthProvider>
-                    <ThemeProvider>
-                      <AppShell />
-                    </ThemeProvider>
+                    <AdPurchaseProvider>
+                      <ThemeProvider>
+                        <AppShell />
+                      </ThemeProvider>
+                    </AdPurchaseProvider>
                   </NavReadyAuthProvider>
                 </NavigationHistoryProvider>
               </PostCacheProvider>

@@ -24,11 +24,35 @@ See [backup repair procedure](../../server/backup-migrations/README.md). Schedul
 
 ## Remaining ordered gates
 
-| Phase | Required result                                                                                  | Current status                                                    |
-| ----- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| 1     | Unmodified repaired backup passes migration startup; daily check active; guarded mirror deployed | Final operational validation in progress                          |
-| 2     | Durable account-bound purchase intent and re-authentication reconciliation                       | Open; no new charge should occur silently for an unpaid remainder |
-| 3     | Explicit provider/coverage health, including unsupported leagues                                 | Open                                                              |
-| 4     | Native dSYM delivery and physical/TestFlight lifetime/session evidence                           | Open; seven-day evidence cannot be manufactured in one session    |
+| Phase | Required result                                                                                  | Current status                                                                      |
+| ----- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| 1     | Unmodified repaired backup passes migration startup; daily check active; guarded mirror deployed | Passed: deployed mirror, as-is local restore and independent scheduled-runner drill |
+| 2     | Durable account-bound purchase intent and re-authentication reconciliation                       | Open; no new charge should occur silently for an unpaid remainder                   |
+| 3     | Explicit provider/coverage health, including unsupported leagues                                 | Open                                                                                |
+| 4     | Native dSYM delivery and physical/TestFlight lifetime/session evidence                           | Open; seven-day evidence cannot be manufactured in one session                      |
 
 Whole-service failover, external storage/Redis recovery and ownership/ACL provisioning remain distinct from this database restore drill. Existing PushTicket data remains an intentional ephemeral exclusion.
+
+## Phase 1 operational acceptance
+
+- Server commit `5a0cd1d24b3b2db56ee6b28c6e7c6ff9ac32f78b`, successful Railway deployment `bbedd21a-99b0-4b59-ba57-e1554b79b393`. Runtime gate passed after deployment.
+- Live scheduler job `forensic-backup-5a0cd1d2-20260906` completed (processedOn `1788722884510`, finishedOn `1788722904281`).
+- Unmodified backup local restore: 59 tables / 4,335 rows, content matched, migration deploy and application constraint probes passed; cleaned up at 2026-09-06T19:22:44.717Z. No repair option used.
+- Independent GitHub runner [34054960934](https://github.com/emilmancero-dev/VarsityHubMobile/actions/runs/34054960934) succeeded using the dedicated read-only roles. Aggregate artifact `backup-restore-report` retained for 30 days; no raw database artifact uploaded.
+- Daily schedule: 07:23 UTC, active in the writable fork default branch through workflow-only commit `e8c1696d`. It checks out the tested server commit above. The application source on fork main was not promoted. Update this pin after future verified production releases; upstream still requires an account with merge access.
+- Client regressions: 151 tests; expanded server regressions: 102 tests. The full local release gate and final targeted PostgreSQL/type checks passed.
+
+## Phase 2 implementation and verification
+
+- Added an account-owned `AdPurchaseIntent` and product/receipt ledger before StoreKit checkout. The server derives quantities and prices; Apple `appAccountToken` binds signed receipts to the intent. Unique receipt IDs, one open intent per ad, foreign keys and completion checks enforce storage invariants.
+- Receipt storage commits before fulfillment. Inventory, Apple claims, completed transaction log and intent completion share the same serializable transaction. The existing BullMQ scheduler reconciles ready intents every five minutes; authenticated recovery and signed Apple `ONE_TIME_CHARGE` notifications reuse that service.
+- One root mobile provider processes unfinished Apple transactions on login, foreground and reconnect. It acknowledges consumables only after authenticated server acceptance and ignores superseded account responses. Recovery never purchases an unpaid remainder automatically. Explicit checkout resumes remaining quantities; the calendar can restore saved dates.
+- Found and reproduced a separate receipt trust defect: issuer-name checks accepted a self-signed certificate claiming Apple's name. Replaced that verifier with Apple's official server library pinned to the actual Apple Root CA G3 certificate. Verification checks signatures, certificate purpose, bundle and environment. Offline verification uses signed-date validity; online OCSP was not exercised.
+- Real isolated PostgreSQL tests passed: failure injected at intent completion leaves receipts durable and fulfillment rolled back; a fresh Node process finishes recovery; five concurrent receipt deliveries produce one fulfillment; cross-account receipt submission and missing ledger references are rejected. Existing payment/finalization regressions also passed (22 tests across four suites, including the real-crypto forgery test).
+- Seven mobile logic tests passed: delayed/failed durability never acknowledges, an account change invalidates a slow result, re-login recovery does not charge, intent creation precedes checkout, duplicate callbacks coalesce, and a superseded account cannot start checkout. These substitute the native StoreKit boundary and are not physical-device interruption evidence.
+- Revert proof: premature acknowledgement causes three client test failures. Moving fulfillment back into a separate transaction makes the PostgreSQL fresh-process recovery test fail. Restoring both fixes passes.
+- The restore drill now runs the PostgreSQL purchase recovery/finalization suites inside its disposable restored database, after migration startup.
+
+Remaining purchase gates: a legitimate sandbox/TestFlight signed transaction and physical force-kill/re-login sequence; confirmation of App Store Server Notification delivery configuration; self-service resolution for expired/full booking dates; legacy partial receipts without an intent. No App Store Server API key is configured, so server polling of missing Apple receipts is not claimed. Legacy receipt data is preserved. Do not describe these remaining cases as automatically recovered.
+
+Migration rollout: additive migration `20260906194000_durable_ad_purchase_intents`; apply to backup and primary before mobile publication, refresh backup and repeat the as-is restore gate. A brief parity mismatch safely refuses backup clearing. Rollback must retain these tables and receipts; stop new checkout publication and keep the reconciliation service available. Never drop the purchase ledger to roll back client behavior.

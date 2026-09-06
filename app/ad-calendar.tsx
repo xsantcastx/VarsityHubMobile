@@ -1,3 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthProvider';
+import { listAdIntents } from '@/lib/adPurchaseRecovery';
 import { Colors } from '@/constants/Colors';
 import { useAdIAP } from '@/hooks/useAdIAP';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -207,6 +210,13 @@ function AdCalendarScreen() {
   const freeSuccessOpacity = useRef(new Animated.Value(0)).current;
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const { purchaseAd } = useAdIAP();
+  const { user } = useAuth();
+  const pendingPurchases = useQuery({
+    queryKey: ['ad-purchase-intents', user?.id],
+    queryFn: listAdIntents,
+    enabled: Platform.OS === 'ios' && !!user?.id,
+  });
+  const savedPurchase = pendingPurchases.data?.find(intent => intent.ad_id === adId);
 
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates
@@ -726,6 +736,7 @@ function AdCalendarScreen() {
           weekendBlocks,
         });
         setSubmitting(false);
+        void pendingPurchases.refetch();
         captureBreadcrumb(
           'Native ad purchase returned',
           'payments.ad',
@@ -1029,6 +1040,42 @@ function AdCalendarScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {Platform.OS === 'ios' && pendingPurchases.isPending && user && (
+            <Text style={{ color: Colors[colorScheme].text }}>Checking saved purchases…</Text>
+          )}
+          {Platform.OS === 'ios' && pendingPurchases.isError && (
+            <Pressable accessibilityRole="button" onPress={() => void pendingPurchases.refetch()}>
+              <Text style={{ color: Colors[colorScheme].text }}>
+                Could not check saved purchases. Tap to retry before checkout.
+              </Text>
+            </Pressable>
+          )}
+          {savedPurchase && (
+            <View style={{ paddingVertical: 12 }}>
+              <Text style={{ color: Colors[colorScheme].text }}>
+                {savedPurchase.status === 'needs_action'
+                  ? 'Your payment is saved, but booking needs attention. Contact support before purchasing again.'
+                  : 'You have an unfinished purchase. Restore its dates to continue; accepted payments will not be charged again.'}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setSelected(new Set(savedPurchase.dates));
+                  setDirty(true);
+                }}
+              >
+                <Text
+                  style={{
+                    color: Colors[colorScheme].text,
+                    fontWeight: '700',
+                    paddingVertical: 12,
+                  }}
+                >
+                  Restore saved purchase dates
+                </Text>
+              </Pressable>
+            </View>
+          )}
           <View style={[styles.contentInner, isLargeScreen ? styles.contentInnerLarge : null]}>
             {showPaymentsWarning && (
               <View
