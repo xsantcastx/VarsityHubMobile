@@ -13,7 +13,13 @@ import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
+import { createOtaReloadRequest } from '@/utils/otaReload';
 const { useUpdates } = Updates;
+// Shared across both update paths and root remounts within this JS runtime.
+const requestOtaReload = createOtaReloadRequest(
+  () => Updates.reloadAsync(),
+  error => captureException(error, { tags: { context: 'ota_reload' } })
+);
 import React, { useEffect } from 'react';
 import { ActivityIndicator, AppState, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -188,7 +194,7 @@ function RootLayout() {
   useEffect(() => {
     if (__DEV__ || Platform.OS === 'web' || isExpoGo || !Updates.isEnabled) return;
     if (isUpdatePending) {
-      Updates.reloadAsync().catch(() => {});
+      void requestOtaReload();
     }
   }, [isUpdatePending]);
 
@@ -212,7 +218,7 @@ function RootLayout() {
       }
       await Updates.fetchUpdateAsync();
       // reloadAsync restarts the app with the new bundle immediately
-      await Updates.reloadAsync();
+      if (!(await requestOtaReload())) updateCheckInFlight.current = false;
     } catch (error) {
       devLog('[updates] OTA sync failed', error);
       captureException(error, { tags: { context: 'ota_sync' } });

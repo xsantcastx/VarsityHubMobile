@@ -224,3 +224,24 @@ Alert-rule readback initially returned seven production email rules, including
 the new-error rule; a later readiness query returned HTTP 410 for that API.
 Do not equate configured rules with delivered notifications. No alert was sent
 to another person as part of these checks.
+
+### Reporting publication and duplicate reload correction
+
+The reporting integration published successfully from `319b781c` to production
+OTA group `9a4d77e3-c6d2-47b5-9498-206989c0f6af`, runtime 1.0.5:
+iOS `01a07797-f29e-7968-9155-694c5b920b23`, Android
+`01a07797-f29e-731a-ab17-9e43f04f992c`. Source-map upload completed. Both local
+release and build-readiness gates passed; build had nonblocking warnings only.
+
+Following the native teardown stack exposed a separate, concrete OTA race:
+`app/_layout.tsx` requested `Updates.reloadAsync()` both when `useUpdates`
+reported a pending update and after `fetchUpdateAsync()` completed. Neither
+path coordinated reload requests. Both now share `createOtaReloadRequest`:
+concurrent requests share one promise, success stays latched until the new JS
+runtime starts, and failure is reported once and permits a later retry.
+
+Three focused tests cover overlapping requests, failure/reporting/retry, and
+synchronous native failure. All passed, along with four terminal-transport
+tests. This corrects duplicate reload requests; it does **not** establish that
+the duplicate was the cause of native crash 49 or that Expo's native lifetime
+defect is resolved. The separate error-screen recovery path remains intentional.
