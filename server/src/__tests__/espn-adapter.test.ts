@@ -12,6 +12,19 @@ const adapter = espnAdapter();
 const parse = (from: Date, to: Date) => adapter.__parseScoreboard!('wnba', sample, from, to);
 
 describe('espnAdapter parser', () => {
+  it.each(['wnba', 'atp'] as const)(
+    'rejects malformed %s envelopes but accepts an empty schedule',
+    league => {
+      const from = new Date('2026-01-01'),
+        to = new Date('2027-01-01');
+      expect(adapter.__parseScoreboard!(league, { events: [] }, from, to)).toEqual([]);
+      for (const payload of [{ renamed_events: [] }, { events: null }, null]) {
+        expect(() => adapter.__parseScoreboard!(league, payload, from, to)).toThrow(
+          'expected events array'
+        );
+      }
+    }
+  );
   it('maps a scoreboard game to a normalized fixture with resolved team refs', () => {
     const all = parse(new Date('2000-01-01'), new Date('2100-01-01'));
     expect(all.length).toBe(sample.events.length);

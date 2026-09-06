@@ -129,6 +129,8 @@ const THUMB_COUNT = 10;
 const FILMSTRIP_HEIGHT = 50;
 const HANDLE_WIDTH = 16;
 const MIN_TRIM_SECONDS = 1;
+// The native module exposes no cancellation API. Keep its work exclusive even after a UI timeout.
+let nativeTrimPending = false;
 const SCREEN_PADDING = 32; // 16px each side
 
 function formatTime(seconds: number): string {
@@ -137,7 +139,11 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function VideoTrimmer({
+export default function VideoTrimmer(props: VideoTrimmerProps) {
+  return <VideoTrimmerSession key={props.uri} {...props} />;
+}
+
+function VideoTrimmerSession({
   uri,
   onTrimComplete,
   onTrimReset,
@@ -146,6 +152,31 @@ export default function VideoTrimmer({
   const [duration, setDuration] = useState(0);
   const [thumbnails, setThumbnails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const active = useRef(true);
+  const thumbnailStarted = useRef(false);
+  const loadSettled = useRef(false);
+  const failLoad = useCallback(
+    (stage: string, error: unknown) => {
+      if (!active.current || loadSettled.current) return;
+      loadSettled.current = true;
+      setLoading(false);
+      setLoadError('Video preview could not load. Choose the video again.');
+      reportTrimFailure(stage, error, uri);
+    },
+    [uri]
+  );
+  useEffect(() => {
+    active.current = true;
+    const timeout = setTimeout(
+      () => failLoad('preview_timeout', new Error('Video preview timed out')),
+      30000
+    );
+    return () => {
+      active.current = false;
+      clearTimeout(timeout);
+    };
+  }, [failLoad]);
   const [trimming, setTrimming] = useState(false);
   const [hasMoved, setHasMoved] = useState(false);
   const [startLabel, setStartLabel] = useState('0:00');
@@ -202,6 +233,11 @@ export default function VideoTrimmer({
   const overLimit = maxDurationS != null && duration > maxDurationS + 0.25;
 
   useEventListener(player, 'statusChange', ({ status }) => {
+    if (!active.current || loadSettled.current) return;
+    if (status === 'error') {
+      failLoad('player_load', new Error('Video player failed to load'));
+      return;
+    }
     if (status === 'readyToPlay' && player.duration > 0) {
       // Always update duration ref when available
       if (durationRef.current <= 0) {
@@ -221,7 +257,8 @@ export default function VideoTrimmer({
       }
 
       // Generate thumbnails only once
-      if (thumbnails.length === 0) {
+      if (!thumbnailStarted.current) {
+        thumbnailStarted.current = true;
         const dur = durationRef.current > 0 ? durationRef.current : player.duration;
         const times = Array.from({ length: THUMB_COUNT }, (_, i) =>
           THUMB_COUNT > 1 ? (i / (THUMB_COUNT - 1)) * dur : 0
@@ -230,13 +267,14 @@ export default function VideoTrimmer({
         player
           .generateThumbnailsAsync(times, { maxHeight: FILMSTRIP_HEIGHT })
           .then(thumbs => {
+            if (!active.current || loadSettled.current) return;
+            loadSettled.current = true;
             setThumbnails(thumbs);
             setLoading(false);
           })
           .catch(e => {
             if (__DEV__) console.warn('[VideoTrimmer] Thumbnail generation failed:', e);
-            reportTrimFailure('thumbnail_gen', e, uri);
-            setLoading(false);
+            failLoad('thumbnail_gen', e);
           });
       }
     }
@@ -385,15 +423,43 @@ export default function VideoTrimmer({
       return;
     }
 
+    if (nativeTrimPending) {
+      Alert.alert(
+        'Video Still Processing',
+        'The previous trim is still running. Wait before starting another trim.'
+      );
+      return;
+    }
     trimInFlightRef.current = true;
     setTrimming(true);
+    let deadline: ReturnType<typeof setTimeout> | undefined;
 
     try {
-      const result = await trim(processableUri, {
-        startTime: startMs,
-        endTime: endMs,
-      });
+      nativeTrimPending = true;
+      const work = Promise.resolve()
+        .then(() =>
+          trim(processableUri, {
+            startTime: startMs,
+            endTime: endMs,
+          })
+        )
+        .finally(() => {
+          nativeTrimPending = false;
+        });
+      const result = await Promise.race([
+        work,
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(
+            () =>
+              reject(
+                new Error('Video trimming timed out. The previous trim may still be processing.')
+              ),
+            120000
+          );
+        }),
+      ]);
 
+      if (!active.current) return;
       if (result.success && result.outputPath) {
         // The native module reports the duration it actually cut to. Compare
         // against what we requested — if the native trim silently no-ops
@@ -429,6 +495,7 @@ export default function VideoTrimmer({
               {
                 text: 'Use Anyway',
                 onPress: () => {
+                  if (!active.current) return;
                   appliedRangeRef.current = { startMs, endMs };
                   onTrimComplete(outputPath);
                 },
@@ -449,14 +516,16 @@ export default function VideoTrimmer({
         );
       }
     } catch (e: any) {
+      if (!active.current) return;
       Alert.alert('Trim Failed', getTrimFailureMessage(e));
       if (__DEV__) console.warn('[VideoTrimmer] Trim error:', e);
       reportTrimFailure('trim_error', e, processableUri ?? undefined);
     } finally {
+      if (deadline) clearTimeout(deadline);
       // Runs on every path (success, mismatch early-return, throw), so a failed
       // trim never wedges the button.
       trimInFlightRef.current = false;
-      setTrimming(false);
+      if (active.current) setTrimming(false);
     }
   }, [processableUri, duration, leftX, rightX, trackWidth, onTrimComplete]);
 
@@ -500,7 +569,9 @@ export default function VideoTrimmer({
 
         {/* Filmstrip track */}
         <View style={[styles.filmstrip, { width: trackWidth, marginLeft: HANDLE_WIDTH }]}>
-          {loading ? (
+          {loadError ? (
+            <Text accessibilityRole="alert">{loadError}</Text>
+          ) : loading ? (
             <View style={styles.loadingRow}>
               {Array.from({ length: THUMB_COUNT }).map((_, i) => (
                 <View key={i} style={[styles.thumbPlaceholder, { width: thumbWidth }]}>

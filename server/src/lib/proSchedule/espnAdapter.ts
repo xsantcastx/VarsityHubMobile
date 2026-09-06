@@ -268,7 +268,7 @@ function parseTennisScoreboard(
   to: Date
 ): EspnPreGeocode[] {
   const events = (raw as { events?: EspnEvent[] })?.events;
-  if (!Array.isArray(events)) return [];
+  if (!Array.isArray(events)) throw new Error('[espn] Invalid scoreboard: expected events array');
 
   const buckets = new Map<string, EspnPreGeocode & { hasScheduled: boolean }>();
   for (const event of events) {
@@ -330,7 +330,7 @@ export function parseScoreboard(
   if (league === 'atp' || league === 'wta') return parseTennisScoreboard(league, raw, from, to);
 
   const events = (raw as { events?: EspnEvent[] })?.events;
-  if (!Array.isArray(events)) return [];
+  if (!Array.isArray(events)) throw new Error('[espn] Invalid scoreboard: expected events array');
 
   const out: EspnPreGeocode[] = [];
   for (const e of events) {
@@ -405,13 +405,13 @@ export function espnAdapter(geocode: GeocodeFn = geocodeVenue): EspnAdapter {
       const rangedUrl =
         `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard` +
         `?dates=${yyyymmdd(from)}-${yyyymmdd(to)}&limit=1000`;
-      let res = await fetch(rangedUrl);
+      let res = await fetch(rangedUrl, { signal: AbortSignal.timeout(30_000) });
       let url = rangedUrl;
       if (!res.ok && (league === 'ncaamb' || league === 'ncaawb')) {
         // ESPN's college basketball site API returns 404 for some preseason
         // date ranges while the undated scoreboard returns the next slate.
         url = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard?limit=1000`;
-        res = await fetch(url);
+        res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
       }
       if (!res.ok) throw new Error(`[espn] ${res.status} for ${league} (${url})`);
       const parsed = parseScoreboard(league, await res.json(), from, to);

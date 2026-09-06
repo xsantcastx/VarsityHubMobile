@@ -146,6 +146,7 @@ function Step3League() {
   const {
     organizations: nearbyOrgs,
     loading: searching,
+    error: organizationSearchError,
     search: searchOrganizations,
     clear: clearOrganizations,
   } = useOrganizationSearch(false);
@@ -1269,11 +1270,13 @@ function Step3League() {
                       color={isDark ? '#93C5FD' : '#2563EB'}
                     />
                     <Text style={styles.searchEmptyTitle}>
-                      No organizations found for that search
+                      {organizationSearchError
+                        ? 'Unable to load organizations'
+                        : 'No organizations found for that search'}
                     </Text>
                     <Text style={styles.searchEmptyText}>
-                      This clean test slate does not have any active leagues yet. Tap Create New
-                      Instead to set up the first organization.
+                      {organizationSearchError ||
+                        'Try another ZIP code, or create an organization if yours is not listed.'}
                     </Text>
                   </View>
                 )}

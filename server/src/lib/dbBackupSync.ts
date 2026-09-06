@@ -194,6 +194,7 @@ export async function syncDatabaseBackup(): Promise<{
       const msg = `DB backup sync: ${unlistedTables.length} primary table(s) not in TABLES_IN_ORDER, not backed up: ${unlistedTables.join(', ')}`;
       console.error('[db-backup]', msg);
       captureException(new Error(msg), { extra: { unlistedTables } });
+      throw new Error(msg);
     }
 
     const syncableTables = TABLES_IN_ORDER.filter(t => existingTables.has(t));
@@ -210,163 +211,179 @@ export async function syncDatabaseBackup(): Promise<{
       backupColumnCache.size > 0
         ? syncableTables.filter(t => backupColumnCache.has(t))
         : syncableTables;
-    if (truncatable.length > 0) {
-      await backup.$executeRawUnsafe(
-        `TRUNCATE TABLE ${truncatable.map(t => `"${t}"`).join(', ')} CASCADE`
-      );
-    }
-
-    // All primary reads happen inside one REPEATABLE READ transaction so every
-    // table is captured from the same snapshot — otherwise rows written while
-    // the sync runs can reference parents that were read out before they
-    // existed, failing the child table's insert.
-    await primary.$transaction(
-      async tx => {
-        for (const table of syncableTables) {
-          try {
-            // Build column list: if we have backup column info, restrict to columns
-            // that exist in both primary data AND backup schema (handles schema drift
-            // where backup is missing recently-added migration columns).
-            const allPrimaryColumns = await resolvePrimaryColumns(table);
-            const backupCols = backupColumnCache.get(table);
-            // Deferred FK columns (cycles / self-references) are inserted as
-            // NULL by omission and back-filled after every table is loaded.
-            const deferredCols = DEFERRED_FK_COLUMNS[table] ?? [];
-            const columns = (
-              backupCols ? allPrimaryColumns.filter(c => backupCols.has(c)) : allPrimaryColumns
-            ).filter(c => !deferredCols.includes(c));
-
-            if (columns.length === 0) {
-              console.error(
-                `[db-backup] Table "${table}" has no matching columns in backup — skipping`
-              );
-              failedTables.push(table);
-              failedTableReasons.push({ table, reason: 'no matching columns in backup' });
-              continue;
-            }
-
-            const skippedCols = allPrimaryColumns.filter(
-              c => !columns.includes(c) && !deferredCols.includes(c)
-            );
-            if (skippedCols.length > 0) {
-              debugLog(
-                `[db-backup] "${table}": skipping ${skippedCols.length} column(s) missing from backup: ${skippedCols.join(', ')}`
-              );
-            }
-
-            const colList = columns.map(c => `"${c}"`).join(', ');
-            const orderBy = columns.map(c => `"${c}"`).join(', ');
-            const [{ count: totalCountRaw }] = await tx.$queryRawUnsafe<
-              Array<{ count: bigint | number | string }>
-            >(`SELECT COUNT(*) AS count FROM "${table}"`);
-            const totalTableRows = Number(totalCountRaw);
-
-            if (totalTableRows === 0) {
-              tablesSync++;
-              continue;
-            }
-
-            // Insert in batches of 500 to avoid query size limits
-            const batchSize = 500;
-            for (let offset = 0; offset < totalTableRows; offset += batchSize) {
-              const batch = await tx.$queryRawUnsafe<Record<string, unknown>[]>(
-                `SELECT ${colList} FROM "${table}" ORDER BY ${orderBy} LIMIT ${batchSize} OFFSET ${offset}`
-              );
-              if (batch.length === 0) break;
-              const valueClauses: string[] = [];
-              const params: unknown[] = [];
-              let paramIdx = 1;
-
-              for (const row of batch) {
-                const { clause, nextParamIdx } = buildRowValuesClause(columns, paramIdx, col =>
-                  enumCastForColumn(table, col)
-                );
-                paramIdx = nextParamIdx;
-                valueClauses.push(clause);
-                for (const col of columns) {
-                  params.push(row[col]);
-                }
-              }
-
-              const sql = `INSERT INTO "${table}" (${colList}) VALUES ${valueClauses.join(', ')}`;
-              await backup.$executeRawUnsafe(sql, ...params);
-            }
-
-            totalRows += totalTableRows;
-            tablesSync++;
-            debugLog(`[db-backup] ${table}: ${totalTableRows} rows synced`);
-          } catch (err: any) {
-            const reason = String(err?.message || err).slice(0, 300);
-            console.error(`[db-backup] Failed to sync table "${table}":`, reason);
-            failedTables.push(table);
-            failedTableReasons.push({ table, reason });
-          }
-        }
-
-        // Back-fill the deferred FK columns now that every table's rows exist.
-        // These form FK shapes no insert order can satisfy: the
-        // User.organization_id <-> Organization.league_owner_id cycle and
-        // Comment.parent_id self-references.
-        for (const [table, cols] of Object.entries(DEFERRED_FK_COLUMNS)) {
-          if (!existingTables.has(table) || failedTables.includes(table)) continue;
-          const backupCols = backupColumnCache.get(table);
-          for (const col of cols) {
-            if (backupCols && !backupCols.has(col)) continue; // backup schema drift
-            try {
-              const batchSize = 500;
-              for (let offset = 0; ; offset += batchSize) {
-                const rows = await tx.$queryRawUnsafe<Array<{ id: unknown; value: unknown }>>(
-                  `SELECT "id", "${col}" AS value FROM "${table}" WHERE "${col}" IS NOT NULL ORDER BY "id" LIMIT ${batchSize} OFFSET ${offset}`
-                );
-                if (rows.length === 0) break;
-                const valueClauses: string[] = [];
-                const params: unknown[] = [];
-                let paramIdx = 1;
-                for (const row of rows) {
-                  valueClauses.push(`($${paramIdx++}, $${paramIdx++})`);
-                  params.push(row.id, row.value);
-                }
-                await backup.$executeRawUnsafe(
-                  `UPDATE "${table}" AS t SET "${col}" = v.value FROM (VALUES ${valueClauses.join(', ')}) AS v(id, value) WHERE t."id" = v.id`,
-                  ...params
-                );
-                if (rows.length < batchSize) break;
-              }
-            } catch (err: any) {
-              const reason = String(err?.message || err).slice(0, 300);
-              console.error(`[db-backup] Failed to back-fill "${table}"."${col}":`, reason);
-              if (!failedTables.includes(table)) failedTables.push(table);
-              failedTableReasons.push({ table: `${table}.${col}`, reason });
-            }
-          }
-        }
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
-        // Prisma's default interactive-transaction timeout is 5s — far too
-        // short for a full-database read. The snapshot only holds reads on
-        // the primary; 15 minutes is a generous ceiling, not an expectation.
-        timeout: 15 * 60_000,
-        maxWait: 60_000,
+    // Fail before clearing the last complete backup when its schema is incomplete.
+    for (const table of syncableTables) {
+      const columns = await resolvePrimaryColumns(table);
+      const available = backupColumnCache.get(table);
+      if (!available || columns.some(column => !available.has(column))) {
+        throw new Error(`Backup schema incomplete for ${table}; migrate backup before syncing`);
       }
-    );
-
-    if (failedTables.length > 0) {
-      const backupErr = new Error(
-        `DB backup sync partially failed — ${failedTables.length} table(s) not synced: ${failedTables.join(', ')}`
-      );
-      console.error('[db-backup]', backupErr.message);
-      // Stringify the reasons — Sentry flattens raw object arrays in `extra`
-      // to "[Array]", which is how the cause got lost in the first place.
-      captureException(backupErr, {
-        extra: {
-          failedTables,
-          failedTableReasons: JSON.stringify(failedTableReasons),
-          tablesSync,
-          totalRows,
-        },
-      });
     }
+    await backup.$transaction(
+      async backupTx => {
+        if (truncatable.length > 0) {
+          await backupTx.$executeRawUnsafe(
+            `TRUNCATE TABLE ${truncatable.map(t => `"${t}"`).join(', ')} CASCADE`
+          );
+        }
+
+        // All primary reads happen inside one REPEATABLE READ transaction so every
+        // table is captured from the same snapshot — otherwise rows written while
+        // the sync runs can reference parents that were read out before they
+        // existed, failing the child table's insert.
+        await primary.$transaction(
+          async tx => {
+            for (const table of syncableTables) {
+              try {
+                // Build column list: if we have backup column info, restrict to columns
+                // that exist in both primary data AND backup schema (handles schema drift
+                // where backup is missing recently-added migration columns).
+                const allPrimaryColumns = await resolvePrimaryColumns(table);
+                const backupCols = backupColumnCache.get(table);
+                // Deferred FK columns (cycles / self-references) are inserted as
+                // NULL by omission and back-filled after every table is loaded.
+                const deferredCols = DEFERRED_FK_COLUMNS[table] ?? [];
+                const columns = (
+                  backupCols ? allPrimaryColumns.filter(c => backupCols.has(c)) : allPrimaryColumns
+                ).filter(c => !deferredCols.includes(c));
+
+                if (columns.length === 0) {
+                  console.error(
+                    `[db-backup] Table "${table}" has no matching columns in backup — skipping`
+                  );
+                  failedTables.push(table);
+                  failedTableReasons.push({ table, reason: 'no matching columns in backup' });
+                  continue;
+                }
+
+                const skippedCols = allPrimaryColumns.filter(
+                  c => !columns.includes(c) && !deferredCols.includes(c)
+                );
+                if (skippedCols.length > 0) {
+                  debugLog(
+                    `[db-backup] "${table}": skipping ${skippedCols.length} column(s) missing from backup: ${skippedCols.join(', ')}`
+                  );
+                }
+
+                const colList = columns.map(c => `"${c}"`).join(', ');
+                const orderBy = columns.map(c => `"${c}"`).join(', ');
+                const [{ count: totalCountRaw }] = await tx.$queryRawUnsafe<
+                  Array<{ count: bigint | number | string }>
+                >(`SELECT COUNT(*) AS count FROM "${table}"`);
+                const totalTableRows = Number(totalCountRaw);
+
+                if (totalTableRows === 0) {
+                  tablesSync++;
+                  continue;
+                }
+
+                // Insert in batches of 500 to avoid query size limits
+                const batchSize = 500;
+                for (let offset = 0; offset < totalTableRows; offset += batchSize) {
+                  const batch = await tx.$queryRawUnsafe<Record<string, unknown>[]>(
+                    `SELECT ${colList} FROM "${table}" ORDER BY ${orderBy} LIMIT ${batchSize} OFFSET ${offset}`
+                  );
+                  if (batch.length === 0) break;
+                  const valueClauses: string[] = [];
+                  const params: unknown[] = [];
+                  let paramIdx = 1;
+
+                  for (const row of batch) {
+                    const { clause, nextParamIdx } = buildRowValuesClause(columns, paramIdx, col =>
+                      enumCastForColumn(table, col)
+                    );
+                    paramIdx = nextParamIdx;
+                    valueClauses.push(clause);
+                    for (const col of columns) {
+                      params.push(row[col]);
+                    }
+                  }
+
+                  const sql = `INSERT INTO "${table}" (${colList}) VALUES ${valueClauses.join(', ')}`;
+                  await backupTx.$executeRawUnsafe(sql, ...params);
+                }
+
+                totalRows += totalTableRows;
+                tablesSync++;
+                debugLog(`[db-backup] ${table}: ${totalTableRows} rows synced`);
+              } catch (err: any) {
+                const reason = String(err?.message || err).slice(0, 300);
+                console.error(`[db-backup] Failed to sync table "${table}":`, reason);
+                failedTables.push(table);
+                failedTableReasons.push({ table, reason });
+              }
+            }
+
+            // Back-fill the deferred FK columns now that every table's rows exist.
+            // These form FK shapes no insert order can satisfy: the
+            // User.organization_id <-> Organization.league_owner_id cycle and
+            // Comment.parent_id self-references.
+            for (const [table, cols] of Object.entries(DEFERRED_FK_COLUMNS)) {
+              if (!existingTables.has(table) || failedTables.includes(table)) continue;
+              const backupCols = backupColumnCache.get(table);
+              for (const col of cols) {
+                if (backupCols && !backupCols.has(col)) continue; // backup schema drift
+                try {
+                  const batchSize = 500;
+                  for (let offset = 0; ; offset += batchSize) {
+                    const rows = await tx.$queryRawUnsafe<Array<{ id: unknown; value: unknown }>>(
+                      `SELECT "id", "${col}" AS value FROM "${table}" WHERE "${col}" IS NOT NULL ORDER BY "id" LIMIT ${batchSize} OFFSET ${offset}`
+                    );
+                    if (rows.length === 0) break;
+                    const valueClauses: string[] = [];
+                    const params: unknown[] = [];
+                    let paramIdx = 1;
+                    for (const row of rows) {
+                      valueClauses.push(`($${paramIdx++}, $${paramIdx++})`);
+                      params.push(row.id, row.value);
+                    }
+                    await backupTx.$executeRawUnsafe(
+                      `UPDATE "${table}" AS t SET "${col}" = v.value FROM (VALUES ${valueClauses.join(', ')}) AS v(id, value) WHERE t."id" = v.id`,
+                      ...params
+                    );
+                    if (rows.length < batchSize) break;
+                  }
+                } catch (err: any) {
+                  const reason = String(err?.message || err).slice(0, 300);
+                  console.error(`[db-backup] Failed to back-fill "${table}"."${col}":`, reason);
+                  if (!failedTables.includes(table)) failedTables.push(table);
+                  failedTableReasons.push({ table: `${table}.${col}`, reason });
+                }
+              }
+            }
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+            // Prisma's default interactive-transaction timeout is 5s — far too
+            // short for a full-database read. The snapshot only holds reads on
+            // the primary; 15 minutes is a generous ceiling, not an expectation.
+            timeout: 15 * 60_000,
+            maxWait: 60_000,
+          }
+        );
+
+        if (failedTables.length > 0) {
+          const backupErr = new Error(
+            `DB backup sync partially failed — ${failedTables.length} table(s) not synced: ${failedTables.join(', ')}`
+          );
+          console.error('[db-backup]', backupErr.message);
+          // Stringify the reasons — Sentry flattens raw object arrays in `extra`
+          // to "[Array]", which is how the cause got lost in the first place.
+          captureException(backupErr, {
+            extra: {
+              failedTables,
+              failedTableReasons: JSON.stringify(failedTableReasons),
+              tablesSync,
+              totalRows,
+            },
+          });
+        }
+
+        if (failedTables.length > 0)
+          throw new Error(`Backup refresh rolled back: ${failedTables.join(', ')}`);
+      },
+      { timeout: 16 * 60_000, maxWait: 60_000 }
+    );
 
     // Reset sequences to match primary
     try {

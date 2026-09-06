@@ -3,13 +3,21 @@
  * iOS: Apple IAP. Android: Stripe fallback.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
-import { httpPost } from '@/api/http';
 import { captureBreadcrumb } from '@/utils/sentry';
+import {
+  enqueuePendingAdVerification,
+  hasPendingAdVerification,
+  submitAdVerification,
+  getVerificationErrorMessage,
+  flushPendingAdVerifications,
+  removePendingAdVerification,
+  type PendingAdVerification,
+} from '@/lib/adVerificationQueue';
+export { flushPendingAdVerifications } from '@/lib/adVerificationQueue';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
@@ -45,6 +53,7 @@ export const AD_IAP_PRODUCT_IDS = {
 const AD_SKUS = [AD_IAP_PRODUCT_IDS.weekday, AD_IAP_PRODUCT_IDS.weekend];
 
 type PendingAd = {
+  verificationId: string;
   adId: string;
   dates: string[];
   receipts: { jws?: string | null; receipt?: string; productId: string; quantity: number }[];
@@ -54,99 +63,6 @@ type PendingAd = {
 };
 
 const pendingAdRef = { current: null as PendingAd | null };
-const PENDING_AD_IAP_KEY = 'vh_pending_ad_iap_receipt_verifications_v1';
-
-type PendingAdVerification = {
-  id: string;
-  adId: string;
-  dates: string[];
-  receipts: { jws?: string | null; receipt?: string; productId: string; quantity: number }[];
-  attemptCount: number;
-  createdAt: number;
-};
-
-let flushQueuePromise: Promise<void> | null = null;
-const PENDING_AD_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
-
-async function readPendingAdVerifications(): Promise<PendingAdVerification[]> {
-  try {
-    const raw = await AsyncStorage.getItem(PENDING_AD_IAP_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    const now = Date.now();
-    return parsed.filter((item: any) => {
-      const createdAt = Number(item?.createdAt || 0);
-      return (
-        item &&
-        typeof item.id === 'string' &&
-        typeof item.adId === 'string' &&
-        Array.isArray(item.dates) &&
-        Array.isArray(item.receipts) &&
-        Number.isFinite(createdAt) &&
-        now - createdAt <= PENDING_AD_VERIFICATION_TTL_MS
-      );
-    });
-  } catch {
-    return [];
-  }
-}
-
-async function writePendingAdVerifications(items: PendingAdVerification[]) {
-  if (items.length === 0) {
-    await AsyncStorage.removeItem(PENDING_AD_IAP_KEY).catch(() => {});
-    return;
-  }
-  await AsyncStorage.setItem(PENDING_AD_IAP_KEY, JSON.stringify(items)).catch(() => {});
-}
-
-async function enqueuePendingAdVerification(item: PendingAdVerification) {
-  const existing = await readPendingAdVerifications();
-  await writePendingAdVerifications([...existing.filter(entry => entry.id !== item.id), item]);
-}
-
-async function submitAdVerification(item: PendingAdVerification) {
-  await httpPost('/payments/apple/verify-ad-receipt', {
-    ad_id: item.adId,
-    dates: item.dates,
-    receipts: item.receipts,
-  });
-}
-
-function getVerificationErrorMessage(err: any) {
-  return err?.message || err?.data?.error || 'Receipt verification is taking longer than usual';
-}
-
-export async function flushPendingAdVerifications(onError?: (message: string) => void) {
-  if (flushQueuePromise) return flushQueuePromise;
-
-  flushQueuePromise = (async () => {
-    const queue = await readPendingAdVerifications();
-    if (queue.length === 0) return;
-
-    const remaining: PendingAdVerification[] = [];
-    for (const item of queue) {
-      try {
-        await submitAdVerification(item);
-      } catch (err: any) {
-        const message = getVerificationErrorMessage(err);
-        onError?.(message);
-        remaining.push({
-          ...item,
-          attemptCount: item.attemptCount + 1,
-        });
-        if (__DEV__) console.error('[useAdIAP] background verify-ad-receipt error:', err);
-      }
-    }
-
-    await writePendingAdVerifications(remaining);
-  })().finally(() => {
-    flushQueuePromise = null;
-  });
-
-  return flushQueuePromise;
-}
-
 export function useAdIAP() {
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,6 +127,20 @@ export function useAdIAP() {
             quantity: (purchase as any).quantity ?? 1,
           });
         }
+        if (!jws && !receipt) throw new Error('Missing purchase receipt');
+        await enqueuePendingAdVerification({
+          id: pending.verificationId,
+          adId: pending.adId,
+          dates: pending.dates,
+          receipts: [...pending.receipts],
+          ready:
+            (pending.weekdayBlocks <= 0 ||
+              pending.receipts.some(r => r.productId === AD_IAP_PRODUCT_IDS.weekday)) &&
+            (pending.weekendBlocks <= 0 ||
+              pending.receipts.some(r => r.productId === AD_IAP_PRODUCT_IDS.weekend)),
+          attemptCount: 0,
+          createdAt: Date.now(),
+        });
         captureBreadcrumb('Ad store transaction finish started', 'payments.ad', {
           product_id: pid,
           ad_id: pending.adId,
@@ -232,6 +162,13 @@ export function useAdIAP() {
           },
           'warning'
         );
+        setPurchasing(false);
+        pending.resolve({
+          ok: false,
+          error:
+            'Purchase recovery could not be saved. Please contact support before purchasing again.',
+        });
+        return;
       }
 
       const { weekdayBlocks, weekendBlocks } = pending;
@@ -243,7 +180,8 @@ export function useAdIAP() {
 
       if (complete) {
         const verification: PendingAdVerification = {
-          id: `${pending.adId}:${Date.now()}`,
+          id: pending.verificationId,
+          ready: true,
           adId: pending.adId,
           dates: pending.dates,
           receipts: pending.receipts,
@@ -261,7 +199,9 @@ export function useAdIAP() {
           weekend_blocks: weekendBlocks,
         });
         try {
+          await enqueuePendingAdVerification(verification);
           await submitAdVerification(verification);
+          await removePendingAdVerification(verification.id);
           captureBreadcrumb('Ad receipt verification completed', 'payments.ad', {
             ad_id: pending.adId,
             receipts_count: pending.receipts.length,
@@ -278,7 +218,16 @@ export function useAdIAP() {
             },
             'warning'
           );
-          void queueAdVerificationRecovery(verification, err);
+          try {
+            await queueAdVerificationRecovery(verification, err);
+          } catch {
+            pending.resolve({
+              ok: false,
+              error:
+                'Purchase recovery could not be saved. Contact support before purchasing again.',
+            });
+            return;
+          }
           // Consumable was already finished with StoreKit above; queue recovery
           // will retry server activation. Resolve with an error so the caller
           // can surface a "processing" state rather than a false success.
@@ -291,11 +240,14 @@ export function useAdIAP() {
         // Set a 2-minute timeout to prevent UI getting stuck if Apple IAP stalls
         const iapTimeout = setTimeout(() => {
           const p = pendingAdRef.current;
-          if (p) {
+          if (p === pending) {
             pendingAdRef.current = null;
-            p.resolve({ ok: false, error: 'Purchase timed out. Please try again.' });
+            p.resolve({
+              ok: false,
+              error: 'Purchase timed out. Check its status before purchasing again.',
+            });
+            setPurchasing(false);
           }
-          setPurchasing(false);
         }, 120000);
         rnRequestPurchase({
           type: 'in-app',
@@ -467,11 +419,24 @@ export function useAdIAP() {
         return { ok: false, error: errMsg };
       }
 
+      try {
+        const savedPurchase = await hasPendingAdVerification(adId);
+        if (pendingAdRef.current || savedPurchase) {
+          return {
+            ok: false,
+            error:
+              'An ad purchase is already pending. Check its status or contact support before purchasing again.',
+          };
+        }
+      } catch {
+        return { ok: false, error: 'Purchase recovery storage is unavailable. Try again later.' };
+      }
       setPurchasing(true);
       setError(null);
 
       return new Promise<{ ok: boolean; error?: string }>(resolve => {
         pendingAdRef.current = {
+          verificationId: `${adId}:${Date.now()}`,
           adId,
           dates,
           receipts: [],

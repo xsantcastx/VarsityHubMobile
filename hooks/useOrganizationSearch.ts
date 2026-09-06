@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // @ts-ignore runtime JS export
 import { Organization } from '@/api/entities';
 import { httpGet } from '@/api/http';
+import { captureException } from '@/utils/sentry';
 import { toUserMessage } from '@/utils/toUserMessage';
 
 type SearchMode = 'list' | 'nearby';
@@ -31,12 +32,24 @@ export function useOrganizationSearch<T = any>(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const generation = useRef(0);
+  useEffect(
+    () => () => {
+      generation.current += 1;
+    },
+    []
+  );
+
   const clear = useCallback(() => {
+    generation.current += 1;
+    setLoading(false);
     setOrganizations([]);
     setError(null);
   }, []);
 
   const search = useCallback(async (options: OrganizationSearchOptions = {}) => {
+    const request = ++generation.current;
+    setError(null);
     const { query = '', limit = 20, mode = 'list', sport, orgType } = options;
 
     setLoading(true);
@@ -58,6 +71,12 @@ export function useOrganizationSearch<T = any>(
         result = await Organization.list(query.trim() || undefined, limit);
       }
 
+      if (request !== generation.current) return;
+      if (!Array.isArray(result) && !Array.isArray(result?.items)) {
+        const error = new Error('Invalid organization search response');
+        captureException(error, { tags: { context: 'organization_search_schema' } });
+        throw error;
+      }
       const items = Array.isArray(result)
         ? result
         : Array.isArray(result?.items)
@@ -66,11 +85,12 @@ export function useOrganizationSearch<T = any>(
       setOrganizations(items as T[]);
       setError(null);
     } catch (err: any) {
+      if (request !== generation.current) return;
       if (__DEV__) console.error('[useOrganizationSearch] failed', err);
       setError(toUserMessage(err, 'Unable to load organizations'));
       setOrganizations([]);
     } finally {
-      setLoading(false);
+      if (request === generation.current) setLoading(false);
     }
   }, []);
 
