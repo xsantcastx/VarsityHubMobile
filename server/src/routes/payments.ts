@@ -3688,6 +3688,7 @@ paymentsRouter.post(
   '/apple/ad-intents',
   requireAuth as any,
   paymentLimiter,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
   adIntentHandler(async (req, res) => {
     if (!(await enforceVerifiedForAdPaymentFlow(req, res, String(req.body?.ad_id || '')))) return;
     res.json(await createAdPurchaseIntent(req.user!.id, req.body));
@@ -3696,6 +3697,7 @@ paymentsRouter.post(
 paymentsRouter.get(
   '/apple/ad-intents',
   requireAuth as any,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
   adIntentHandler(async (req, res) => {
     res.json({ items: await listAdPurchaseIntents(req.user!.id) });
   })
@@ -3704,6 +3706,7 @@ paymentsRouter.post(
   '/apple/ad-intents/reconcile',
   requireAuth as any,
   paymentLimiter,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
   adIntentHandler(async (req, res) => {
     res.json(await reconcileReadyAdPurchases(req.user!.id));
   })
@@ -3712,6 +3715,7 @@ paymentsRouter.post(
   '/apple/ad-intents/:id/receipts',
   requireAuth as any,
   paymentLimiter,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
   adIntentHandler(async (req, res) => {
     const id = z.string().uuid().parse(req.params.id);
     const { jws } = z
