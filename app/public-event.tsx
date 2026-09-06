@@ -293,10 +293,11 @@ function PublicEventScreen() {
             <Pressable
               style={[styles.createPostButton, { backgroundColor: Colors[colorScheme].tint }]}
               onPress={() => {
-                const targetGameId = event?.game_id || params?.id || '';
+                const targetGameId = event?.game_id ? String(event.game_id) : '';
+                const targetEventId = params?.id ? String(params.id) : '';
                 if (__DEV__)
                   console.warn(
-                    '[PublicEvent] Navigating to create-post with gameId:',
+                    '[PublicEvent] Navigating to create-post with ids:',
                     targetGameId,
                     '| params.id:',
                     params?.id,
@@ -316,7 +317,9 @@ function PublicEventScreen() {
                 }
                 router.push({
                   pathname: '/create-post',
-                  params: { gameId: targetGameId },
+                  params: targetGameId
+                    ? { gameId: targetGameId, eventId: targetEventId }
+                    : { eventId: targetEventId },
                 });
               }}
             >

@@ -36,6 +36,7 @@
     "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
     "verify:cloudinary": "tsx scripts/verify-cloudinary.ts",
     "verify:coach-approval": "tsx scripts/verify-coach-approval.ts",
+    "verify:access-matrix": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runTestsByPath src/__tests__/access-matrix.test.ts --runInBand",
     "verify:backup-freshness": "tsx scripts/verify-backup-freshness.ts",
     "prepare:app-review": "tsx scripts/create-demo-account.ts",
     "prepare:coach:uat": "tsx scripts/prepare-coach-uat-accounts.ts",
@@ -69,7 +70,7 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.9.1",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.2.0",
+    "multer": "^2.3.0",
     "node-cron": "^4.2.1",
     "nodemailer": "^9.0.1",
     "opossum": "^8.5.0",
@@ -78,7 +79,7 @@
     "pino-pretty": "^11.2.1",
     "prisma": "5.22.0",
     "rate-limit-redis": "^4.3.1",
-    "sanitize-html": "^2.17.1",
+    "sanitize-html": "2.17.5",
     "socket.io": "^4.8.3",
     "stripe": "^16.6.0",
     "swagger-jsdoc": "^6.2.8",
@@ -115,16 +116,17 @@
     "seed": "tsx prisma/seed.ts"
   },
   "overrides": {
+    "nanoid": "3.3.18",
     "fast-xml-builder": "1.2.0",
     "fast-xml-parser": "^5.7.1",
     "undici": "^6.28.0",
     "postcss": "8.5.25",
     "axios": "^1.19.0",
     "brace-expansion": "5.0.9",
-    "qs": "6.15.2",
+    "qs": "6.16.0",
     "follow-redirects": ">=1.15.12",
-    "js-yaml": "^4.3.0",
-    "fast-uri": "^4.1.2",
+    "js-yaml": "^4.3.2",
+    "fast-uri": "^4.1.4",
     "socket.io-parser": "^4.2.7"
   }
 }

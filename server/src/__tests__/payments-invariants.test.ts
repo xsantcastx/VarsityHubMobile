@@ -22,6 +22,8 @@ const SRC = join(process.cwd(), 'src');
 const read = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
 
 const payments = read('routes/payments.ts');
+const paymentCheckoutHelpers = read('services/payments/checkoutHelpers.ts');
+const googlePlayVerifier = read('services/payments/googlePlayVerifier.ts');
 const requireOnboarded = read('middleware/requireOnboarded.ts');
 const appleAuth = read('lib/appleAuth.ts');
 const appleNotifDedup = read('lib/appleNotificationDedup.ts');
@@ -168,12 +170,16 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('PaymentIntent ad activation uses a conditional update guard, not an unconditional ad.update', () => {
+      const helper =
+        payments.match(/async function activateApprovedAdPaymentIntent[\s\S]{0,2500}?\n\}/)?.[0] ||
+        '';
       const block =
         payments.match(/if \(event\.type === 'payment_intent\.succeeded'\)[\s\S]{0,5000}/)?.[0] ||
         '';
-      expect(block).toMatch(/updateMany\(\{/);
-      expect(block).toMatch(/status:\s*\{\s*in:\s*\['approved', 'active'\]\s*\}/);
-      expect(block).toMatch(/updated\.count === 0/);
+      expect(block).toMatch(/activateApprovedAdPaymentIntent\(tx, adId, piDates\)/);
+      expect(helper).toMatch(/updateMany\(\{/);
+      expect(helper).toMatch(/status:\s*\{\s*in:\s*\['approved', 'active'\]\s*\}/);
+      expect(helper).toMatch(/updated\.count === 0/);
     });
 
     it('Stripe processing fee is computed and stored per transaction', () => {
@@ -188,7 +194,8 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('web checkout success URLs include the session id and payment type for app handoff', () => {
-      const block = payments.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
+      const block =
+        paymentCheckoutHelpers.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
       expect(block).toMatch(
         /payment-success\?session_id=\{CHECKOUT_SESSION_ID\}&type=\$\{params\.type\}/
       );
@@ -293,7 +300,8 @@ describe('payments & subscriptions — structural invariants', () => {
 
   describe('Google Play purchase identity', () => {
     it('hashes purchase tokens for order_id instead of truncating them', () => {
-      const block = payments.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
+      const block =
+        googlePlayVerifier.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
       expect(block).toMatch(/crypto\.createHash\('sha256'\)/);
       expect(block).toMatch(/google_purchase:/);
     });

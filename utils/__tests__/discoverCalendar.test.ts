@@ -1,0 +1,86 @@
+import {
+  buildDiscoverMarkedDates,
+  buildUpcomingCalendarDays,
+  splitCalendarCards,
+} from '../discoverCalendar';
+import type { EventCard } from '@/api/schemas/eventCard';
+
+const cards: EventCard[] = [
+  {
+    id: 'g1',
+    source_type: 'game',
+    game_id: 'g1',
+    event_id: 'e-linked',
+    title: 'Game',
+    date: '2026-09-10T00:00:00.000Z',
+    location: 'Field',
+  },
+  {
+    id: 'e1',
+    source_type: 'event',
+    game_id: null,
+    event_id: 'e1',
+    title: 'Event',
+    date: '2026-09-11T00:00:00.000Z',
+    location: 'Arena',
+  },
+];
+
+describe('splitCalendarCards', () => {
+  it('splits cards into game and event rows by source_type', () => {
+    const { games, events } = splitCalendarCards(cards);
+    expect(games.map(r => r.id)).toEqual(['g1']);
+    expect(events.map(r => r.id)).toEqual(['e1']);
+    expect(games[0]).toMatchObject({
+      source_type: 'game',
+      game_id: 'g1',
+      event_id: 'e-linked',
+      title: 'Game',
+      date: '2026-09-10T00:00:00.000Z',
+      location: 'Field',
+    });
+  });
+
+  it('tolerates an empty or null input', () => {
+    expect(splitCalendarCards([])).toEqual({ games: [], events: [] });
+    expect(splitCalendarCards(null as any)).toEqual({ games: [], events: [] });
+  });
+});
+
+describe('buildUpcomingCalendarDays', () => {
+  it('builds today-forward days and counts games/events on each date', () => {
+    const { games, events } = splitCalendarCards(cards);
+    const days = buildUpcomingCalendarDays(games, events, new Date('2026-09-10T15:00:00.000Z'), 3);
+
+    expect(days.map(day => day.dateString)).toEqual(['2026-09-10', '2026-09-11', '2026-09-12']);
+    expect(days.map(day => day.count)).toEqual([1, 1, 0]);
+  });
+});
+
+describe('buildDiscoverMarkedDates', () => {
+  it('marks all followed calendar dates and highlights the selected date', () => {
+    const { games, events } = splitCalendarCards(cards);
+    const marked = buildDiscoverMarkedDates(games, events, '2026-09-11', '#0B7A75');
+
+    expect(marked['2026-09-10']).toMatchObject({
+      marked: true,
+      dotColor: '#0B7A75',
+    });
+    expect(marked['2026-09-11']).toMatchObject({
+      marked: true,
+      dotColor: '#0B7A75',
+      selected: true,
+      selectedColor: '#0B7A75',
+      selectedTextColor: '#FFFFFF',
+    });
+  });
+
+  it('can select an empty calendar date', () => {
+    const marked = buildDiscoverMarkedDates([], [], '2026-09-12', '#0B7A75');
+
+    expect(marked['2026-09-12']).toMatchObject({
+      selected: true,
+      selectedColor: '#0B7A75',
+    });
+  });
+});

@@ -1,10 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import { autoEscalate, STRIKE_LADDER } from '../lib/moderation.js';
 import { prisma } from '../lib/prisma.js';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
 /**
  * Regression suite for the owner's 3-strike ladder (2026-07-16):

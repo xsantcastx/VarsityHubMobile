@@ -546,6 +546,18 @@ export const userLookupLimiter = createLimiter({
 });
 
 /**
+ * Profile/account updates
+ * 30 per minute per user. Normal settings edits and username/avatar changes
+ * are sparse, so this caps accidental save loops and profile-write spam
+ * without affecting legitimate account management.
+ */
+export const profileUpdateLimiter = createLimiter({
+  name: 'profile-update',
+  windowMs: 60 * 1000,
+  max: rateLimitingDisabled ? 100000 : 30,
+});
+
+/**
  * Mentions search
  * 30 per minute per user (prevents directory scraping)
  */
@@ -648,6 +660,7 @@ export const rateLimiters = {
   geocodingAutocomplete: geocodingAutocompleteLimiter,
   publicRoute: publicRouteLimiter,
   defaultApi: defaultApiLimiter,
+  profileUpdate: profileUpdateLimiter,
 };
 
 export default rateLimiters;

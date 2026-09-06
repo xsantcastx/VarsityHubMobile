@@ -2,16 +2,19 @@ import { Router } from 'express';
 import { AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { feedHighlightPostSelect } from '../lib/highlightPostSelect.js';
 import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { loadPostInteractionSets, serializeFeedPost } from '../lib/feedPostSerializer.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { prisma } from '../lib/prisma.js';
 import {
+  buildPrivateTeamPostVisibilityWhere,
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
   getExcludedPrivateTeamIds,
   getRequestBlockedCache,
+  mergeAndWhere,
 } from '../lib/privacyUtils.js';
 import { captureException } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -84,7 +87,7 @@ async function getFollowedPostsPage(
   if (mode === 'followed') {
     // Preload followed author IDs in one indexed query, then use IN — avoids
     // Prisma's correlated EXISTS subquery which scans per post row.
-    const [followRows, excludedIds, blockedIds] = await Promise.all([
+    const [followRows, excludedIds, blockedIds, excludedTeamIds] = await Promise.all([
       prisma.follows.findMany({
         where: { follower_id: currentUserId, status: 'accepted' },
         select: { following_id: true },
@@ -92,6 +95,7 @@ async function getFollowedPostsPage(
       }),
       getExcludedPrivateAuthorIds(currentUserId),
       getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
+      getExcludedPrivateTeamIds(currentUserId),
     ]);
 
     const followedAuthorIds = followRows.map(r => r.following_id);
@@ -101,15 +105,14 @@ async function getFollowedPostsPage(
     // anyone who follows nobody sees a permanently empty Feed (671d87d3).
     const authorPool = [...new Set([currentUserId, ...followedAuthorIds])];
     const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
-    const allowedAuthorIds = allExcluded.length
-      ? authorPool.filter(id => !allExcluded.includes(id))
-      : authorPool;
 
-    where.OR = [{ author_id: { in: allowedAuthorIds } }, { type: 'admin_broadcast' }];
+    where.OR = [{ author_id: { in: authorPool } }, { type: 'admin_broadcast' }];
+    if (allExcluded.length) where.author_id = { notIn: allExcluded };
+    mergeAndWhere(where, buildPrivateTeamPostVisibilityWhere(excludedTeamIds));
   } else {
     // Preload followed team IDs, then resolve game IDs for those teams — all
     // indexed lookups. Replaces three layers of nested EXISTS subqueries.
-    const [teamFollowRows, excludedIds, blockedIds] = await Promise.all([
+    const [teamFollowRows, excludedIds, blockedIds, excludedTeamIds] = await Promise.all([
       prisma.teamFollow.findMany({
         where: { user_id: currentUserId },
         select: { team_id: true },
@@ -117,6 +120,7 @@ async function getFollowedPostsPage(
       }),
       getExcludedPrivateAuthorIds(currentUserId),
       getBlockedUserIds(currentUserId, getRequestBlockedCache(req)),
+      getExcludedPrivateTeamIds(currentUserId),
     ]);
 
     const followedTeamIds = teamFollowRows.map(r => r.team_id);
@@ -158,19 +162,14 @@ async function getFollowedPostsPage(
     const followedGameIds = followedGameRows.map(g => g.id);
 
     const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
-    const authorIdFilter = allExcluded.length ? { notIn: allExcluded } : undefined;
 
     where.OR = [
-      ...(authorIdFilter
-        ? [{ team_id: { in: followedTeamIds }, author_id: authorIdFilter }]
-        : [{ team_id: { in: followedTeamIds } }]),
-      ...(followedGameIds.length
-        ? authorIdFilter
-          ? [{ game_id: { in: followedGameIds }, author_id: authorIdFilter }]
-          : [{ game_id: { in: followedGameIds } }]
-        : []),
+      { team_id: { in: followedTeamIds } },
+      ...(followedGameIds.length ? [{ game_id: { in: followedGameIds } }] : []),
       { type: 'admin_broadcast' },
     ];
+    if (allExcluded.length) where.author_id = { notIn: allExcluded };
+    mergeAndWhere(where, buildPrivateTeamPostVisibilityWhere(excludedTeamIds));
   }
 
   const query: any = {
@@ -230,29 +229,6 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   const since = new Date(Date.now() - 90 * 864e5);
   const radiusKm = 100;
 
-  const baseSelect = {
-    id: true,
-    title: true,
-    content: true,
-    media_url: true,
-    poster_url: true,
-    media_width: true,
-    media_height: true,
-    media_duration_s: true,
-    upvotes_count: true,
-    created_at: true,
-    author_id: true,
-    // Event/game linkage — every post surface must be able to offer
-    // "open the event page" (mirrors highlightPostSelect).
-    game_id: true,
-    event_id: true,
-    author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-    lat: true,
-    lng: true,
-    country_code: true,
-    _count: { select: { comments: true } },
-  } as const;
-
   const [excludedIds, blockedIds, excludedTeamIds] = await Promise.all([
     getExcludedPrivateAuthorIds(req.user?.id ?? null),
     getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req)),
@@ -261,10 +237,7 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
   const allExcluded = [...new Set([...excludedIds, ...blockedIds])];
   const privacyWhere: any = {};
   if (allExcluded.length) privacyWhere.author_id = { notIn: allExcluded };
-  if (excludedTeamIds.length) {
-    // notIn alone would drop null-team posts (NOT IN is NULL for NULL).
-    privacyWhere.OR = [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }];
-  }
+  mergeAndWhere(privacyWhere, buildPrivateTeamPostVisibilityWhere(excludedTeamIds));
 
   // Run nationalTop and pool concurrently — dedup in JS after both resolve.
   const [nationalTopRaw, poolRaw] = await Promise.all([
@@ -278,7 +251,7 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
       },
       orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
       take: 10,
-      select: baseSelect,
+      select: feedHighlightPostSelect,
     }),
     prisma.post.findMany({
       where: {
@@ -290,7 +263,7 @@ async function getHighlightsBundle(req: AuthedRequest, limit: number) {
       },
       orderBy: [{ created_at: 'desc' }],
       take: 150,
-      select: baseSelect,
+      select: feedHighlightPostSelect,
     }),
   ]);
 
@@ -580,6 +553,7 @@ feedRouter.get(
         'unread_notifications',
         'unread_messages',
       ] as const;
+      const errors: Array<{ slice: (typeof sliceNames)[number]; code: string }> = [];
       for (let i = 0; i < settled.length; i++) {
         const r = settled[i];
         if (r.status === 'rejected') {
@@ -590,6 +564,7 @@ feedRouter.get(
             slice: sliceNames[i],
             user_id: req.user?.id,
           });
+          errors.push({ slice: sliceNames[i], code: 'SLICE_FAILED' });
         }
       }
 
@@ -606,6 +581,7 @@ feedRouter.get(
         ads: pick(3, ADS_FALLBACK),
         unread_notifications: pick(4, 0),
         unread_messages: pick(5, 0),
+        errors,
       });
     } catch (error: any) {
       console.error('[feed] GET /bundle error:', error);

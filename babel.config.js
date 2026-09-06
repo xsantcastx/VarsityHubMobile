@@ -16,7 +16,7 @@ module.exports = function (api) {
             '@/constants': './constants',
             '@/hooks': './hooks',
             '@/context': './context',
-            '@/api': './api',
+            '@/api': './apiclient',
             '@/utils': './utils',
             '@/config': './config',
             '@/lib': './lib',

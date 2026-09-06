@@ -4,7 +4,8 @@ name: Publish Production OTA Update
 # every push to main that touches client code — the mobile-app equivalent of
 # Vercel's auto-deploy for web. Requires an EXPO_TOKEN repo secret (Settings >
 # Secrets and variables > Actions); if it's missing, this workflow logs a
-# warning and skips cleanly instead of failing CI red every time.
+# failure instead of silently publishing no update. Requires SENTRY_AUTH_TOKEN
+# so Sentry source maps upload with the production OTA bundle.
 #
 # This does NOT touch the native binary — no eas build/submit here (see
 # CLAUDE.md: "Never run eas build or eas submit"). Users still need to
@@ -41,28 +42,35 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Check EXPO_TOKEN is configured
-        id: token_check
+      - name: Check publish secrets are configured
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
+          missing=0
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::warning::EXPO_TOKEN repo secret is not set — skipping OTA publish. Add it under Settings > Secrets and variables > Actions to enable auto-publish."
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
+            echo "::error::EXPO_TOKEN repo secret is not set. Add it under Settings > Secrets and variables > Actions to enable production OTA publishing."
+            missing=1
           fi
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::error::SENTRY_AUTH_TOKEN repo secret is not set. Add it so Sentry source maps upload during production OTA publishing."
+            missing=1
+          fi
+          exit "$missing"
 
       - name: Install app dependencies
-        if: steps.token_check.outputs.has_token == 'true'
         run: npm ci
 
       - name: Install EAS CLI
-        if: steps.token_check.outputs.has_token == 'true'
         run: npm install -g eas-cli
 
       - name: Publish OTA update
-        if: steps.token_check.outputs.has_token == 'true'
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: eas update --branch production --non-interactive --message "${{ github.event.inputs.message || format('Auto-publish from {0}', github.sha) }}"
+
+      - name: Upload Sentry source maps
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: node node_modules/@sentry/react-native/scripts/expo-upload-sourcemaps dist

@@ -16,14 +16,12 @@ process.env.NODE_ENV = 'test';
 process.env.REDIS_URL = '';
 process.env.DATABASE_URL =
   process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/varsityhub_test';
-process.env.JWT_SECRET =
-  process.env.JWT_SECRET || 'test-jwt-secret-32-chars-minimum';
-process.env.STRIPE_SECRET_KEY =
-  process.env.STRIPE_SECRET_KEY || 'sk_test_test_test_test';
-process.env.STRIPE_PUBLISHABLE_KEY =
-  process.env.STRIPE_PUBLISHABLE_KEY || 'pk_test_test_test_test';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-32-chars-minimum';
+process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_test_test_test';
+process.env.STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || 'pk_test_test_test_test';
 process.env.APP_URL = 'https://varsityhub.app';
 process.env.APP_BASE_URL = 'https://varsityhub.app';
+process.env.ENABLE_DEV_CODES = '1';
 
 // Quiet console noise unless explicitly enabled.
 if (!process.env.VERBOSE) {

@@ -72,6 +72,98 @@ Evidence:
 - CI run URL:
 - Local/agent run logs:
 
+Agent evidence snapshot, 2026-09-02:
+
+- Runtime gate passed against `https://api-production-8ac3.up.railway.app`.
+- Railway `/health` returned `{"status":"ok"}`.
+- Vercel `https://www.varsityhub.app` returned `200`; apex domain redirected
+  to `https://www.varsityhub.app/`.
+- `npm run release:verify:local` passed.
+- `npm run release:verify:build` passed with non-blocking warnings recorded in
+  `docs/release/REAL_WORLD_FOUNDATION_PHASE_5.md`.
+- Full client Jest passed: `199` suites, `1399` tests.
+- Full server Jest passed: `304` suites, `2860` tests.
+- Client TypeScript and server TypeScript passed.
+- Focused readiness regression tests passed for event-map previews/autofit,
+  guest create-entry routing, and share fallback behavior.
+- Sentry setup verifier passed locally; provider test issues still need operator
+  evidence.
+- Cloudinary credential verifier passed.
+- Rate-limit verifier passed: `25/25`.
+- Backup freshness verifier passed with provider database URLs: `57` tables
+  checked, backup reachable/complete/restorable, `0` row drift summary.
+- Play Store verifier passed after fixing `docs/well-known/assetlinks.json`:
+  `13` passed, `0` failed, `0` warnings.
+- `npm ls minimatch --all` passed after bumping React Native's nested
+  `minimatch` lockfile entry to `3.1.5`.
+- Root dependency audit still reports the time-boxed Expo/Metro `image-size`
+  high advisory chain. CI allowlists only that no-compatible-fix build-tooling
+  chain; all other high/critical frontend dependency findings must fail.
+- Server `npm audit --omit=dev --audit-level=high` has no high-severity
+  findings after the dependency refresh. Moderate advisories remain for
+  `sanitize-html` and `query-string`/`decode-uri-component`.
+- Authenticated Snyk runs in GitHub are the source of truth for Snyk because the
+  local CLI is not authenticated. Commit `f3f13111` passed Snyk Code &
+  Dependency Scan and Container Security Scan after the dependency refresh.
+- Physical-device iOS/Android UAT and real push delivery are not proven by
+  local/repo automation.
+- Railway production investigation passed the runtime/provider gate and found
+  no recent 5xx responses, but discovered env drift and a log-redaction issue.
+  See `docs/release/REAL_WORLD_FOUNDATION_PHASE_6.md`.
+- Railway env drift cleanup completed for the `api`, `Postgres`, and
+  `Postgres-TnGR` services; `npm run verify:railway-env-drift` now passes with
+  only data-export storage warnings.
+- EAS env drift guard added and passing. `SENTRY_AUTH_TOKEN` visibility was
+  changed from readable/public to sensitive. Duplicate Google `EXPO_PUBLIC_*`
+  env names remain as warnings because this EAS CLI cannot safely delete a
+  duplicate by id.
+- Sentry readiness guard added and passing. Project and `7` production alert
+  rules are visible, but source-map/release-file and unresolved-issue warnings
+  remain.
+- Client observability noise reduced: handled 4xx HTTP outcomes no longer emit
+  transport exceptions, and expected auth/reset/verification UX errors are
+  dropped before Sentry or analytics exception capture. Focused tests passed.
+- Production OTA published for both active runtime lines: `1.0.5` update group
+  `e48da7af-229a-498c-838b-61727ff4a543` and `1.0.4` update group
+  `d34628be-aef0-4c76-8a25-eeb61ea6db8c`.
+- Production OTA automation drift found: GitHub's OTA workflow was green while
+  skipping publish because `EXPO_TOKEN` was not configured in GitHub Actions.
+  The workflows now fail if either `EXPO_TOKEN` or `SENTRY_AUTH_TOKEN` is
+  missing, and local `npm run update:production` now runs through
+  `eas env:exec production` so Sentry source-map upload gets the sensitive EAS
+  token.
+- Follow-up OTA published from commit `fc2192ed` for both active runtime lines:
+  `1.0.5` update group `ae5fe04f-2ddf-4b98-8328-09c7ce366ecc` and `1.0.4`
+  update group `bce5581a-20d4-4bb0-97ca-cacb51232584`. Explicit Sentry
+  `expo-upload-sourcemaps dist` succeeded and uploaded debug-id artifact
+  bundles for Android, iOS, and web.
+- Vercel env drift guard added. Production Vercel env was cleaned from 88 to 27
+  entries by removing clearly server-only Railway secrets, adding required
+  public web build keys, and verifying `npm run verify:vercel-env-drift`
+  passes. GitHub web deploy now pulls Vercel production env before `expo export`
+  instead of baking only the Sentry DSN into the static bundle.
+- Manual Vercel deployment `dpl_13mx42AGJ477abkx6XFX3hmrQa8W` is live:
+  `https://www.varsityhub.app` returns `200`, apex `https://varsityhub.app`
+  redirects to `www`, and both app-link files under `/.well-known` return
+  `200` with JSON content types. GitHub repo variables `VERCEL_PROJECT_ID` and
+  `VERCEL_ORG_ID` are set; `VERCEL_TOKEN` is still missing from Actions secrets.
+- Data export storage is not configured in production health diagnostics;
+  `POST /me/data-export` will return `503` until `DATA_EXPORT_S3_*` vars point
+  at private export storage.
+- `HEALTH_CHECK_SECRET` was rotated after the Phase 6 redaction patch. The
+  follow-up direct Railway deployment
+  `f25b1cf3-1bb3-4e32-bcde-afb3c2b6c71c` succeeded. The latest direct Railway
+  deployment, `09cea309-e80a-4c3c-839f-ce11d2c3d17d`, also succeeded after
+  readiness-output redaction was tightened. Protected runtime verification
+  passed, `HEAD /health` returned `200`, and new logs show the health-check
+  header value as `[redacted]`. One transient `502` health response was observed
+  during deployment activation.
+- Railway GitHub autodeploy remains source-drifted: env changes triggered a
+  failed stale-source deployment from `xsantcastx/VarsityHubMobile` `main`,
+  while current tested commits are on `fork/main`. Fix by restoring push access
+  to `origin/main`, reconnecting Railway to the maintained branch, or keeping
+  direct CLI deploys as the explicit production path.
+
 ---
 
 ## Exception Log (if any)

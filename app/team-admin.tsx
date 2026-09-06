@@ -570,7 +570,7 @@ export default function TeamAdminScreen() {
                             onPress={() => void handleAddUser(user)}
                           >
                             <Text style={[styles.rowTitle, { color: theme.text }]}>
-                              {user.display_name || user.username || user.id}
+                              {user.username ? `@${user.username}` : 'Member'}
                             </Text>
                             {user.username ? (
                               <Text style={[styles.metaText, { color: theme.mutedText }]}>
@@ -598,7 +598,7 @@ export default function TeamAdminScreen() {
                             { color: member.status === 'archived' ? theme.mutedText : theme.text },
                           ]}
                         >
-                          {member.user?.display_name || member.user?.username || 'Member'}
+                          {member.user?.username ? `@${member.user.username}` : 'Member'}
                           {member.status === 'archived' ? ' (archived)' : ''}
                         </Text>
                         <Text style={[styles.metaText, { color: theme.mutedText }]}>
@@ -761,7 +761,7 @@ export default function TeamAdminScreen() {
                       <View key={member.id} style={[styles.row, { borderColor: theme.border }]}>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.rowTitle, { color: theme.text }]}>
-                            {member.user?.display_name || member.user?.username || 'Staff member'}
+                            {member.user?.username ? `@${member.user.username}` : 'Staff member'}
                           </Text>
                           <Text style={[styles.metaText, { color: theme.mutedText }]}>
                             {roleLabel(member.role)}

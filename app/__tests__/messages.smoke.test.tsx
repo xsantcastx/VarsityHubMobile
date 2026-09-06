@@ -71,7 +71,7 @@ describe('MessagesScreen (react-query render smoke)', () => {
       </QueryWrapper>
     );
     await waitFor(() => expect(mockMessageList).toHaveBeenCalledWith('-created_at', 50));
-    expect(await screen.findByText('Alex Coach')).toBeTruthy();
+    expect(await screen.findByText('@alexc')).toBeTruthy();
     expect(screen.getByText('See you at the game!')).toBeTruthy();
   });
 });

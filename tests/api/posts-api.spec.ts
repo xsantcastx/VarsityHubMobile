@@ -1,10 +1,10 @@
 import 'dotenv/config';
-import { PrismaClient } from '../../server/node_modules/@prisma/client/index.js';
+import { Prisma, PrismaClient } from '../../server/node_modules/@prisma/client/index.js';
 import { test, expect } from '@playwright/test';
 
 /**
  * Posts API Integration Tests
- * 
+ *
  * Tests the posts endpoints for creating, reading, and managing posts.
  */
 
@@ -24,7 +24,7 @@ async function createApprovedCoach(request: any) {
       email: testEmail,
       password: testPassword,
       display_name: 'Posts Test Coach',
-      role: 'coach',
+      role: 'fan',
       dob: '1990-01-15',
     },
   });
@@ -78,7 +78,7 @@ async function createApprovedCoach(request: any) {
       payment_pending: false,
       payment_approved: false,
       subscription_tier: 'free',
-      preferences: nextPreferences,
+      preferences: nextPreferences as Prisma.InputJsonValue,
     },
   });
 
@@ -136,14 +136,14 @@ test.describe('Posts API', () => {
         Authorization: `Bearer ${accessToken}`,
       },
       data: {
-        media_url: 'https://example.com/test-image.jpg',
+        media_url: 'https://varsityhub.app/uploads/test-image.jpg',
       },
     });
 
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.id).toBeDefined();
-    expect(body.media_url).toBe('https://example.com/test-image.jpg');
+    expect(body.media_url).toBe('https://varsityhub.app/uploads/test-image.jpg');
   });
 
   test('POST /posts should require either content or media_url', async ({ request }) => {
@@ -200,7 +200,7 @@ test.describe('Posts API', () => {
         password: 'TestPassword123!',
       },
     });
-    
+
     const { access_token } = await registerResponse.json();
 
     // Try to create post (should fail - needs verification)

@@ -34,6 +34,7 @@ const EXPECTED_AUTH_CONTEXTS = new Set([
   'verify-email-resend',
   'verify-email-verify',
   'password_reset_code_request',
+  'password_reset_submit',
   'reset_password_screen_submit',
 ]);
 
@@ -111,9 +112,10 @@ function isExpectedAuthUxError(
   const code = getErrorCode(error);
   const message = getErrorMessage(error).toLowerCase();
 
-  if (status !== null && [400, 401, 403, 404, 409, 429].includes(status)) return true;
+  if (status !== null && [400, 401, 403, 404, 409, 422, 429].includes(status)) return true;
   if (
     code === 'EMAIL_ALREADY_REGISTERED' ||
+    code === 'TOKEN_ALREADY_USED' ||
     code === 'VERIFY_CODE_EXPIRED' ||
     code === 'VERIFY_CODE_INVALID' ||
     code === 'VERIFY_NO_CODE' ||
@@ -128,6 +130,7 @@ function isExpectedAuthUxError(
   return (
     message.includes('invalid email or password') ||
     message.includes('too many login attempts') ||
+    message.includes('token already used') ||
     message.includes('email already registered') ||
     message.includes('verification code has expired') ||
     message.includes('invalid verification code') ||
@@ -267,6 +270,17 @@ export function setUserContext(user: { id: string; email?: string; username?: st
 }
 
 export function captureException(error: Error | unknown, context?: Record<string, any>) {
+  if (
+    isTransientClientTransportError(error) ||
+    isExpectedAuthUxError(error, context as { tags?: Record<string, unknown> } | undefined) ||
+    isExpectedGeofenceBusinessError(
+      error,
+      context as { tags?: Record<string, unknown> } | undefined
+    )
+  ) {
+    return;
+  }
+
   if (!__DEV__) {
     captureAnalyticsException(error, context);
   }

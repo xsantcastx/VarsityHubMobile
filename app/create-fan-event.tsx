@@ -2,13 +2,13 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useLocationAutocomplete } from '@/hooks/useLocationAutocomplete';
 import { APP_ROUTES } from '@/utils/appRoutes';
 import { getAuthSnapshot } from '@/utils/authState';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -29,13 +29,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Game, Team as TeamAPI } from '@/api/entities';
-import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { handleCoachAccessError } from '@/utils/coachAccess';
+import { uploadEventBannerFromUri as uploadEventBannerAsset } from '@/utils/eventBannerUpload';
 import { sanitizeText } from '@/utils/formUtils';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { buildOpponentLink } from '@/utils/gameOpponent';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getCoachAccessState } from '@/utils/roleChecks';
@@ -197,18 +196,23 @@ function CreateFanEventScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [eventType, setEventType] = useState<string>('game');
-  const [location, setLocation] = useState('');
-  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [locationQuerying, setLocationQuerying] = useState(false);
-  const [locationTouched, setLocationTouched] = useState(false);
-  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
-  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const locationAbortRef = useRef<AbortController | null>(null);
   const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const {
+    location,
+    setLocation,
+    locationSuggestions,
+    locationQuerying,
+    locationTouched,
+    setLocationTouched,
+    selectedPlace,
+    setSelectedPlace,
+    handleLocationChange,
+    handleSelectLocation,
+  } = useLocationAutocomplete({ onClearLocationError: setErrors });
   const bannerCaptureRef = useRef<ViewShot | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   // Banner appearance is fixed to the default; the in-form style picker was
@@ -298,74 +302,6 @@ function CreateFanEventScreen() {
     title,
   ]);
 
-  // Google Maps location autocomplete
-  const requestLocationSuggestions = useCallback((text: string) => {
-    if (locationTimerRef.current) {
-      clearTimeout(locationTimerRef.current);
-      locationTimerRef.current = null;
-    }
-    // Cancel any in-flight request so stale results are ignored
-    if (locationAbortRef.current) {
-      locationAbortRef.current.abort();
-    }
-
-    if (text.length < 3) {
-      setLocationSuggestions([]);
-      setLocationQuerying(false);
-      return;
-    }
-
-    setLocationQuerying(true);
-    locationTimerRef.current = setTimeout(async () => {
-      const controller = new AbortController();
-      locationAbortRef.current = controller;
-      try {
-        const suggestions = await autocompleteLocations(text, 6);
-        if (controller.signal.aborted) return;
-        setLocationSuggestions(suggestions);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        if (__DEV__) console.warn('Location autocomplete failed:', error);
-        setLocationSuggestions([]);
-      } finally {
-        if (!controller.signal.aborted) setLocationQuerying(false);
-      }
-    }, 300);
-  }, []);
-
-  const handleLocationChange = useCallback(
-    (text: string) => {
-      setLocation(text);
-      setLocationTouched(true);
-      setSelectedPlace(null);
-      setErrors(prev => ({ ...prev, location: '' }));
-
-      if (text.length >= 3) {
-        requestLocationSuggestions(text);
-      } else {
-        setLocationSuggestions([]);
-      }
-    },
-    [requestLocationSuggestions]
-  );
-
-  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
-    setLocation(suggestion.description);
-    setSelectedPlace(suggestion);
-    setLocationSuggestions([]);
-    setLocationQuerying(false);
-    setLocationTouched(true);
-    setErrors(prev => ({ ...prev, location: '' }));
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (locationTimerRef.current) {
-        clearTimeout(locationTimerRef.current);
-      }
-    };
-  }, []);
-
   // Pre-fill venue when Home Game is selected and a team with a saved venue is chosen
   useEffect(() => {
     if (!selectedTeamId || eventType !== 'game') return;
@@ -424,22 +360,7 @@ function CreateFanEventScreen() {
   const uploadBannerFromUri = useCallback(async (uri: string) => {
     setUploadingBanner(true);
     try {
-      const localUri = await materializeICloudAssetIfNeeded(uri);
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 1600 } }],
-        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      const uploadResult = await uploadFile(
-        getApiBaseUrl(),
-        manipulatedImage.uri,
-        'event-banner.jpg',
-        'image/jpeg'
-      );
-      const nextUrl = uploadResult?.url || uploadResult?.path;
-      if (!nextUrl) {
-        throw new Error('Upload failed - no URL returned');
-      }
+      const nextUrl = await uploadEventBannerAsset(uri);
       setBannerUrl(nextUrl);
     } finally {
       setUploadingBanner(false);

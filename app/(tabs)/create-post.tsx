@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Game, Post } from '@/api/entities';
+import { Event, Game, Post } from '@/api/entities';
 import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
@@ -97,13 +97,34 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
   }
 };
 
+const prepareImageForPostUpload = async (uri: string, fileSize: number): Promise<string> => {
+  // Skip resize for small images (under 2MB) — already fast enough.
+  if (fileSize <= 2 * 1024 * 1024) return uri;
+
+  try {
+    const result = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1280 } }], {
+      compress: 0.8,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
+    return result.uri;
+  } catch (error: any) {
+    if (__DEV__)
+      console.warn(
+        '[CreatePost] Image manipulation failed, using original:',
+        error?.message || error
+      );
+    return uri;
+  }
+};
+
 function CreatePostScreen() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { clear: clearPostCache } = usePostCache();
   const colorScheme = useColorScheme() ?? 'light';
-  const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
+  const params = useLocalSearchParams<{ eventId?: string; gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
+  const eventId = params?.eventId ? String(params.eventId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
   const {
     location,
@@ -131,11 +152,16 @@ function CreatePostScreen() {
   const [selectedGameId, setSelectedGameId] = useState<string | undefined>(
     postType === 'highlight' ? gameId : undefined
   );
+  const [selectedEventId, setSelectedEventId] = useState<string | undefined>(
+    postType === 'highlight' ? eventId : undefined
+  );
   const [suggestedGame, setSuggestedGame] = useState<any>(null);
   const [nearbyGames, setNearbyGames] = useState<any[]>([]);
   const [rotatingPromptIndex, setRotatingPromptIndex] = useState(0);
   const [eventSelectorVisible, setEventSelectorVisible] = useState(false);
-  const [hasAutoSuggested, setHasAutoSuggested] = useState(postType === 'highlight' && !!gameId); // If gameId from params for highlights, don't auto-suggest
+  const [hasAutoSuggested, setHasAutoSuggested] = useState(
+    postType === 'highlight' && (!!gameId || !!eventId)
+  ); // If an event/game param exists for highlights, don't auto-suggest
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -173,6 +199,11 @@ function CreatePostScreen() {
     if (authLoading) return;
     if (!user) {
       router.replace('/create');
+      return;
+    }
+    if (!(user as any)?.email_verified) {
+      // nav-safe: auth gate -> email verification
+      router.replace('/verify-identity?method=email');
     }
   }, [authLoading, router, user]);
 
@@ -194,10 +225,11 @@ function CreatePostScreen() {
         setPreviewVisible(false);
         setSuggestedGame(null);
         setSelectedGameId(postType === 'highlight' ? gameId : undefined);
+        setSelectedEventId(postType === 'highlight' ? eventId : undefined);
         setContentConsent(false);
         draftLoadedRef.current = false;
       }
-    }, [postSuccess, gameId, postType])
+    }, [postSuccess, eventId, gameId, postType])
   );
 
   useEffect(() => {
@@ -239,6 +271,10 @@ function CreatePostScreen() {
             }
             if (draft.selectedGameId) {
               setSelectedGameId(String(draft.selectedGameId));
+              setHasAutoSuggested(true);
+            }
+            if (draft.selectedEventId) {
+              setSelectedEventId(String(draft.selectedEventId));
               setHasAutoSuggested(true);
             }
             setDraftReady(true);
@@ -301,6 +337,7 @@ function CreatePostScreen() {
         content: content,
         picked,
         selectedGameId: selectedGameId || null,
+        selectedEventId: selectedEventId || null,
         postType,
         updated_at: new Date().toISOString(),
       };
@@ -309,18 +346,25 @@ function CreatePostScreen() {
     return () => {
       if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
     };
-  }, [content, picked, selectedGameId, postType, submitting, draftReady]);
+  }, [content, picked, selectedGameId, selectedEventId, postType, submitting, draftReady]);
 
-  // Request location permission on mount
+  // Request location permission before event uploads. Event-page posts require
+  // device-origin GPS server-side; asking only after media selection can waste
+  // an upload and make the final create step look broken.
   useEffect(() => {
-    if (!permissionGranted && !hasAutoSuggested && !gameId) {
+    const shouldRequestForSelectedEvent = Boolean(gameId) || Boolean(eventId);
+    const shouldRequestForSuggestions = !hasAutoSuggested && !gameId && !eventId;
+    if (
+      permissionGranted === false &&
+      (shouldRequestForSelectedEvent || shouldRequestForSuggestions)
+    ) {
       requestPermission().catch(() => {
         setLocationError(
           "Unable to access device location. You can still post, but event suggestions won't be available."
         );
       });
     }
-  }, [permissionGranted, hasAutoSuggested, gameId, requestPermission]);
+  }, [permissionGranted, hasAutoSuggested, eventId, gameId, postType, requestPermission]);
 
   useEffect(() => {
     if (_locError) {
@@ -339,6 +383,7 @@ function CreatePostScreen() {
         if (game) {
           setSuggestedGame(game);
           setSelectedGameId(String(game.id));
+          setSelectedEventId(game.event_id ? String(game.event_id) : eventId);
           setError(null); // Clear any previous errors
         }
       } catch (error) {
@@ -346,6 +391,7 @@ function CreatePostScreen() {
         // If game not found (404), clear the selectedGameId so user can still post
         if ((error as any)?.status === 404) {
           setSelectedGameId(undefined);
+          setSelectedEventId(eventId);
           setSuggestedGame(null);
           // Don't set error - allow user to post without event
         } else {
@@ -356,13 +402,40 @@ function CreatePostScreen() {
         }
       }
     })();
-  }, [gameId]);
+  }, [eventId, gameId]);
 
-  // Auto-suggest nearest event ONLY for highlights — regular posts appear on profile only
-  // Regular posts: no default event; user must explicitly tap "Attach to event" if desired
+  // Load event details if eventId is provided without a gameId (standalone event page)
+  useEffect(() => {
+    if (__DEV__) console.warn('[CreatePost] useEffect eventId:', eventId);
+    if (!eventId || gameId) return;
+
+    void (async () => {
+      try {
+        const event = await Event.get(eventId);
+        if (event) {
+          setSuggestedGame(event);
+          setSelectedEventId(String(event.id));
+          setSelectedGameId(event.game_id ? String(event.game_id) : undefined);
+          setError(null);
+        }
+      } catch (error) {
+        if (__DEV__) console.warn('Failed to load event from params:', error);
+        if ((error as any)?.status === 404) {
+          setSelectedEventId(undefined);
+          setSuggestedGame(null);
+        } else {
+          setSelectedEventId(eventId);
+        }
+      }
+    })();
+  }, [eventId, gameId]);
+
+  // Auto-suggest nearest event ONLY for highlights. Regular posts attach to an
+  // event only when launched from an event page or when the user explicitly
+  // chooses one.
   useEffect(() => {
     if (postType !== 'highlight') return;
-    if (selectedGameId || hasAutoSuggested) return;
+    if (selectedGameId || selectedEventId || hasAutoSuggested) return;
 
     // If we have permission but no coordinates yet, wait before attempting auto-suggest
     if (permissionGranted && !locationReady) return;
@@ -409,6 +482,7 @@ function CreatePostScreen() {
         if (top) {
           setSuggestedGame(top);
           setSelectedGameId(String(top.id));
+          setSelectedEventId(top.event_id ? String(top.event_id) : undefined);
         }
       } catch (error) {
         if (__DEV__) console.warn('Failed to fetch nearby games:', error);
@@ -421,6 +495,7 @@ function CreatePostScreen() {
     locationReady,
     permissionGranted,
     selectedGameId,
+    selectedEventId,
     hasAutoSuggested,
     location?.latitude,
     location?.longitude,
@@ -471,26 +546,7 @@ function CreatePostScreen() {
           return;
         }
 
-        let uri = a.uri;
-        if (media === 'image') {
-          // Skip resize for small images (under 2MB) — already fast enough
-          if (fileSize > 2 * 1024 * 1024) {
-            try {
-              const result = await ImageManipulator.manipulateAsync(
-                a.uri,
-                [{ resize: { width: 1280 } }],
-                { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-              );
-              uri = result.uri;
-            } catch (error: any) {
-              if (__DEV__)
-                console.warn(
-                  '[CreatePost] Image manipulation failed, using original:',
-                  error?.message || error
-                );
-            }
-          }
-        }
+        const uri = media === 'image' ? await prepareImageForPostUpload(a.uri, fileSize) : a.uri;
         setPicked({
           uri,
           type: media,
@@ -572,26 +628,7 @@ function CreatePostScreen() {
           return;
         }
 
-        let uri = a.uri;
-        if (media === 'image') {
-          // Skip resize for small images (under 2MB) — already fast enough
-          if (fileSize > 2 * 1024 * 1024) {
-            try {
-              const result = await ImageManipulator.manipulateAsync(
-                a.uri,
-                [{ resize: { width: 1280 } }],
-                { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-              );
-              uri = result.uri;
-            } catch (error: any) {
-              if (__DEV__)
-                console.warn(
-                  '[CreatePost] Image manipulation failed, using original:',
-                  error?.message || error
-                );
-            }
-          }
-        }
+        const uri = media === 'image' ? await prepareImageForPostUpload(a.uri, fileSize) : a.uri;
         setPicked({
           uri,
           type: media,
@@ -621,6 +658,11 @@ function CreatePostScreen() {
   const isDemoMatchupGame =
     typeof suggestedGame?.description === 'string' &&
     suggestedGame.description.includes(DEMO_MATCHUP_TAG);
+  const selectedEventIds = useMemo(
+    () => [selectedEventId, suggestedGame?.event_id, selectedGameId].filter(Boolean) as string[],
+    [selectedEventId, suggestedGame?.event_id, selectedGameId]
+  );
+  const hasSelectedEvent = selectedEventIds.length > 0;
 
   // First-post-unlocks-7-days (owner rule 2026-07-15): once this user posted
   // to the selected event page, the client preflight must not re-block them —
@@ -628,21 +670,21 @@ function CreatePostScreen() {
   const [hasPostingUnlock, setHasPostingUnlock] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    if (!selectedGameId) {
+    if (selectedEventIds.length === 0) {
       setHasPostingUnlock(false);
       return;
     }
-    hasLocalEventPostingUnlock([selectedGameId]).then(unlocked => {
+    void hasLocalEventPostingUnlock(selectedEventIds).then(unlocked => {
       if (!cancelled) setHasPostingUnlock(unlocked);
     });
     return () => {
       cancelled = true;
     };
-  }, [selectedGameId]);
+  }, [selectedEventIds]);
 
   // Proactive geofence + time window check when a game is selected
   const geofenceWarning = useMemo(() => {
-    if (!suggestedGame || !selectedGameId) return null;
+    if (!suggestedGame || !hasSelectedEvent) return null;
     // Seeded demo matchups (Duke v UNC, Cavs v Warriors) skip the client
     // warning — server's [DEMO_MATCHUP] carve-out already bypasses geofence
     // and posting-window checks for these Game rows only.
@@ -650,20 +692,15 @@ function CreatePostScreen() {
     // Already posted here within the last week — the server won't re-geofence,
     // so don't warn.
     if (hasPostingUnlock) return null;
-    // Posting window (server rule in server/src/lib/geofencing.ts): the
-    // geofenced live window opens 1h before start and closes
-    // `live_window_hours_after_start` after (default 3; fest day events run
-    // 18h). The server ships the computed bounds on the payload — this used to
-    // re-derive them from the game's own date with a hardcoded 3h, which both
-    // ignored the override and read a date that can disagree with the event's.
+    // Posting window (server rule in server/src/lib/geofencing.ts): there is NO
+    // early cutoff (owner rule 2026-08-28) — posting is open any time up to the
+    // live cutoff, so an early arrival is never warned off. The only time-based
+    // block left is AFTER the cutoff. The server ships the computed bounds on the
+    // payload (`live_from` is always null now).
     const bounds = getLiveBounds(suggestedGame);
     if (!bounds) return null;
 
     const now = Date.now();
-    if (now < bounds.liveFrom) {
-      const openDate = new Date(bounds.liveFrom);
-      return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (1 hour before start). You can still draft your post now.`;
-    }
     if (now > bounds.liveUntil) {
       return 'This event has ended. If you posted here while it was live you can keep posting for a week from anywhere.';
     }
@@ -693,7 +730,7 @@ function CreatePostScreen() {
     return null;
   }, [
     suggestedGame,
-    selectedGameId,
+    hasSelectedEvent,
     isDemoMatchupGame,
     hasPostingUnlock,
     locationReady,
@@ -720,18 +757,26 @@ function CreatePostScreen() {
   };
 
   const confirmPost = async () => {
+    if (!(user as any)?.email_verified) {
+      // nav-safe: auth gate -> email verification
+      router.replace('/verify-identity?method=email');
+      return;
+    }
+
     if (__DEV__) console.warn('[CreatePost] confirmPost called');
     if (__DEV__)
       console.warn(
         '[CreatePost] State - selectedGameId:',
         selectedGameId,
+        '| selectedEventId:',
+        selectedEventId,
         '| suggestedGame:',
         suggestedGame?.id
       );
 
     // Proactive geofence check: if posting to a real event and location is not available, prompt first.
     // Seeded demo matchups bypass the location gate — server carve-out accepts uploads without coords.
-    const isRealGame = Boolean(selectedGameId);
+    const isRealGame = hasSelectedEvent;
     const gameHasCoords =
       typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
     // H3 (2026-07-14): past the live cutoff the server may still allow posting
@@ -930,12 +975,15 @@ function CreatePostScreen() {
       if (selectedGameId) {
         payload.game_id = selectedGameId;
       }
+      if (selectedEventId) {
+        payload.event_id = selectedEventId;
+      }
 
       if (__DEV__)
         console.warn('[CreatePost] Final payload keys:', Object.keys(payload).join(', '));
 
       // Require event link for highlight posts to ensure they surface on the event page
-      if (postType === 'highlight' && !payload.game_id) {
+      if (postType === 'highlight' && !payload.game_id && !payload.event_id) {
         throw new Error('Please attach an event to share a highlight.');
       }
 
@@ -943,10 +991,10 @@ function CreatePostScreen() {
       await Post.create(payload);
       clearPostCache();
       if (__DEV__) console.warn('[CreatePost] Post created successfully!');
-      if (selectedGameId) {
+      if (selectedEventIds.length > 0) {
         // Mirror the server's posting unlock locally so preflight prompts
         // don't re-block this user on their next upload to this event page.
-        void recordEventPostingUnlock([selectedGameId]);
+        void recordEventPostingUnlock(selectedEventIds);
       }
       analytics.track(ANALYTICS_EVENTS.POST_CREATED, { type: picked?.type || 'text' });
       try {
@@ -973,11 +1021,11 @@ function CreatePostScreen() {
       // not a gate. Seen-state is per (user, event); a fan posting thirteen
       // times reads it once.
       const showNotice =
-        !!selectedGameId &&
-        (await shouldShowEventPostingNotice(user?.id, [selectedGameId, suggestedGame?.event_id]));
+        selectedEventIds.length > 0 &&
+        (await shouldShowEventPostingNotice(user?.id, selectedEventIds));
 
       if (showNotice) {
-        void markEventPostingNoticeSeen(user?.id, [selectedGameId, suggestedGame?.event_id]);
+        void markEventPostingNoticeSeen(user?.id, selectedEventIds);
         Alert.alert(
           '🏟️ Keep it to the game',
           'Please only post photos and videos from the game. Anything unrelated may result in your post being taken down.',
@@ -996,6 +1044,7 @@ function CreatePostScreen() {
           status: e?.status,
           data: e?.data,
           selectedGameId,
+          selectedEventId,
         });
       const issues = (e?.data?.issues || []) as { message: string }[];
       if (e?.status === 409 && e?.data?.code === 'DUPLICATE_POST') {
@@ -1009,7 +1058,7 @@ function CreatePostScreen() {
         setError(issues.map(i => i.message).join('\n'));
       } else {
         // Provide more helpful error messages
-        if (e?.status === 404 && selectedGameId) {
+        if (e?.status === 404 && hasSelectedEvent) {
           setError(
             'Event not found. Please remove the event attachment and try again, or select a different event.'
           );
@@ -1097,16 +1146,24 @@ function CreatePostScreen() {
       ? 'Share Highlight'
       : 'Post';
 
-  // Hard guard: never render the composer for a signed-out user. The useEffect
-  // above redirects guests to /create, but that runs AFTER the first render —
-  // without this a guest reaching create-post directly (e.g. an event page's
-  // "Create Post" button) briefly sees the composer and can attempt a post,
-  // hitting a raw "Unauthorized". Owner ask (2026-07-14): don't even let a
-  // signed-out user reach the upload screen.
-  if (!authLoading && !user) {
+  // Hard guard: never render the composer until auth is known. The useEffect
+  // above redirects guests/unverified users, but it runs after render; showing
+  // a real state here avoids a blank upload page during that handoff.
+  if (authLoading || !user || !(user as any)?.email_verified) {
+    const message = authLoading
+      ? 'Loading upload...'
+      : !user
+        ? 'Opening sign in...'
+        : 'Opening verification...';
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
         <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.authGateState}>
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+          <Text style={[styles.authGateText, { color: Colors[colorScheme].mutedText }]}>
+            {message}
+          </Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -1293,6 +1350,7 @@ function CreatePostScreen() {
                   onPress={() => {
                     setSuggestedGame(game);
                     setSelectedGameId(String(game.id));
+                    setSelectedEventId(game.event_id ? String(game.event_id) : undefined);
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`Tag game: ${game.title || `${game.home_team} vs ${game.away_team}`}`}
@@ -1344,7 +1402,7 @@ function CreatePostScreen() {
           )}
 
           {/* Selected Game/Event */}
-          {suggestedGame && selectedGameId && (
+          {suggestedGame && hasSelectedEvent && (
             <View style={styles.gameSection}>
               <Pressable
                 testID="create-post-tagged-game-button"
@@ -1390,6 +1448,7 @@ function CreatePostScreen() {
                 onPress={() => {
                   setSuggestedGame(null);
                   setSelectedGameId(undefined);
+                  setSelectedEventId(undefined);
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Remove tagged game"
@@ -1574,6 +1633,7 @@ function CreatePostScreen() {
                       onPress={() => {
                         setSuggestedGame(game);
                         setSelectedGameId(String(game.id));
+                        setSelectedEventId(game.event_id ? String(game.event_id) : undefined);
                         setEventSelectorVisible(false);
                       }}
                       accessibilityRole="button"
@@ -1784,7 +1844,7 @@ function CreatePostScreen() {
                 )}
 
                 {/* Event Badge */}
-                {previewData?.game && selectedGameId && (
+                {previewData?.game && hasSelectedEvent && (
                   <View style={styles.previewEventBadge}>
                     <Ionicons name="trophy" size={16} color={Colors[colorScheme].tint} />
                     <View style={{ flex: 1, marginLeft: 12 }}>
@@ -1814,7 +1874,7 @@ function CreatePostScreen() {
                       { color: Colors[colorScheme].mutedText },
                     ]}
                   >
-                    {previewData?.game && selectedGameId
+                    {previewData?.game && hasSelectedEvent
                       ? 'This post will appear on the event page'
                       : 'This post will appear on your profile'}
                   </Text>
@@ -2039,6 +2099,18 @@ function CreatePostScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  authGateState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  authGateText: {
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',

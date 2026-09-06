@@ -33,7 +33,10 @@ describe('guest create-entry contracts', () => {
     // can't flash the composer / hit a raw Unauthorized), backed by the
     // redirect to the /create login sheet.
     expect(createPost).toContain('const { user, loading: authLoading } = useAuth();');
-    expect(createPost).toMatch(/if \(!authLoading && !user\)/);
+    expect(createPost).toMatch(
+      /if \(authLoading \|\| !user \|\| !\(user as any\)\?\.email_verified\)/
+    );
+    expect(createPost).toContain('Opening sign in...');
     expect(createPost).toContain("router.replace('/create');");
   });
 

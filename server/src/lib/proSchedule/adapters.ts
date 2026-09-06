@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { compositeAdapter } from './compositeAdapter.js';
 import { espnAdapter } from './espnAdapter.js';
 import type { ProFixture, ProScheduleAdapter } from './types.js';
+import { PRO_SCHEDULE_LEAGUES } from './types.js';
 import { wweAdapter } from './wweAdapter.js';
 
 /**
@@ -24,7 +25,7 @@ import { wweAdapter } from './wweAdapter.js';
 
 const fixtureSchema = z.object({
   external_ref: z.string().min(1).max(200),
-  league: z.enum(['nfl', 'nba', 'wnba', 'mlb', 'wwe']),
+  league: z.enum(PRO_SCHEDULE_LEAGUES),
   starts_at: z.coerce.date(),
   home_team_ref: z.string().nullable().default(null),
   away_team_ref: z.string().nullable().default(null),
@@ -49,7 +50,7 @@ const fixtureSchema = z.object({
 export function jsonFileAdapter(path: string): ProScheduleAdapter {
   return {
     name: `json:${path}`,
-    leagues: ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const,
+    leagues: PRO_SCHEDULE_LEAGUES,
     async fetchFixtures(league: ProLeague, from: Date, to: Date): Promise<ProFixture[]> {
       const raw = await readFile(path, 'utf8');
       const parsed: unknown = JSON.parse(raw);
@@ -89,8 +90,9 @@ export function resolveConfiguredAdapter(env = process.env): ProScheduleAdapter 
   const file = env.PRO_SCHEDULE_JSON_PATH;
   if (file) return jsonFileAdapter(file);
 
-  // Live rolling source: ESPN for the four league sports + TheSportsDB for
-  // touring WWE, behind one composite so the cron covers all five leagues.
+  // Live rolling source: ESPN for the scoreboard-backed leagues + TheSportsDB
+  // for touring WWE. UFC is in the canonical fixture model and can be loaded via
+  // PRO_SCHEDULE_JSON_PATH until a verified live provider is wired.
   if (env.PRO_SCHEDULE_PROVIDER === 'espn') {
     return compositeAdapter([espnAdapter(), wweAdapter()]);
   }

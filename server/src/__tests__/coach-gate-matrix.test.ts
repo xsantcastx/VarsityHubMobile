@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../teamGateTestApp.js';
@@ -15,10 +16,6 @@ function uniqueEmail(prefix: string) {
   emailSeq += 1;
   return `${prefix}-${ts}-${emailSeq}@example.com`;
 }
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
 
 type CreateUserOptions = {
   email: string;

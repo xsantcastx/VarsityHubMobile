@@ -12,6 +12,7 @@ import {
 } from '../lib/cloudinary.js';
 import { createR2UploadTicket, isR2Configured } from '../lib/r2.js';
 import { debugLog } from '../lib/debugLog.js';
+import { sendError } from '../lib/http/sendError.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
 import { prisma } from '../lib/prisma.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
@@ -29,6 +30,8 @@ const MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
   { mime: 'image/webp', bytes: [0x52, 0x49, 0x46, 0x46], offset: 0 }, // RIFF header; WEBP at offset 8
   { mime: 'video/mp4', bytes: [0x66, 0x74, 0x79, 0x70], offset: 4 }, // ftyp at offset 4
   { mime: 'video/quicktime', bytes: [0x66, 0x74, 0x79, 0x70], offset: 4 }, // same ftyp box
+  { mime: 'video/webm', bytes: [0x1a, 0x45, 0xdf, 0xa3] }, // EBML header
+  { mime: 'video/x-m4v', bytes: [0x66, 0x74, 0x79, 0x70], offset: 4 }, // same ftyp box
   { mime: 'application/pdf', bytes: [0x25, 0x50, 0x44, 0x46] }, // %PDF
 ];
 
@@ -197,8 +200,8 @@ const IMAGE_MIMETYPES = new Set([
   'image/heic',
   'image/heif',
 ]);
-const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov']);
-const VIDEO_MIMETYPES = new Set(['video/mp4', 'video/quicktime']);
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.m4v']);
+const VIDEO_MIMETYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v']);
 
 const upload = multer({
   storage,
@@ -212,7 +215,9 @@ const upload = multer({
       return cb(null, true);
     }
     return cb(
-      new Error('Only image (jpg, png, gif, webp, heic) or video (mp4, mov) files are allowed')
+      new Error(
+        'Only image (jpg, png, gif, webp, heic) or video (mp4, mov, webm, m4v) files are allowed'
+      )
     );
   },
 });
@@ -226,6 +231,8 @@ const ALLOWED_EXTENSIONS = new Set([
   '.webp',
   '.mp4',
   '.mov',
+  '.webm',
+  '.m4v',
   '.pdf',
 ]);
 const ALLOWED_MIMETYPES = new Set([
@@ -235,6 +242,8 @@ const ALLOWED_MIMETYPES = new Set([
   'image/webp',
   'video/mp4',
   'video/quicktime',
+  'video/webm',
+  'video/x-m4v',
   'application/pdf',
 ]);
 
@@ -244,7 +253,9 @@ const fileUpload = multer({
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const ext = (file.originalname.match(/\.[^.]+$/) || [''])[0].toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext) || !ALLOWED_MIMETYPES.has(file.mimetype)) {
-      return cb(new Error('File type not allowed. Accepted: jpg, png, gif, webp, mp4, mov, pdf'));
+      return cb(
+        new Error('File type not allowed. Accepted: jpg, png, gif, webp, mp4, mov, webm, m4v, pdf')
+      );
     }
     cb(null, true);
   },
@@ -301,7 +312,7 @@ uploadsRouter.get(
       // v1.0.2 audit fix: constrain what Cloudinary accepts on direct-upload. Without these,
       // a signed request lets the client upload any file type (executable, script, etc.).
       // The signature ties these constraints into the request so clients can't weaken them.
-      const allowedFormats = 'jpg,jpeg,png,gif,webp,heic,heif,mp4,mov';
+      const allowedFormats = 'jpg,jpeg,png,gif,webp,heic,heif,mp4,mov,webm,m4v';
       const maxBytes = '157286400'; // 150 MB — must equal client MAX_VIDEO_SIZE_BYTES (constants/video.ts)
       // IMPORTANT: `max_bytes` is NOT a recognized Cloudinary upload parameter, so
       // Cloudinary strips it from its own signature string. Including it here made
@@ -413,8 +424,13 @@ uploadsRouter.get(
     if (!contentType) {
       return res.status(400).json({ error: 'content_type is required' });
     }
+    const contentLengthRaw = String((req.query as any).content_length || '').trim();
+    const contentLength = Number(contentLengthRaw);
+    if (!contentLengthRaw) {
+      return sendError(res, 400, 'content_length is required');
+    }
     try {
-      const ticket = await createR2UploadTicket({ contentType });
+      const ticket = await createR2UploadTicket({ contentType, contentLength });
       if (!ticket) {
         return res
           .status(503)
@@ -424,7 +440,9 @@ uploadsRouter.get(
       return res.json(ticket);
     } catch (error: any) {
       // Unsupported content type is a client error; anything else is upstream.
-      if (/Unsupported content type/i.test(String(error?.message))) {
+      if (
+        /Unsupported content type|content_length|File size exceeds/i.test(String(error?.message))
+      ) {
         return res.status(400).json({ error: error.message });
       }
       console.error('[uploads] Failed to presign R2 upload:', error);

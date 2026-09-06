@@ -57,6 +57,20 @@ describe('clusterByCoordinate', () => {
     expect(clusters[0][0].id).toBe('has-coords');
   });
 
+  it('drops non-finite and out-of-range coordinates before they reach native maps', () => {
+    const clusters = clusterByCoordinate([
+      at('valid', 40.7128, -74.006),
+      at('nan-lat', Number.NaN, -74.006),
+      at('inf-lng', 40.7128, Number.POSITIVE_INFINITY),
+      at('lat-out-of-range', 91, -74.006),
+      at('lng-out-of-range', 40.7128, -181),
+      { id: 'string-lat', latitude: '40.7128' as any, longitude: -74.006 },
+    ]);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toEqual([expect.objectContaining({ id: 'valid' })]);
+  });
+
   it('accepts lat/lng of exactly 0 (Gulf of Guinea is a valid point, not "missing")', () => {
     const clusters = clusterByCoordinate([at('null-island', 0, 0)]);
     expect(clusters).toHaveLength(1);

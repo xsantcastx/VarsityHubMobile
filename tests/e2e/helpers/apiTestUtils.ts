@@ -44,7 +44,7 @@ export async function registerTestUser({
       email: `${prefix}-${role}-${nonce}@varsityhub-test.app`,
       password,
       display_name: `${displayNamePrefix} ${role} ${nonce}`,
-      role,
+      role: 'fan',
       ...(role === 'coach' ? { dob: '1990-01-15' } : {}),
     },
   });
@@ -53,12 +53,22 @@ export async function registerTestUser({
   const body = await response.json();
   const token = body.access_token as string;
 
-  if (verifyIfPossible && body.dev_verification_code) {
+  if ((verifyIfPossible || role === 'coach') && body.dev_verification_code) {
     const verifyResponse = await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
       headers: { Authorization: `Bearer ${token}` },
       data: { code: String(body.dev_verification_code) },
     });
-    expect([200, 204, 429]).toContain(verifyResponse.status());
+    expect([200, 204]).toContain(verifyResponse.status());
+  } else if (role === 'coach') {
+    throw new Error('Coach E2E fixtures require a dev verification code before upgrade-to-coach');
+  }
+
+  if (role === 'coach') {
+    const upgradeResponse = await request.post(`${API_BASE_URL}/auth/upgrade-to-coach`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { plan: 'rookie', dob: '1990-01-15' },
+    });
+    expect(upgradeResponse.status()).toBe(200);
   }
 
   return { token, userId: body.user?.id as string | undefined, body };

@@ -102,12 +102,12 @@
 
 **Problem:**
 
-- Script moved to `scripts/moved-from-root/` but workflow still referenced root
+- Workflow now uses `npm run verify:production-ready` instead of depending on a root script path
 
 **Fix Applied:**
 
-- Added fallback path checking with graceful error handling
-- Works with both old and new script locations
+- Uses the package-level readiness command
+- Writes `verification-report.txt` for the workflow artifact
 
 ### Issue 2: Deprecated Workflow
 

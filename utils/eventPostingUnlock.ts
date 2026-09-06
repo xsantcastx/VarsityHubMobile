@@ -3,12 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 /**
  * Client-side mirror of the server's EventPostingUnlock ledger (owner rule,
  * 2026-07-15 Fanatics Fest punch list): once a user's geofenced post/story to
- * an event page succeeds, they may keep uploading to that page for 7 days
- * without re-passing the geofence. The SERVER is authoritative — this local
- * record exists only so the client's preflight UX (location prompts, distance
- * warnings) doesn't block a user the server would allow. Missing local state
- * (new device, pre-update posts) just means the preflight stays strict; the
- * server still admits unlocked users.
+ * an event page succeeds, they may keep uploading regular posts to that page for
+ * 7 days without re-passing the geofence. Stories are stricter: they remain
+ * live-window + geofence only. The SERVER is authoritative — this local record
+ * exists only so regular-post preflight UX (location prompts, distance warnings)
+ * doesn't block a user the server would allow. Missing local state (new device,
+ * pre-update posts) just means the preflight stays strict; the server still
+ * admits unlocked users.
  */
 const KEY_PREFIX = 'vh:event-posting-unlock:v1:';
 const UNLOCK_DURATION_MS = 7 * 24 * 60 * 60 * 1000;

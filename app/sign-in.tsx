@@ -567,8 +567,10 @@ export default function SignInScreen() {
 
           {!sessionGuardActive && Platform.OS === 'ios' ? (
             <View
-              pointerEvents={authBusy ? 'none' : 'auto'}
-              style={authBusy ? styles.buttonDisabled : undefined}
+              style={[
+                authBusy ? styles.buttonDisabled : undefined,
+                { pointerEvents: authBusy ? 'none' : 'auto' },
+              ]}
             >
               <AppleAuthenticationButton
                 onPress={handleAppleLogin}

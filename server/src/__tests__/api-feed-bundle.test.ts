@@ -1,14 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
 
 let prisma: any;
 let signJwt: any;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
 const PASSWORD = 'TestPassword123!';
 const ts = Date.now();
@@ -251,6 +248,7 @@ describeDb('GET /feed/bundle', () => {
     expect(Array.isArray(res.body?.posts_followed_teams?.items)).toBe(true);
     expect(Array.isArray(res.body?.highlights?.nationalTop)).toBe(true);
     expect(Array.isArray(res.body?.highlights?.ranked)).toBe(true);
+    expect(res.body?.errors).toEqual([]);
     expect(res.body?.unread_notifications).toBe(1);
     expect(res.body?.unread_messages).toBe(1);
 

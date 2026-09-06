@@ -7,6 +7,7 @@ import { approveOrganization, rejectOrganization } from '../lib/approvalService.
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { ASSET_URL_MESSAGE, isAllowedAssetUrl } from '../lib/mediaHosts.js';
 import { debugLog } from '../lib/debugLog.js';
+import { normalizeOrganizationName } from '../lib/normalizeNames.js';
 import { isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import {
   buildCoachJoinRequestReviewUrl,
@@ -75,6 +76,8 @@ function toOrganizationInviteRole(role?: string | null): OrganizationRole {
 }
 
 const VALID_ORG_INVITE_ROLES = ['manager', 'member'] as const;
+const ORGANIZATION_CREATE_REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+
 const authorizedUserInputSchema = z.object({
   email: z.string().email().optional(),
   user_id: z.string().optional(),
@@ -88,25 +91,31 @@ function isValidOrganizationInviteRole(
   return VALID_ORG_INVITE_ROLES.includes(role as (typeof VALID_ORG_INVITE_ROLES)[number]);
 }
 
+type OrganizationAuthorizedInviteInput = {
+  email: string;
+  role: string;
+};
+
+function buildAuthorizedInviteInputs(
+  authorizedUsers: z.infer<typeof authorizedUserInputSchema>[] | undefined
+): OrganizationAuthorizedInviteInput[] {
+  return (authorizedUsers || [])
+    .filter(user => typeof user.email === 'string' && user.email.trim().length > 0)
+    .map(user => ({
+      email: String(user.email).trim().toLowerCase(),
+      role: String(user.role || 'member')
+        .trim()
+        .toLowerCase(),
+    }));
+}
+
+function findInvalidOrganizationInviteRole(inputs: OrganizationAuthorizedInviteInput[]) {
+  return inputs.find(invite => !isValidOrganizationInviteRole(invite.role));
+}
+
 // ---------------------------------------------
 // Duplicate Detection & Admin Helpers
 // ---------------------------------------------
-
-// Normalize organization names to detect near-duplicates across org_type variants.
-// Strategy: lowercase, replace common abbreviations, strip punctuation/spaces, drop trailing generic terms.
-function normalizeOrganizationName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/\bst\.?\b/g, 'saint')
-    .replace(/\bhs\b/g, 'highschool')
-    .replace(/\bhigh school\b/g, 'highschool')
-    .replace(/\bclub\b/g, '')
-    .replace(/\bleague\b/g, '')
-    .replace(/\bschool\b/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
-}
 
 /**
  * Find an existing active organization that would collide with `name`/`zipCode`
@@ -149,6 +158,8 @@ type OrganizationCreatePayload = {
   season_start?: string;
   season_end?: string;
   supporting_document_url?: string;
+  authorized_users?: z.infer<typeof authorizedUserInputSchema>[];
+  onboarding?: boolean;
 };
 
 function buildOrganizationCreateData(
@@ -277,6 +288,109 @@ function buildPendingLeagueOwnerPreferences(
   next.organization_name = organization.name;
   next.join_request_pending = false;
   return next;
+}
+
+async function loadEligibleOrganizationCreateApplicant(req: AuthedRequest, res: Response) {
+  const applicant = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: {
+      approval_status: true,
+      rejected_at: true,
+      rejection_reason: true,
+      preferences: true,
+      role: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
+    },
+  });
+  const applicantPrefs = getPreferencesObject(applicant?.preferences);
+  if (getCanonicalUserRole(applicant as any) !== 'coach') {
+    res.status(403).json({ error: 'Only coach accounts can create organizations.' });
+    return null;
+  }
+
+  // Backfill rejected_at for legacy REJECTED users so they cannot bypass cooldown.
+  if (applicant?.approval_status === 'REJECTED') {
+    let rejectedAt = applicant.rejected_at;
+    if (!rejectedAt) {
+      rejectedAt = new Date();
+      await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { rejected_at: rejectedAt },
+      });
+      await invalidateMeCacheForUser(req.user!.id);
+    }
+    const elapsed = Date.now() - new Date(rejectedAt).getTime();
+    if (Number.isFinite(elapsed) && elapsed < ORGANIZATION_CREATE_REJECTION_COOLDOWN_MS) {
+      const retryAfterMs = ORGANIZATION_CREATE_REJECTION_COOLDOWN_MS - elapsed;
+      res.status(429).json({
+        error:
+          'Your previous application was declined. Please wait before creating another organization.',
+        code: 'REJECTION_COOLDOWN',
+        retry_after_ms: retryAfterMs,
+        retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+        reason: applicant.rejection_reason || null,
+      });
+      return null;
+    }
+  }
+
+  return { applicant, applicantPrefs };
+}
+
+async function prepareOrganizationCreatePreflight(params: {
+  req: AuthedRequest;
+  res: Response;
+  data: OrganizationCreatePayload;
+  applicant: unknown;
+  applicantPrefs: Record<string, any>;
+}) {
+  const { req, res, data, applicant, applicantPrefs } = params;
+  const authorizedInviteInputs = buildAuthorizedInviteInputs(data.authorized_users);
+  const invalidInviteRole = findInvalidOrganizationInviteRole(authorizedInviteInputs);
+  if (invalidInviteRole) {
+    res.status(400).json({
+      error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}`,
+      code: 'INVALID_INVITE_ROLE',
+    });
+    return null;
+  }
+
+  const applicantPlan = getEffectiveEntitledPlan(applicant as any);
+  const applicantTeamCountTotal =
+    applicantPrefs.team_count_total ||
+    (await prisma.teamMembership.count({
+      where: { user_id: req.user!.id, role: 'owner', status: 'active' },
+    }));
+  const authorizedUsersLimit = getAuthorizedUsersOrgLimit(applicantPlan, applicantTeamCountTotal);
+  const totalAuthorizedUsersOnCreate = 1 + authorizedInviteInputs.length;
+  if (authorizedUsersLimit !== null && totalAuthorizedUsersOnCreate > authorizedUsersLimit) {
+    res.status(403).json({
+      error: 'USER_LIMIT_REACHED',
+      message: `Plan limit reached. ${applicantPlan} plan allows ${authorizedUsersLimit} authorized user${authorizedUsersLimit === 1 ? '' : 's'} for your organization.`,
+      limit: authorizedUsersLimit,
+      current: totalAuthorizedUsersOnCreate,
+    });
+    return null;
+  }
+
+  const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
+    userId: req.user!.id,
+    approvalStatus: (applicant as any)?.approval_status,
+    onboarding: data.onboarding,
+  });
+
+  const dup = await findDuplicateActiveOrganization(data.name, data.zip_code);
+  if (dup) {
+    res
+      .status(409)
+      .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
+    return null;
+  }
+
+  return { authorizedInviteInputs, shouldForcePendingApproval };
 }
 
 async function handleOrganizationCreateRequest(
@@ -918,8 +1032,7 @@ organizationsRouter.get(
   })
 );
 
-// H3: zip_code aligned with ads — 5-digit US format when provided
-const createOrganizationSchema = z.object({
+const organizationCreateSchemaFields = {
   name: z.string().min(1).max(255),
   description: z.string().max(1000).optional(),
   sport: z.string().max(100).optional(),
@@ -938,7 +1051,56 @@ const createOrganizationSchema = z.object({
   supporting_document_url: z.string().url({ message: 'Supporting document is required' }),
   authorized_users: z.array(authorizedUserInputSchema).optional(),
   onboarding: z.boolean().optional(), // bypass requireVerified during onboarding
-});
+};
+
+// H3: zip_code aligned with ads — 5-digit US format when provided
+const createOrganizationSchema = z.object(organizationCreateSchemaFields);
+
+function sendOrganizationCreateValidationError(
+  res: Response,
+  issues: Array<{ path: PropertyKey[]; message: string }>
+) {
+  // v1.0.3: return Zod issues so the client can render actionable errors.
+  return res.status(400).json({
+    error: 'Invalid payload',
+    code: 'VALIDATION_FAILED',
+    issues: issues.map(i => ({
+      path: i.path,
+      message: i.message,
+    })),
+  });
+}
+
+async function handleOrganizationCreateRoute(
+  req: AuthedRequest,
+  res: Response,
+  routeTag: '/' | '/create'
+) {
+  const parsed = createOrganizationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return sendOrganizationCreateValidationError(res, parsed.error.issues);
+  }
+
+  const applicantResult = await loadEligibleOrganizationCreateApplicant(req, res);
+  if (!applicantResult) return;
+  const { applicant, applicantPrefs } = applicantResult;
+
+  const data = parsed.data;
+  const preflight = await prepareOrganizationCreatePreflight({
+    req,
+    res,
+    data,
+    applicant,
+    applicantPrefs,
+  });
+  if (!preflight) return;
+  return handleOrganizationCreateRequest(req, res, data, {
+    applicantPrefs,
+    shouldForcePendingApproval: preflight.shouldForcePendingApproval,
+    authorizedInviteInputs: preflight.authorizedInviteInputs,
+    routeTag,
+  });
+}
 
 // Create organization
 organizationsRouter.post(
@@ -947,157 +1109,20 @@ organizationsRouter.post(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const parsed = createOrganizationSchema.safeParse(req.body);
-    if (!parsed.success) {
-      // v1.0.3: return the Zod issues so the client can show WHICH field
-      // failed validation. The bare "Invalid payload" response caused an
-      // entire session of "Failed to create page — something went wrong"
-      // with no way for users OR support to diagnose missing fields
-      // (most commonly: supporting_document_url null after a silent upload
-      // failure).
-      return res.status(400).json({
-        error: 'Invalid payload',
-        code: 'VALIDATION_FAILED',
-        issues: parsed.error.issues.map(i => ({
-          path: i.path,
-          message: i.message,
-        })),
-      });
-    }
-
-    // v1.0.2: 48hr cooldown if prior application was rejected (mirrors POST /create).
-    const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
-    const applicant = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: {
-        approval_status: true,
-        rejected_at: true,
-        rejection_reason: true,
-        preferences: true,
-        role: true,
-        plan: true,
-        pending_plan: true,
-        payment_pending: true,
-        payment_approved: true,
-      },
-    });
-    const applicantPrefs = getPreferencesObject(applicant?.preferences);
-    if (getCanonicalUserRole(applicant as any) !== 'coach') {
-      return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
-    }
-    // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
-    if (applicant?.approval_status === 'REJECTED') {
-      let rejectedAt = applicant.rejected_at;
-      if (!rejectedAt) {
-        rejectedAt = new Date();
-        await prisma.user.update({
-          where: { id: req.user!.id },
-          data: { rejected_at: rejectedAt },
-        });
-        await invalidateMeCacheForUser(req.user!.id);
-      }
-      const elapsed = Date.now() - new Date(rejectedAt).getTime();
-      if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
-        const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
-        return res.status(429).json({
-          error:
-            'Your previous application was declined. Please wait before creating another organization.',
-          code: 'REJECTION_COOLDOWN',
-          retry_after_ms: retryAfterMs,
-          retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
-          reason: applicant.rejection_reason || null,
-        });
-      }
-    }
-
-    const data = parsed.data;
-    const authorizedInviteInputs = (data.authorized_users || [])
-      .filter(user => typeof user.email === 'string' && user.email.trim().length > 0)
-      .map(user => ({
-        email: String(user.email).trim().toLowerCase(),
-        role: String(user.role || 'member')
-          .trim()
-          .toLowerCase(),
-      }));
-
-    const invalidInviteRole = authorizedInviteInputs.find(
-      invite => !isValidOrganizationInviteRole(invite.role)
-    );
-    if (invalidInviteRole) {
-      return res.status(400).json({
-        error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}`,
-        code: 'INVALID_INVITE_ROLE',
-      });
-    }
-
-    const applicantPlan = getEffectiveEntitledPlan(applicant as any);
-    const applicantTeamCountTotal =
-      applicantPrefs.team_count_total ||
-      (await prisma.teamMembership.count({
-        where: { user_id: req.user!.id, role: 'owner', status: 'active' },
-      }));
-    const authorizedUsersLimit = getAuthorizedUsersOrgLimit(applicantPlan, applicantTeamCountTotal);
-    const totalAuthorizedUsersOnCreate = 1 + authorizedInviteInputs.length;
-    if (authorizedUsersLimit !== null && totalAuthorizedUsersOnCreate > authorizedUsersLimit) {
-      return res.status(403).json({
-        error: 'USER_LIMIT_REACHED',
-        message: `Plan limit reached. ${applicantPlan} plan allows ${authorizedUsersLimit} authorized user${authorizedUsersLimit === 1 ? '' : 's'} for your organization.`,
-        limit: authorizedUsersLimit,
-        current: totalAuthorizedUsersOnCreate,
-      });
-    }
-
-    const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
-      userId: req.user!.id,
-      approvalStatus: applicant?.approval_status,
-      onboarding: data.onboarding,
-    });
-    // Duplicate guard: mirror the DB's partial unique indexes exactly (same-zip,
-    // or global among no-zip orgs) so a collision returns a structured 409 here
-    // instead of falling through to a raw P2002 → 500 at insert time.
-    const dup = await findDuplicateActiveOrganization(data.name, data.zip_code);
-    if (dup) {
-      return res
-        .status(409)
-        .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
-    }
-    return handleOrganizationCreateRequest(req, res, parsed.data, {
-      applicantPrefs,
-      shouldForcePendingApproval,
-      authorizedInviteInputs,
-      routeTag: '/',
-    });
+    // v1.0.3: return the Zod issues so the client can show WHICH field
+    // failed validation. The bare "Invalid payload" response caused an entire
+    // session of "Failed to create page — something went wrong" with no way
+    // for users OR support to diagnose missing fields.
+    return handleOrganizationCreateRoute(req, res, '/');
   })
 );
-
-// H3: zip_code aligned with ads — 5-digit US format when provided
-const createOrganizationWithTeamsSchema = z.object({
-  name: z.string().min(1).max(255),
-  description: z.string().max(1000).optional(),
-  sport: z.string().max(100).optional(),
-  org_type: z.string().max(100).optional(),
-  location: z.string().max(255).optional(),
-  formatted_address: z.string().max(500).optional(),
-  place_id: z.string().max(255).optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
-  zip_code: z
-    .string()
-    .regex(/^\d{5}$/, 'Must be a 5-digit US zip code')
-    .optional(),
-  season_start: z.string().optional(),
-  season_end: z.string().optional(),
-  supporting_document_url: z.string().url({ message: 'Supporting document is required' }),
-  onboarding: z.boolean().optional(),
-  authorized_users: z.array(authorizedUserInputSchema).optional(),
-});
 
 // Enhanced create organization for onboarding
 organizationsRouter.post(
   '/create',
   requireAuth as any,
   requireVerified as any,
-  // Align with the canonical POST /organizations route (line 630). The legacy
+  // Align with the canonical POST /organizations route. The legacy
   // /create variant previously omitted requireOnboarded and relied on inline
   // role + rejection-cooldown checks in the handler body. Those inline checks
   // remain as defense-in-depth, but middleware alignment removes the asymmetric
@@ -1105,122 +1130,7 @@ organizationsRouter.post(
   // routes drift when someone updates one and not the other).
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
-    if (!parsed.success) {
-      // v1.0.3: return Zod issues so client can render actionable errors.
-      return res.status(400).json({
-        error: 'Invalid payload',
-        code: 'VALIDATION_FAILED',
-        issues: parsed.error.issues.map(i => ({
-          path: i.path,
-          message: i.message,
-        })),
-      });
-    }
-
-    // v1.0.2: 48hr cooldown for users whose prior org application was rejected.
-    const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
-    const applicant = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: {
-        approval_status: true,
-        rejected_at: true,
-        rejection_reason: true,
-        preferences: true,
-        role: true,
-        plan: true,
-        pending_plan: true,
-        payment_pending: true,
-        payment_approved: true,
-      },
-    });
-    const applicantPrefs = getPreferencesObject(applicant?.preferences);
-    if (getCanonicalUserRole(applicant as any) !== 'coach') {
-      return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
-    }
-    // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
-    if (applicant?.approval_status === 'REJECTED') {
-      let rejectedAt = applicant.rejected_at;
-      if (!rejectedAt) {
-        rejectedAt = new Date();
-        await prisma.user.update({
-          where: { id: req.user!.id },
-          data: { rejected_at: rejectedAt },
-        });
-        await invalidateMeCacheForUser(req.user!.id);
-      }
-      const elapsed = Date.now() - new Date(rejectedAt).getTime();
-      if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
-        const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
-        return res.status(429).json({
-          error:
-            'Your previous application was declined. Please wait before creating another organization.',
-          code: 'REJECTION_COOLDOWN',
-          retry_after_ms: retryAfterMs,
-          retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
-          reason: applicant.rejection_reason || null,
-        });
-      }
-    }
-
-    const data = parsed.data;
-    const authorizedInviteInputs = (data.authorized_users || [])
-      .filter(user => typeof user.email === 'string' && user.email.trim().length > 0)
-      .map(user => ({
-        email: String(user.email).trim().toLowerCase(),
-        role: String(user.role || 'member')
-          .trim()
-          .toLowerCase(),
-      }));
-
-    const invalidInviteRole = authorizedInviteInputs.find(
-      invite => !isValidOrganizationInviteRole(invite.role)
-    );
-    if (invalidInviteRole) {
-      return res.status(400).json({
-        error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}`,
-        code: 'INVALID_INVITE_ROLE',
-      });
-    }
-
-    const applicantPlan = getEffectiveEntitledPlan(applicant as any);
-    const applicantTeamCountTotal =
-      applicantPrefs.team_count_total ||
-      (await prisma.teamMembership.count({
-        where: { user_id: req.user!.id, role: 'owner', status: 'active' },
-      }));
-    const authorizedUsersLimit = getAuthorizedUsersOrgLimit(applicantPlan, applicantTeamCountTotal);
-    const totalAuthorizedUsersOnCreate = 1 + authorizedInviteInputs.length;
-    if (authorizedUsersLimit !== null && totalAuthorizedUsersOnCreate > authorizedUsersLimit) {
-      return res.status(403).json({
-        error: 'USER_LIMIT_REACHED',
-        message: `Plan limit reached. ${applicantPlan} plan allows ${authorizedUsersLimit} authorized user${authorizedUsersLimit === 1 ? '' : 's'} for your organization.`,
-        limit: authorizedUsersLimit,
-        current: totalAuthorizedUsersOnCreate,
-      });
-    }
-
-    const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
-      userId: req.user!.id,
-      approvalStatus: applicant?.approval_status,
-      onboarding: data.onboarding,
-    });
-    // Duplicate guard — identical rule to POST /organizations (mirrors the DB
-    // indexes). Previously this scanned 100 UNORDERED rows when no zip was
-    // given, so the same input could 409 or not depending on row order, and a
-    // no-zip collision it missed became a 500 at insert time.
-    const dup = await findDuplicateActiveOrganization(data.name, data.zip_code);
-    if (dup) {
-      return res
-        .status(409)
-        .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
-    }
-    return handleOrganizationCreateRequest(req, res, parsed.data, {
-      applicantPrefs,
-      shouldForcePendingApproval,
-      authorizedInviteInputs,
-      routeTag: '/create',
-    });
+    return handleOrganizationCreateRoute(req, res, '/create');
   })
 );
 

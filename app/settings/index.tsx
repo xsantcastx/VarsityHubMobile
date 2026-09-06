@@ -5,6 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCustomColorScheme, useThemePreference } from '@/hooks/useCustomColorScheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -20,6 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { httpGet } from '@/api/http';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
@@ -76,10 +78,27 @@ interface Preferences {
   comment_permission: CommentPermission;
 }
 
+interface PushDiagnostics {
+  push_token?: {
+    present?: boolean;
+    valid_format?: boolean;
+    preview?: string | null;
+  };
+  preferences?: {
+    notifications_enabled?: boolean;
+  };
+  delivery_ready?: boolean;
+}
+
 type LinkedProviders = {
   password: boolean;
   google: boolean;
   apple: boolean;
+};
+
+const STATUS_COLORS = {
+  success: '#16A34A',
+  warning: '#D97706',
 };
 
 // Inline components for settings
@@ -213,8 +232,8 @@ export default function SettingsScreen() {
     []
   );
 
-  const [_loading, setLoading] = useState(true);
-  const [_error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [_email, setEmail] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Preferences>({
     notifications: {
@@ -245,6 +264,8 @@ export default function SettingsScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [upgradingToCoach, setUpgradingToCoach] = useState(false);
   const [downgradingToFan, setDowngradingToFan] = useState(false);
+  const [pushDiagnostics, setPushDiagnostics] = useState<PushDiagnostics | null>(null);
+  const [pushDiagnosticsError, setPushDiagnosticsError] = useState<string | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const getSettingsSnapshot = useCallback(
@@ -258,6 +279,18 @@ export default function SettingsScreen() {
     },
     [checkAuth, user]
   );
+
+  const loadPushDiagnostics = useCallback(async () => {
+    try {
+      const diagnostics = (await httpGet('/notifications/push-diagnostics')) as PushDiagnostics;
+      setPushDiagnostics(diagnostics);
+      setPushDiagnosticsError(null);
+    } catch (e: any) {
+      if (__DEV__) console.warn('[settings] Failed to load push diagnostics:', e);
+      setPushDiagnostics(null);
+      setPushDiagnosticsError(toUserMessage(e, 'Push status unavailable'));
+    }
+  }, []);
 
   // Clear all debounce timers on unmount to prevent memory leaks
   useEffect(() => {
@@ -496,6 +529,7 @@ export default function SettingsScreen() {
         }
         if (!mounted) return;
         applyMeSnapshot(me, mounted);
+        void loadPushDiagnostics();
       } catch (e: any) {
         if (!mounted) return;
         // Handle authentication errors gracefully - don't show "Unauthorized" to user
@@ -528,7 +562,51 @@ export default function SettingsScreen() {
     return () => {
       mounted = false;
     };
-  }, [applyMeSnapshot, checkAuth, getSettingsSnapshot]);
+  }, [applyMeSnapshot, checkAuth, getSettingsSnapshot, loadPushDiagnostics]);
+
+  const pushStatus = pushDiagnostics?.delivery_ready
+    ? {
+        icon: 'checkmark-circle' as const,
+        title: 'Push Delivery Ready',
+        subtitle: pushDiagnostics.push_token?.preview
+          ? `Registered token ${pushDiagnostics.push_token.preview}`
+          : 'Registered token',
+        color: STATUS_COLORS.success,
+      }
+    : pushDiagnostics?.preferences?.notifications_enabled === false
+      ? {
+          icon: 'notifications-off-circle' as const,
+          title: 'Push Delivery Off',
+          subtitle: 'Notifications are disabled for this account',
+          color: STATUS_COLORS.warning,
+        }
+      : pushDiagnostics?.push_token?.present === false
+        ? {
+            icon: 'alert-circle' as const,
+            title: 'Device Token Missing',
+            subtitle: 'This device has not registered for push delivery',
+            color: STATUS_COLORS.warning,
+          }
+        : pushDiagnostics?.push_token?.valid_format === false
+          ? {
+              icon: 'alert-circle' as const,
+              title: 'Device Token Invalid',
+              subtitle: 'The stored push token cannot be used',
+              color: Colors[colorScheme ?? 'light'].destructive,
+            }
+          : pushDiagnosticsError
+            ? {
+                icon: 'alert-circle' as const,
+                title: 'Push Status Unavailable',
+                subtitle: pushDiagnosticsError,
+                color: Colors[colorScheme ?? 'light'].mutedText,
+              }
+            : {
+                icon: 'ellipse' as const,
+                title: 'Checking Push Delivery',
+                subtitle: 'Checking registration status',
+                color: Colors[colorScheme ?? 'light'].mutedText,
+              };
 
   return (
     <>
@@ -554,6 +632,36 @@ export default function SettingsScreen() {
         style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
         edges={['bottom']}
       >
+        {loading && (
+          <View style={styles.statusRow} accessibilityRole="progressbar">
+            <ActivityIndicator size="small" color={Colors[colorScheme ?? 'light'].tint} />
+            <Text style={[styles.statusText, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              Loading settings...
+            </Text>
+          </View>
+        )}
+
+        {!!error && (
+          <View
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: Colors[colorScheme ?? 'light'].surface,
+                borderColor: Colors[colorScheme ?? 'light'].destructive,
+              },
+            ]}
+          >
+            <Ionicons
+              name="alert-circle"
+              size={18}
+              color={Colors[colorScheme ?? 'light'].destructive}
+            />
+            <Text style={[styles.errorBannerText, { color: Colors[colorScheme ?? 'light'].text }]}>
+              {error}
+            </Text>
+          </View>
+        )}
+
         <ScrollView>
           {/* Account */}
           <SectionCard title="Account" initiallyOpen>
@@ -663,6 +771,35 @@ export default function SettingsScreen() {
 
           {/* Notifications */}
           <SectionCard title="Notifications" initiallyOpen>
+            <View
+              style={[
+                styles.notificationStatusRow,
+                { borderBottomWidth: 1, borderBottomColor: Colors[colorScheme ?? 'light'].border },
+              ]}
+            >
+              <Ionicons name={pushStatus.icon} size={20} color={pushStatus.color} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
+                  {pushStatus.title}
+                </Text>
+                <Text
+                  style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}
+                >
+                  {pushStatus.subtitle}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  void loadPushDiagnostics();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh push delivery status"
+                hitSlop={10}
+                style={styles.iconButton}
+              >
+                <Ionicons name="refresh" size={18} color={Colors[colorScheme ?? 'light'].tint} />
+              </Pressable>
+            </View>
             <SwitchRow
               title="Game/Event Reminders"
               value={!!prefs.notifications.game_event_reminders}
@@ -1363,6 +1500,33 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
   error: { marginHorizontal: 16, marginBottom: 8 },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   card: { marginHorizontal: 16, marginBottom: 6, borderRadius: 12, borderWidth: 1 },
   cardHeader: {
     flexDirection: 'row',
@@ -1381,6 +1545,18 @@ const styles = StyleSheet.create({
   },
   rowTitle: { fontWeight: '600' },
   mutedSmall: { fontSize: 12 },
+  notificationStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },
   chevOpen: { transform: [{ rotate: '90deg' }] },
   commentPermRow: { padding: 8 },

@@ -20,9 +20,12 @@ import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
+  buildPrivateTeamGameVisibilityWhere,
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
   getRequestBlockedCache,
+  mergeAndWhere,
 } from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
@@ -40,6 +43,7 @@ import {
   ORG_ADMIN_ROLES,
   TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
+import { buildBinaryVoteSummary } from '../lib/voteSummary.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
 import {
@@ -958,10 +962,7 @@ const summarizeVotes = async (gameId: string, userId?: string | null) => {
         })
       : Promise.resolve(null),
   ]);
-  const total = teamA + teamB;
-  const pctA = total ? Math.round((teamA / total) * 100) : 0;
-  const pctB = total ? 100 - pctA : 0;
-  return { teamA, teamB, total, pctA, pctB, userVote: mine?.team ?? null };
+  return buildBinaryVoteSummary(teamA, teamB, mine?.team);
 };
 
 type GameVisibilityRecord = {
@@ -1051,6 +1052,7 @@ gamesRouter.get(
       const lngRaw = Number.parseFloat(String(req.query.lng ?? ''));
       let viewerLat: number | null = Number.isFinite(latRaw) ? latRaw : null;
       let viewerLng: number | null = Number.isFinite(lngRaw) ? lngRaw : null;
+      const showAll = String(req.query.show_all || '').toLowerCase() === 'true';
       const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
       const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
 
@@ -1149,6 +1151,13 @@ gamesRouter.get(
         whereClause.opponent_approval_status = { in: ['not_required', 'approved'] };
       }
 
+      if (!wantsNonApproved) {
+        const privateTeamWhere = buildPrivateTeamGameVisibilityWhere(
+          await getExcludedPrivateTeamIds(authedReq.user?.id ?? null)
+        );
+        mergeAndWhere(whereClause, privateTeamWhere);
+      }
+
       // Scope non-approved games to the coach's managed teams/orgs (prevent data leak).
       // Admins see all; regular coaches only see pending games for their teams.
       if (wantsNonApproved && canViewNonApproved && authedReq.user?.id) {
@@ -1211,6 +1220,25 @@ gamesRouter.get(
         });
       }
 
+      // Organization page needs a single bounded calendar query. Without this
+      // filter the client had to issue one /games request per team, which made
+      // coach org pages scale linearly with the number of teams.
+      const organizationIdFilter =
+        typeof req.query.organization_id === 'string'
+          ? req.query.organization_id.trim()
+          : typeof req.query.org_id === 'string'
+            ? req.query.org_id.trim()
+            : null;
+      if (organizationIdFilter) {
+        if (!whereClause.AND) whereClause.AND = [];
+        whereClause.AND.push({
+          OR: [
+            { homeTeam: { organization_id: organizationIdFilter } },
+            { awayTeam: { organization_id: organizationIdFilter } },
+          ],
+        });
+      }
+
       // teamless=true: curated/marquee events (festivals, one-off watch parties)
       // created without a real team matchup. Used by the feed to fetch these
       // separately so they can't be paginated out by a flood of routine
@@ -1256,28 +1284,30 @@ gamesRouter.get(
         }
       }
 
-      // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
-      // Test note: once a game is in the past it should drop off the map. Map should only
-      // reflect games the week of in real time. This filter is opt-in so list views still work as before.
+      // map_view=true restricts to the rolling map window (today through +14 days).
+      // Widened from +7 to +14 (2026-08) so the map and feed cover the same 2-week
+      // window and stay in sync (mirror of utils/feedGameQueries.ts FEED_UPCOMING_WINDOW_MS).
+      // Test note: once a game is in the past it should drop off the map. This filter is
+      // opt-in so list views still work as before.
       const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
       if (isMapView) {
         const now = new Date();
-        const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
         const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
-        // Regular games are current-week only — a game drops off the map once
-        // it's in the past (by design). Marquee/teamless events (festivals) also
-        // stay pinned during their live window (started within 18h), so an
+        // Regular games are limited to the next two weeks — a game drops off the
+        // map once it's in the past (by design). Marquee/teamless events (festivals)
+        // also stay pinned during their live window (started within 18h), so an
         // all-day fest happening right now doesn't slide off the map at its
         // start time. Matched on null team columns so it holds regardless of
         // whether the map query flags teamless.
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
           OR: [
-            { date: { gte: now, lte: weekFromNow } },
+            { date: { gte: now, lte: twoWeeksFromNow } },
             {
               home_team_id: null,
               away_team_id: null,
-              date: { gte: liveLookback, lte: weekFromNow },
+              date: { gte: liveLookback, lte: twoWeeksFromNow },
             },
           ],
         });
@@ -1303,8 +1333,10 @@ gamesRouter.get(
       // and the followed-teams calendar (following) stay strictly date-ordered.
       if (
         viewerLat === null &&
+        !showAll &&
         authedReq.user?.id &&
         !teamIdFilter &&
+        !organizationIdFilter &&
         !following &&
         !wantsNonApproved
       ) {
@@ -2208,17 +2240,7 @@ gamesRouter.get(
       const result: Record<string, Awaited<ReturnType<typeof summarizeVotes>>> = {};
       for (const id of eligibleIds) {
         const counts = countMap.get(id) || { A: 0, B: 0 };
-        const total = counts.A + counts.B;
-        const pctA = total ? Math.round((counts.A / total) * 100) : 0;
-        const pctB = total ? 100 - pctA : 0;
-        result[id] = {
-          teamA: counts.A,
-          teamB: counts.B,
-          total,
-          pctA,
-          pctB,
-          userVote: userVoteMap.get(id) ?? null,
-        };
+        result[id] = buildBinaryVoteSummary(counts.A, counts.B, userVoteMap.get(id));
       }
       return res.json(result);
     } catch (err) {

@@ -38,11 +38,22 @@ describe('GameVerticalFeedScreen rail actions', () => {
     expect(source).toMatch(/setShowOptionsMenu\(false\);\s*onSharePost\(\);/);
   });
 
+  it('falls back to copying the link when native post sharing fails', () => {
+    expect(source).toContain("console.warn('[GameVerticalFeed] Link share failed");
+    expect(source).toContain("await import('expo-clipboard')");
+    expect(source).toContain(
+      "Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');"
+    );
+    expect(source).not.toMatch(
+      /Share\.share\(buildNativeSharePayload[\s\S]*\.catch\(\(\) => \{\}\)/
+    );
+  });
+
   it('keeps interactive overlays above the full-screen media press target', () => {
     expect(source).toMatch(/captionOverlay:\s*\{[\s\S]*zIndex:\s*20/);
     expect(source).toMatch(/rail:\s*\{[\s\S]*zIndex:\s*20/);
     expect(source).toMatch(/titleOverlay:\s*\{[\s\S]*zIndex:\s*30/);
-    expect(source).toContain('pointerEvents="box-none"');
+    expect(source).toContain("pointerEvents: 'box-none'");
   });
 
   it('closes modal-backed viewers before pushing a new route', () => {

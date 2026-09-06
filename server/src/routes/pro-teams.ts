@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
 import { serializeLiveWindow } from '../lib/geofencing.js';
+import { PRO_SCHEDULE_LEAGUES } from '../lib/proSchedule/types.js';
 import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -29,10 +30,8 @@ registerIdValidation(proTeamsRouter);
 const EVENT_PAGE_CAP = 25;
 const LIST_CAP = 60;
 
-const LEAGUES = ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const;
-
 const listQuerySchema = z.object({
-  league: z.enum(LEAGUES).optional(),
+  league: z.enum(PRO_SCHEDULE_LEAGUES).optional(),
   q: z.string().trim().min(1).max(80).optional(),
   limit: z.coerce.number().int().min(1).max(LIST_CAP).optional(),
 });

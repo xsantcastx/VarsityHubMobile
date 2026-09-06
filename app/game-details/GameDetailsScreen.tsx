@@ -21,10 +21,9 @@ import {
   getEventPresentationPhase,
   isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
-import { hasLocalEventPostingUnlock, recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
+import { recordEventPostingUnlock } from '@/utils/eventPostingUnlock';
 import { buildEventScrapbookPlan, eventScrapbookSeed } from '@/utils/eventPostGrid';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { isPostingWindowOpen, type LiveWindowFields } from '@/utils/liveWindow';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { replaceAsRedirect, safeGoBack } from '@/utils/navigation';
 import { pickerAllMediaTypesProp } from '@/utils/picker';
@@ -33,8 +32,23 @@ import { promptForSignIn } from '@/utils/requireSignIn';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getVenuePhotoFallback } from '@/utils/venuePhotoFallback';
+import {
+  canAddStory,
+  capCount,
+  computeIsPast,
+  DEMO_MATCHUP_TAG,
+  ensureIso,
+  finalsBannerForTeams,
+  formatDateLabel,
+  formatTimeLabel,
+  getVenuePhoto,
+  pickBannerFromArrays,
+  PLACEHOLDER_GRADIENT,
+  type GameVM,
+  type TeamInfo,
+} from '@/utils/gameDetailsPresentation';
 import { Ionicons } from '@expo/vector-icons';
-import { format } from 'date-fns';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -59,7 +73,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getApiBaseUrl } from '../../api/http';
+import { getApiBaseUrl } from '../../apiclient/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
@@ -83,143 +97,12 @@ import {
 import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 import StoriesViewer, { VIDEO_EXT, type MediaItem } from './StoriesViewer';
 
-import type { ColorValue } from 'react-native';
-const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = [
-  '#1e293b',
-  '#1d4ed8',
-  '#38bdf8',
-];
-
-type TeamInfo = { id: string; name: string; avatarUrl?: string | null };
-
-type GameVM = {
-  id: string;
-  gameId: string | null;
-  eventId: string | null;
-  title: string;
-  date: string;
-  location: string | null;
-  description?: string | null;
-  bannerUrl?: string | null;
-  venuePhotoUrl?: string | null;
-  venuePhotoCredit?: string | null;
-  homeTeam?: string | null;
-  awayTeam?: string | null;
-  appearance?: string | null;
-  coverImageUrl?: string | null;
-  capacity?: number | null;
-  rsvpCount?: number | null;
-  userRsvped?: boolean;
-  teams: TeamInfo[];
-  posts: any[];
-  media: MediaItem[];
-  reviewsCount?: number | null;
-  isPast: boolean;
-  eventType?: string | null;
-  home_score?: number | null;
-  away_score?: number | null;
-  winner?: string | null;
-  can_edit_result?: boolean;
-  venueLat?: number | null;
-  venueLng?: number | null;
-  // Server-computed posting-window bounds (GET /games/:id[/summary]); used to
-  // gate story posting on the real per-event window instead of a 3h fallback.
-  starts_at?: string | null;
-  live_from?: string | null;
-  live_until?: string | null;
-};
-
-const ensureIso = (value: any) => {
-  if (!value) return null;
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  return null;
-};
-
-const getVenuePhoto = (value: unknown): { url: string | null; credit: string | null } => {
-  if (!value || typeof value !== 'object') {
-    return { url: null, credit: null };
-  }
-  const record = value as { url?: unknown; credit?: unknown };
-  return {
-    url: typeof record.url === 'string' ? record.url : null,
-    credit: typeof record.credit === 'string' ? record.credit : null,
-  };
-};
-
-const formatDateLabel = (iso?: string | null) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return format(d, 'EEE, MMM d, yyyy');
-};
-
-const formatTimeLabel = (iso?: string | null) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return format(d, 'h:mm a');
-};
-
-const computeIsPast = (iso?: string | null) => {
-  return isEventPastEndOfDay(iso);
-};
-
-// Kept in sync with server/scripts/seed-demo-matchups.ts DEMO_TAG and the
-// carve-out in server/src/routes/gameStories.ts — changing this string
-// silently breaks the client gate for seeded promo matchups.
-const DEMO_MATCHUP_TAG = '[DEMO_MATCHUP]';
-
-const canAddStory = (
-  eventIso?: string | null,
-  gameId?: string | null,
-  description?: string | null,
-  liveWindow?: LiveWindowFields | null
-) => {
-  // Seeded demo matchups (Duke v UNC, Cavs v Warriors) bypass the day-of gate
-  // to match the server-side [DEMO_MATCHUP] carve-out in gameStories.ts.
-  if (typeof description === 'string' && description.includes(DEMO_MATCHUP_TAG)) return true;
-
-  // Without an event date, allow uploading — no window to enforce client-side
-  if (!eventIso) return true;
-
-  // Mirrors the server's `isStoryPostingWindowOpen` (geofencing.ts): stories
-  // are LIVE-ONLY (owner rule, 2026-07-16 — "USERS CANT UPLOAD TO STORIES
-  // AFTER THEY HAVE LEFT THE GAME", "do not get the same 7 days after the
-  // fact"). This used to run from the event's UTC midnight through +48h.
-  // Prefer the server-computed bounds when the payload carries them so the
-  // per-event override (fest days run 18h) is honored; otherwise fall back to
-  // the server's default window off the event date.
-  return isPostingWindowOpen({ ...(liveWindow ?? {}), date: eventIso });
-};
-
-const capCount = (count?: number | null, capacity?: number | null) => {
-  if (typeof count !== 'number') return null;
-  if (typeof capacity === 'number' && capacity >= 0) return Math.min(count, capacity);
-  return count;
-};
-
 const openMaps = (location: string) => {
   const query = encodeURIComponent(location);
   const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
   Linking.openURL(url).catch(error => {
     if (__DEV__) console.warn('[GameDetails] Failed to open maps URL:', error);
   });
-};
-
-// No special-case banner — kept generic for any matchup
-const finalsBannerForTeams = (
-  _home?: string | null,
-  _away?: string | null,
-  _title?: string | null
-) => {
-  return null;
-};
-
-const pickBannerFromArrays = (vm: Partial<GameVM>) => {
-  const finalsBanner = finalsBannerForTeams(vm.homeTeam, vm.awayTeam, vm.title as any);
-  const result = vm.bannerUrl || vm.coverImageUrl || finalsBanner || null;
-  return result;
 };
 
 const GameDetailsScreen = () => {
@@ -308,6 +191,7 @@ const GameDetailsScreen = () => {
   const [preciseBannerDismissed, setPreciseBannerDismissed] = useState(false);
   const showTopFabRef = useRef(false);
   const currentUserIdRef = useRef<string | null>(null);
+  const hasCompletedInitialLoadRef = useRef(false);
   const headerTranslateY = useMemo(
     () =>
       feedY.interpolate({
@@ -448,7 +332,7 @@ const GameDetailsScreen = () => {
 
     if ((!home || !away) && title) {
       const parts = title
-        .split(/\s+vs\.?\s+/i)
+        .split(/\s+(?:vs\.?|at)\s+/i)
         .map(part => part.trim())
         .filter(Boolean);
       if (!home && parts[0]) home = parts[0];
@@ -510,8 +394,8 @@ const GameDetailsScreen = () => {
   }, [vm?.date, nowTs]);
 
   const canShowVoteSection = useMemo(
-    () => canShowGamePoll({ gameId: vm?.gameId, eventType: vm?.eventType }),
-    [vm?.eventType, vm?.gameId]
+    () => canShowGamePoll({ gameId: vm?.gameId, eventId: vm?.eventId, eventType: vm?.eventType }),
+    [vm?.eventId, vm?.eventType, vm?.gameId]
   );
 
   // Keep event-page interactions active through the end of the event day.
@@ -595,7 +479,7 @@ const GameDetailsScreen = () => {
     const title = (vm?.title || '').replace(/\s+/g, ' ').trim();
     if (title) {
       const parts = title
-        .split(/\s+vs\.?\s+/i)
+        .split(/\s+(?:vs\.?|at)\s+/i)
         .map(part => part.trim())
         .filter(Boolean);
       if (parts.length >= 2) {
@@ -1081,10 +965,10 @@ const GameDetailsScreen = () => {
         });
 
       // H1 fix (2026-07-14): the rich page must actually fetch a standalone
-      // event's posts/media. Previously loadVirtualFromEvent left posts:[]/
-      // media:[] so a fan's posts to an event were invisible here (while the
-      // deprecated bare page did fetch them). Mirror the game path: hydrate
-      // posts via Post.getByEvent and derive the media grid from them.
+      // event's posts. Previously loadVirtualFromEvent left posts:[] so a fan's
+      // posts to an event were invisible here (while the deprecated bare page
+      // did fetch them). Keep the Stories/media rail separate: normal event
+      // posts must not masquerade as Story rows.
       void retryWithBackoff(() => Post.getByEvent(eventIdValue), {
         maxRetries: 2,
         initialDelayMs: 800,
@@ -1097,24 +981,9 @@ const GameDetailsScreen = () => {
               ? postsResult.items
               : [];
           if (!items.length) return;
-          const media: MediaItem[] = items
-            .filter((p: any) => p?.media_url)
-            .map((p: any) => {
-              const url = String(p.media_url);
-              const isVideo = VIDEO_EXT.test(url.toLowerCase());
-              return {
-                id: String(p.id),
-                url,
-                thumbnail_url: p.preview_url || undefined,
-                kind: isVideo ? 'video' : 'photo',
-                created_at: p.created_at,
-                caption: p.caption ?? p.content ?? null,
-                user_id: p.author?.id ?? p.author_id ?? null,
-              } as MediaItem;
-            });
           setVm(prev => {
             if (!prev || prev.eventId !== eventIdValue || prev.gameId) return prev;
-            return { ...prev, posts: items, media };
+            return { ...prev, posts: items };
           });
         })
         .catch(error => {
@@ -1144,18 +1013,10 @@ const GameDetailsScreen = () => {
     // them regardless of distance.
     const vmDescription = typeof vm.description === 'string' ? vm.description : '';
     const isDemoMatchup = vmDescription.includes(DEMO_MATCHUP_TAG);
-    // First-post-unlocks-7-days (owner rule 2026-07-15): a user who already
-    // posted/storied to this event page may keep uploading without re-passing
-    // the geofence — skip the client preflight blocks and let the server
-    // (which holds the authoritative unlock ledger) decide.
-    const hasPostingUnlock = await hasLocalEventPostingUnlock([vm.gameId, vm.eventId]);
-    if (
-      !isDemoMatchup &&
-      !isAdminUser &&
-      !hasPostingUnlock &&
-      location?.latitude &&
-      location?.longitude
-    ) {
+    // Local unlock proves prior attendance for regular posts only. Stories are
+    // live-window media and must re-pass geofence each time, matching the
+    // server's story permission contract.
+    if (!isDemoMatchup && !isAdminUser && location?.latitude && location?.longitude) {
       const venueLat = vm.venueLat;
       const venueLng = vm.venueLng;
       if (typeof venueLat === 'number' && typeof venueLng === 'number') {
@@ -1198,11 +1059,10 @@ const GameDetailsScreen = () => {
     if (!permissionGranted || (Platform.OS === 'android' && needsPreciseAccuracy)) {
       const granted = await requestPermission();
       if (!granted) {
-        // If the game has a linked event and it's not a demo, location is REQUIRED
-        // by the server for a FIRST story. Block early to avoid wasting a
-        // Cloudinary upload — unless the user already holds a posting unlock,
-        // in which case the server accepts stories without location.
-        if (hasEvent && !isDemoMatchup && !isAdminUser && !hasPostingUnlock) {
+        // If the game has a linked event and it's not a demo, location is
+        // required by the server for stories. Block early to avoid wasting a
+        // direct upload that the server will reject.
+        if (hasEvent && !isDemoMatchup && !isAdminUser) {
           Alert.alert(
             'Location Required',
             'Location access is required to post stories at live events. Enable it in Settings to continue.',
@@ -1237,6 +1097,27 @@ const GameDetailsScreen = () => {
             },
           ]
         );
+      }
+    }
+
+    if (
+      hasEvent &&
+      !isDemoMatchup &&
+      !isAdminUser &&
+      (typeof location?.latitude !== 'number' || typeof location?.longitude !== 'number')
+    ) {
+      const granted = permissionGranted ? true : await requestPermission();
+      if (
+        !granted ||
+        typeof location?.latitude !== 'number' ||
+        typeof location?.longitude !== 'number'
+      ) {
+        Alert.alert(
+          'Location Not Ready',
+          'Event stories require current device location within 3 km of the venue. Wait a moment and try again.',
+          [{ text: 'OK' }]
+        );
+        return;
       }
     }
 
@@ -1362,7 +1243,10 @@ const GameDetailsScreen = () => {
           logTag: 'story.upload.photo',
         });
       } else if (code === 'POSTING_WINDOW_CLOSED') {
-        Alert.alert('Not Yet', serverMsg || 'The story posting window is not open for this event.');
+        Alert.alert(
+          'Story Posting Closed',
+          serverMsg || 'The story posting window is not open for this event.'
+        );
       } else if (code === 'TOO_FAR_FROM_VENUE') {
         const dist = err?.data?.distance;
         Alert.alert(
@@ -1510,7 +1394,10 @@ const GameDetailsScreen = () => {
           logTag: 'story.upload.video',
         });
       } else if (code === 'POSTING_WINDOW_CLOSED') {
-        Alert.alert('Not Yet', serverMsg || 'The story posting window is not open for this event.');
+        Alert.alert(
+          'Story Posting Closed',
+          serverMsg || 'The story posting window is not open for this event.'
+        );
       } else if (code === 'TOO_FAR_FROM_VENUE') {
         const dist = err?.data?.distance;
         Alert.alert(
@@ -1552,21 +1439,25 @@ const GameDetailsScreen = () => {
   ]);
 
   const _refreshVotes = useCallback(async () => {
-    if (!canShowVoteSection || !vm?.gameId) {
+    const voteId = vm?.gameId ?? vm?.eventId;
+    if (!canShowVoteSection || !voteId) {
       setVoteSummary(null);
       return;
     }
     try {
-      const res: any = await retryWithBackoff(() => Game.votesSummary(vm.gameId!), {
-        maxRetries: 2,
-        initialDelayMs: 800,
-        maxDelayMs: 4000,
-      });
+      const res: any = await retryWithBackoff(
+        () => (vm?.gameId ? Game.votesSummary(voteId) : Event.votesSummary(voteId)),
+        {
+          maxRetries: 2,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
+        }
+      );
       setVoteSummary(parseVoteSummary(res));
     } catch (err) {
       if (__DEV__) console.warn('Failed to load game votes', err);
     }
-  }, [canShowVoteSection, vm?.gameId]);
+  }, [canShowVoteSection, vm?.eventId, vm?.gameId]);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -1616,6 +1507,7 @@ const GameDetailsScreen = () => {
       } finally {
         // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] load() — finally: clearing loading state');
+        hasCompletedInitialLoadRef.current = true;
         if (isRefresh) setRefreshing(false);
         else setLoading(false);
       }
@@ -1633,18 +1525,26 @@ const GameDetailsScreen = () => {
     return () => task.cancel();
   }, [eventId, id, load]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasCompletedInitialLoadRef.current) return undefined;
+      void load(true);
+      return undefined;
+    }, [load])
+  );
+
   // Reset per-event UI state immediately when navigating to a different event
   useEffect(() => {
     setVoteSummary(null); // Clear previous event's vote data right away
     setSeenStories({}); // Reset seen-story badges for fresh event
   }, [id, eventId]);
 
-  // Fetch vote summary for this event once vm.gameId is available
+  // Fetch vote summary once a competitive game/event id is available.
   useEffect(() => {
-    if (vm?.gameId) {
+    if (vm?.gameId || vm?.eventId) {
       void _refreshVotes();
     }
-  }, [vm?.gameId, _refreshVotes]);
+  }, [vm?.eventId, vm?.gameId, _refreshVotes]);
 
   useEffect(() => {
     const total = _voteSummary?.total ?? 0;
@@ -1795,17 +1695,19 @@ const GameDetailsScreen = () => {
         return applyVoteSelection(prev, team);
       });
 
-      // Use gameId if available, otherwise fall back to eventId for event-only pages
-      const voteId = vm?.gameId || vm?.eventId;
-      if (!voteId) return; // Safety check
+      const voteId = vm?.gameId ?? vm?.eventId;
+      if (!voteId) return;
 
       setVoteBusy(true);
       try {
-        const res: any = await retryWithBackoff(() => Game.castVote(voteId, team), {
-          maxRetries: 2,
-          initialDelayMs: 800,
-          maxDelayMs: 4000,
-        });
+        const res: any = await retryWithBackoff(
+          () => (vm?.gameId ? Game.castVote(voteId, team) : Event.castVote(voteId, team)),
+          {
+            maxRetries: 2,
+            initialDelayMs: 800,
+            maxDelayMs: 4000,
+          }
+        );
         // The response from the server is the latest truth
         setVoteSummary(parseVoteSummary(res));
         // We can also refresh votes as a secondary measure if needed
@@ -1828,39 +1730,25 @@ const GameDetailsScreen = () => {
 
   const handleClearVote = useCallback(async () => {
     if (!isVoteOpen) return;
-    // Event-only pages (no gameId) only update local state
-    const isEventOnly = !vm?.gameId && vm?.eventId;
+    const currentVoteSummary = _voteSummary;
+    if (!currentVoteSummary?.userVote) return;
 
-    let rollback: VoteSummary | null = null;
-    let hasVoteToClear = false;
-    setVoteSummary(prev => {
-      // Early return if there's no vote to clear
-      if (!prev?.userVote) {
-        return prev;
-      }
-      hasVoteToClear = true;
-      rollback = { ...prev };
-      return applyClearVote(prev);
-    });
+    const rollback: VoteSummary = { ...currentVoteSummary };
+    setVoteSummary(applyClearVote(currentVoteSummary));
 
-    // Early return if there's no vote to clear - prevents unnecessary API calls
-    if (!hasVoteToClear) return;
-
-    // For event-only pages, just update local state and don't call API
-    if (isEventOnly) {
-      setVoteBusy(false);
-      return;
-    }
-
-    if (!vm?.gameId) return; // Safety check
+    const voteId = vm?.gameId ?? vm?.eventId;
+    if (!voteId) return;
 
     setVoteBusy(true);
     try {
-      const res: any = await retryWithBackoff(() => Game.clearVote(vm.gameId!), {
-        maxRetries: 2,
-        initialDelayMs: 800,
-        maxDelayMs: 4000,
-      });
+      const res: any = await retryWithBackoff(
+        () => (vm?.gameId ? Game.clearVote(voteId) : Event.clearVote(voteId)),
+        {
+          maxRetries: 2,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
+        }
+      );
       setVoteSummary(parseVoteSummary(res));
     } catch (err: any) {
       if (rollback) setVoteSummary(rollback);
@@ -1873,7 +1761,7 @@ const GameDetailsScreen = () => {
     } finally {
       setVoteBusy(false);
     }
-  }, [isVoteOpen, vm?.eventId, vm?.gameId]);
+  }, [_voteSummary, isVoteOpen, vm?.eventId, vm?.gameId]);
 
   const renderStoriesCarousel = () => {
     const mediaItems = (vm?.media ?? []).map(m => ({
@@ -2011,7 +1899,7 @@ const GameDetailsScreen = () => {
             )}
           </Animated.View>
 
-          <View style={styles.voteTouchLayer} pointerEvents={pressDisabled ? 'none' : 'auto'}>
+          <View style={[styles.voteTouchLayer, { pointerEvents: pressDisabled ? 'none' : 'auto' }]}>
             <Pressable
               style={styles.voteTouchHalf}
               disabled={pressDisabled}
@@ -2161,13 +2049,12 @@ const GameDetailsScreen = () => {
         />
         {/* Shade the banner less when this is a hero image so logos are visible */}
         <LinearGradient
-          pointerEvents="none"
           colors={
             isHero
               ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)']
               : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']
           }
-          style={styles.bannerShade}
+          style={[styles.bannerShade, { pointerEvents: 'none' }]}
         />
 
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
@@ -2583,11 +2470,11 @@ const GameDetailsScreen = () => {
       <Stack.Screen options={{ headerShown: false }} />
 
       <Animated.View
-        pointerEvents="box-none"
         style={[
           styles.headerWrap,
           {
             top: insets.top,
+            pointerEvents: 'box-none',
             transform: [{ translateY: headerTranslateY }],
             opacity: headerOpacity,
           },
@@ -2612,7 +2499,7 @@ const GameDetailsScreen = () => {
           />
         }
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: feedY } } }], {
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
           listener: handleScroll,
         })}
         scrollEventThrottle={16}
@@ -2769,8 +2656,8 @@ const GameDetailsScreen = () => {
                   <Pressable
                     style={styles.addPostButton}
                     onPress={() => {
-                      const targetGameId = vm?.gameId || vm?.eventId;
-                      if (!targetGameId) {
+                      const targetId = vm?.gameId || vm?.eventId;
+                      if (!targetId) {
                         Alert.alert('Create Post', 'Reload this event before creating a post.');
                         return;
                       }
@@ -2785,11 +2672,18 @@ const GameDetailsScreen = () => {
                         );
                         return;
                       }
-                      // Game detail highlights must create highlight posts so they
-                      // show up in the game highlight surfaces and filters.
+                      // The Posts action creates a normal event post. Stories
+                      // are created only through Add Story above, so a single
+                      // upload never intentionally writes to both destinations.
                       void router.push({
                         pathname: '/create-post',
-                        params: { gameId: String(targetGameId), type: 'highlight' },
+                        params: vm?.gameId
+                          ? {
+                              gameId: String(vm.gameId),
+                              ...(vm.eventId ? { eventId: String(vm.eventId) } : {}),
+                              type: 'post',
+                            }
+                          : { eventId: String(vm?.eventId), type: 'post' },
                       } as any);
                     }}
                   >
@@ -2903,7 +2797,7 @@ const GameDetailsScreen = () => {
                 ) : (
                   <View>
                     <Text style={[styles.muted, styles.sectionHelper]}>
-                      Be the first to share a highlight for this game.
+                      Be the first to post about this game.
                     </Text>
                     <View style={styles.postsMasonryGrid}>
                       <View style={styles.masonryColumn}>

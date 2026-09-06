@@ -1,3 +1,4 @@
+import { AdminAccessState } from '@/components/AdminAccessState';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -382,34 +383,8 @@ function AdminDashboardScreen() {
     </View>
   );
 
-  if (adminLoading) {
-    return (
-      <SafeAreaView
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: Colors[colorScheme].background,
-        }}
-      >
-        <ActivityIndicator color={Colors[colorScheme].tint} />
-      </SafeAreaView>
-    );
-  }
-  if (!isAdmin) {
-    return (
-      <SafeAreaView
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: Colors[colorScheme].background,
-        }}
-      >
-        <Text style={{ color: Colors[colorScheme].text }}>Admin access required</Text>
-      </SafeAreaView>
-    );
-  }
+  if (adminLoading) return <AdminAccessState colorScheme={colorScheme} state="loading" />;
+  if (!isAdmin) return <AdminAccessState colorScheme={colorScheme} state="denied" />;
 
   return (
     <SafeAreaView

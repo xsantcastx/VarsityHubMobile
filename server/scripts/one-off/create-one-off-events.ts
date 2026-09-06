@@ -17,11 +17,13 @@
  */
 import { PrismaClient } from '@prisma/client';
 import 'dotenv/config';
+import { SPORTS_LEAGUE_CATALOG_BY_SLUG } from '../../src/lib/sportsLeagueCatalog';
 import { EVENTS, type OneOffEventDef } from './one-off-events.data';
 
 const prisma = new PrismaClient();
 
 const ADMIN_EMAIL = 'emancero@varsityhub.app';
+const sportsLeagueIdCache = new Map<string, string>();
 
 interface Admin {
   id: string;
@@ -85,8 +87,55 @@ async function ensureTeam(
   return team.id;
 }
 
+async function ensureSportsLeague(slug: string, dryRun: boolean): Promise<string> {
+  const cached = sportsLeagueIdCache.get(slug);
+  if (cached) return cached;
+
+  const existing = await prisma.sportsLeague.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+  if (existing) {
+    sportsLeagueIdCache.set(slug, existing.id);
+    return existing.id;
+  }
+
+  const entry = SPORTS_LEAGUE_CATALOG_BY_SLUG.get(slug);
+  if (!entry) {
+    throw new Error(`SportsLeague slug "${slug}" not found in catalog`);
+  }
+  if (dryRun) {
+    console.log(`[dry-run] Would create SportsLeague "${slug}"`);
+    sportsLeagueIdCache.set(slug, entry.id);
+    return entry.id;
+  }
+
+  const created = await prisma.sportsLeague.upsert({
+    where: { slug },
+    create: entry,
+    update: {
+      name: entry.name,
+      sport_slug: entry.sport_slug,
+      level: entry.level,
+      gender: entry.gender,
+      country_code: entry.country_code,
+      provider: entry.provider,
+      provider_league_id: entry.provider_league_id,
+      active: entry.active,
+    },
+    select: { id: true },
+  });
+  console.log(`✅ SportsLeague created: "${slug}" (${created.id})`);
+  sportsLeagueIdCache.set(slug, created.id);
+  return created.id;
+}
+
 async function ensureOneOffEvent(def: OneOffEventDef, admin: Admin, dryRun: boolean) {
   const date = new Date(def.dateUtc);
+  let sportsLeagueId: string | null = null;
+  if (def.sportsLeagueSlug) {
+    sportsLeagueId = await ensureSportsLeague(def.sportsLeagueSlug, dryRun);
+  }
 
   // Teams + game record first — runs even when the event already exists, so
   // team logos and game↔team links get backfilled on re-runs. Gated on
@@ -182,7 +231,7 @@ async function ensureOneOffEvent(def: OneOffEventDef, admin: Admin, dryRun: bool
 
   const existing = await prisma.event.findFirst({
     where: { title: def.title, date },
-    select: { id: true, title: true, banner_url: true, game_id: true },
+    select: { id: true, title: true, banner_url: true, game_id: true, sports_league_id: true },
   });
   if (existing) {
     console.log(`ℹ️  Event already exists: "${existing.title}" (${existing.id})`);
@@ -206,6 +255,17 @@ async function ensureOneOffEvent(def: OneOffEventDef, admin: Admin, dryRun: bool
           data: { banner_url: def.bannerUrl },
         });
         console.log(`   ✅ Venue banner backfilled`);
+      }
+    }
+    if (sportsLeagueId && existing.sports_league_id !== sportsLeagueId) {
+      if (dryRun) {
+        console.log(`   [dry-run] Would set sports league ${def.sportsLeagueSlug}`);
+      } else {
+        await prisma.event.update({
+          where: { id: existing.id },
+          data: { sports_league_id: sportsLeagueId },
+        });
+        console.log(`   ✅ Sports league linked: ${def.sportsLeagueSlug}`);
       }
     }
     return;
@@ -242,6 +302,7 @@ async function ensureOneOffEvent(def: OneOffEventDef, admin: Admin, dryRun: bool
       max_attendees: def.maxAttendees,
       contact_info: def.contactInfo,
       linked_league: def.linkedLeague,
+      sports_league_id: sportsLeagueId,
       banner_url: def.bannerUrl,
     },
   });

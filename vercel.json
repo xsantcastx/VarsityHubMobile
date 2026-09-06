@@ -6,7 +6,7 @@
   "framework": null,
   "cleanUrls": true,
   "trailingSlash": false,
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- ':!server/' ':!.github/' ':!ios/' ':!android/'",
+  "ignoreCommand": "(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git rev-parse --verify HEAD^ >/dev/null 2>&1 && git diff --quiet HEAD^ HEAD -- ':!server/' ':!.github/' ':!ios/' ':!android/') || exit 1",
   "redirects": [
     {
       "source": "/((?!\\.well-known/).*)",

@@ -56,7 +56,12 @@ const sampleTeamSummary = {
       id: 'm1',
       role: 'coach',
       status: 'active',
-      user: { id: 'user1', display_name: 'Jane Coach', email: 'jane@example.com' },
+      user: {
+        id: 'user1',
+        display_name: 'Jane Coach',
+        username: 'janec',
+        email: 'jane@example.com',
+      },
     },
   ],
   pending_invites: [],
@@ -77,6 +82,6 @@ describe('ManageUsersScreen (react-query render smoke)', () => {
       </QueryWrapper>
     );
     await waitFor(() => expect(mockManaged).toHaveBeenCalled());
-    expect(await screen.findByText('Jane Coach')).toBeTruthy();
+    expect(await screen.findByText('@janec')).toBeTruthy();
   });
 });

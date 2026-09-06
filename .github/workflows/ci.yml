@@ -125,6 +125,25 @@ jobs:
       - name: Run TypeScript type check
         run: npm run typecheck
 
+  web-export-warning-guard:
+    name: Web Export Warning Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check web export console output
+        run: npm run web:export:check
+
   server-checks:
     name: Server TypeScript & Prisma
     runs-on: ubuntu-latest
@@ -290,6 +309,7 @@ jobs:
         route-guardrails,
         lint,
         typecheck,
+        web-export-warning-guard,
         server-checks,
         server-invariants,
         server-tests,
@@ -306,6 +326,7 @@ jobs:
              [ "${{ needs.route-guardrails.result }}" != "success" ] || \
              [ "${{ needs.lint.result }}" != "success" ] || \
              [ "${{ needs.typecheck.result }}" != "success" ] || \
+             [ "${{ needs.web-export-warning-guard.result }}" != "success" ] || \
              [ "${{ needs.server-checks.result }}" != "success" ] || \
              [ "${{ needs.server-invariants.result }}" != "success" ] || \
              [ "${{ needs.server-tests.result }}" != "success" ] || \

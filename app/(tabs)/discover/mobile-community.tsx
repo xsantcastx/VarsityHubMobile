@@ -10,6 +10,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Calendar, DateData } from 'react-native-calendars';
 import {
   ActivityIndicator,
   Alert,
@@ -27,6 +28,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, Game, Organization, Post, Search, Team, User } from '@/api/entities';
+import { httpGet } from '@/api/http';
+import { validateEventCards } from '@/api/schemas/eventCard';
+import { buildDiscoverMarkedDates, splitCalendarCards } from '@/utils/discoverCalendar';
+import { buildMapDiscoveryPath, toMapEvents } from '@/utils/mapDiscovery';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -39,7 +44,6 @@ import { optimizeImageUrl } from '@/utils/imageUrl';
 import { resolveMediaType } from '@/utils/media';
 import { getCoachAccessState, getCoachFinishSetupRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
-import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 // Guard against internal IDs (cuid / UUID) being leaked as display text
@@ -49,11 +53,10 @@ const isInternalId = (s: string) =>
   (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)); // Random ID (no vowel pairs = not a real name)
 
 const safeDisplayName = (user: any): string => {
-  // Prefer username as the primary identifier (what the user chose during signup)
+  // Owner rule (note 5): a user is recognized ONLY by their username — never a
+  // real name / display_name / email. No display_name fallback.
   const uname = user?.username;
   if (uname && !isInternalId(uname)) return uname;
-  const name = user?.display_name;
-  if (name && !isInternalId(name)) return name;
   return 'User';
 };
 
@@ -76,11 +79,72 @@ type GameItem = {
   longitude?: number | null;
   cover_image_url?: string;
   banner_url?: string | null;
+  event_id?: string | null;
+  game_id?: string | null;
+  source_type?: 'game' | 'event';
+  pro_league?: string | null;
 };
 
 type ZipDirectoryEntry = { zip: string; count: number };
 
 const ZIP_REGEX = /\b\d{5}\b/g;
+const DISCOVER_NCAA_LEAGUES = ['ncaaf', 'ncaamb', 'ncaawb', 'ncaabaseball', 'ncaamhockey'] as const;
+const DISCOVER_EVENT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const DISCOVER_EVENT_LOOKAHEAD_MS = 14 * 24 * 60 * 60 * 1000;
+const USA_WIDE_REGION = {
+  latitude: 39.8,
+  longitude: -98.5,
+  latitudeDelta: 50,
+  longitudeDelta: 50,
+};
+
+const normalizeMapEvent = (event: any): GameItem | null => {
+  if (!event || typeof event.id !== 'string') return null;
+  return {
+    id: String(event.game_id || event.id),
+    title: event.title || event.game?.title || 'Game',
+    date: event.date || event.game?.date || undefined,
+    location: event.location || event.game?.location || undefined,
+    latitude:
+      typeof event.latitude === 'number'
+        ? event.latitude
+        : typeof event.game?.latitude === 'number'
+          ? event.game.latitude
+          : null,
+    longitude:
+      typeof event.longitude === 'number'
+        ? event.longitude
+        : typeof event.game?.longitude === 'number'
+          ? event.game.longitude
+          : null,
+    cover_image_url: event.game?.cover_image_url || event.cover_image_url || undefined,
+    banner_url: event.banner_url || null,
+    event_id: event.id,
+    game_id: event.game_id || null,
+    source_type: event.game_id ? 'game' : 'event',
+    pro_league: event.pro_league || null,
+  };
+};
+
+const mergeDiscoverEvents = (...groups: GameItem[][]): GameItem[] => {
+  const seen = new Set<string>();
+  const merged: GameItem[] = [];
+  for (const group of groups) {
+    for (const item of group) {
+      const key = item.event_id ? `event:${item.event_id}` : `game:${item.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+  return merged.sort((a, b) => {
+    const at = a.date ? new Date(a.date).getTime() : NaN;
+    const bt = b.date ? new Date(b.date).getTime() : NaN;
+    if (!Number.isFinite(at)) return 1;
+    if (!Number.isFinite(bt)) return -1;
+    return at - bt;
+  });
+};
 
 const buildZipDirectory = (items: GameItem[]): ZipDirectoryEntry[] => {
   const counts = new Map<string, number>();
@@ -222,6 +286,8 @@ function CommunityDiscoverScreen() {
   // fan actions) and keeps the branch fresh when auth state changes, without
   // refetching on every focus.
   const coachAccess = useMemo(() => getCoachAccessState((user ?? me) as any), [user, me]);
+  const viewerId = typeof (user ?? me)?.id === 'string' ? String((user ?? me).id) : null;
+  const isSignedIn = !!viewerId;
   // Role-barrier model: non-coach "authorized users" (team manager /
   // assistant_coach memberships) get exactly one quick action — Approvals
   // (roster + event approve/deny). Probe managed teams only when the coach
@@ -229,7 +295,6 @@ function CommunityDiscoverScreen() {
   const [hasStaffTeams, setHasStaffTeams] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    const isSignedIn = !!(user ?? me);
     if (!isSignedIn || coachAccess.canAccessCoachTools || coachAccess.isApprovedCoach) {
       setHasStaffTeams(false);
       return;
@@ -250,7 +315,7 @@ function CommunityDiscoverScreen() {
     return () => {
       cancelled = true;
     };
-  }, [user, me, coachAccess.canAccessCoachTools, coachAccess.isApprovedCoach]);
+  }, [isSignedIn, coachAccess.canAccessCoachTools, coachAccess.isApprovedCoach]);
   const showPrecisionBanner =
     Platform.OS === 'android' &&
     permissionGranted &&
@@ -330,6 +395,12 @@ function CommunityDiscoverScreen() {
   // change, independent of the data queries below.
   useEffect(() => {
     let mounted = true;
+    if (!user) {
+      setMe(null);
+      return () => {
+        mounted = false;
+      };
+    }
     void (async () => {
       try {
         const snapshot = await getAuthSnapshot(checkAuth, user);
@@ -365,30 +436,26 @@ function CommunityDiscoverScreen() {
     error: gamesError,
     refetch: refetchGames,
   } = useQuery({
-    queryKey: ['discover-games', user?.id ?? 'guest'],
+    queryKey: ['discover-games', viewerId ?? 'guest'],
     enabled: interactionsDone,
     queryFn: async (): Promise<GameItem[]> => {
-      const snapshot: any = await getAuthSnapshot(checkAuth, user).catch(() => null);
-      const raw = await Game.list('-date');
+      const snapshot: any = user ? await getAuthSnapshot(checkAuth, user).catch(() => null) : null;
+      const nowMs = Date.now();
+      const dateFrom = new Date(nowMs - DISCOVER_EVENT_LOOKBACK_MS).toISOString();
+      const dateTo = new Date(nowMs + DISCOVER_EVENT_LOOKAHEAD_MS).toISOString();
+      const raw = await Game.list('date', { dateFrom, dateTo, limit: 100 });
       let normalizedGames = Array.isArray(raw) ? raw : raw?.games || raw?.items || [];
-
-      // Filter out past events by default
-      const now = new Date();
-      normalizedGames = normalizedGames.filter((g: any) => {
-        if (!g.date) return true; // Keep games without dates
-        const gameDate = new Date(g.date);
-        return !isNaN(gameDate.getTime()) && gameDate >= now;
-      });
 
       const zip = snapshot?.preferences?.zip_code
         ? String(snapshot.preferences.zip_code).trim()
         : '';
-      if (zip) {
+      const prioritizeByZip = (items: GameItem[]) => {
+        if (!zip) return items;
         // Normalize zip code (remove dashes, spaces)
         const normalizedZip = zip.replace(/[-\s]/g, '').toLowerCase();
         const withZip: GameItem[] = [];
         const withoutZip: GameItem[] = [];
-        normalizedGames.forEach((g: GameItem) => {
+        items.forEach((g: GameItem) => {
           const hay =
             `${(g as any)?.location || ''} ${(g as any)?.address || ''} ${(g as any)?.city || ''}`.toLowerCase();
           // Extract zip codes from location string and check if any match
@@ -402,13 +469,67 @@ function CommunityDiscoverScreen() {
             withoutZip.push(g);
           }
         });
-        normalizedGames = [...withZip, ...withoutZip];
-      }
+        return [...withZip, ...withoutZip];
+      };
+      normalizedGames = prioritizeByZip(normalizedGames);
+
+      void Promise.all([
+        Event.filter(
+          {
+            event_type: 'game',
+            pro_only: true,
+            event_only: true,
+            from: dateFrom,
+            to: dateTo,
+          },
+          'date',
+          100
+        ).catch(() => []),
+        ...DISCOVER_NCAA_LEAGUES.map(league =>
+          Event.filter(
+            {
+              event_type: 'game',
+              pro_only: true,
+              pro_league: league,
+              event_only: true,
+              from: dateFrom,
+              to: dateTo,
+            },
+            'date',
+            100
+          ).catch(() => [])
+        ),
+      ]).then(([proEvents, ...ncaaEvents]) => {
+        const eventRows = [proEvents, ...ncaaEvents]
+          .flat()
+          .map(normalizeMapEvent)
+          .filter((event): event is GameItem => Boolean(event));
+        if (eventRows.length === 0) return;
+        queryClient.setQueryData(['discover-games', viewerId ?? 'guest'], (old: GameItem[] = []) =>
+          prioritizeByZip(mergeDiscoverEvents(old, eventRows))
+        );
+      });
       return normalizedGames;
     },
   });
   const games = useMemo(() => gamesData ?? [], [gamesData]);
   const zipDirectory = useMemo(() => buildZipDirectory(games), [games]);
+
+  const {
+    data: mapEventsData,
+    isPending: mapEventsPending,
+    refetch: refetchMapEvents,
+  } = useQuery({
+    queryKey: ['discover-map-events', viewerId ?? 'guest'],
+    enabled: interactionsDone && viewMode === 'map',
+    queryFn: async (): Promise<EventMapData[]> => {
+      const res: unknown = await httpGet(buildMapDiscoveryPath(300));
+      const cards = validateEventCards('/event-discovery?surface=map', res);
+      return toMapEvents(cards, new Date());
+    },
+  });
+  const mapEvents = useMemo(() => mapEventsData ?? [], [mapEventsData]);
+
   // Error card only when the games list never loaded — a failed background
   // refetch keeps the cached list visible.
   const error = (() => {
@@ -420,50 +541,26 @@ function CommunityDiscoverScreen() {
       : 'Unable to load events right now. Pull to refresh to retry.';
   })();
 
-  const { data: followedGamesData, isPending: followedGamesPending } = useQuery({
-    queryKey: ['discover-followed-games', user?.id ?? 'guest'],
-    enabled: interactionsDone,
-    queryFn: async (): Promise<GameItem[]> => {
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      const raw = await Game.list('date', {
-        following: true,
-        dateFrom: startOfToday.toISOString(),
-        limit: 100,
-      });
-      const list = Array.isArray(raw) ? raw : raw?.games || raw?.items || [];
-      // Upcoming only — drop anything already past (parity with calendar dots)
-      const now = new Date();
-      return list.filter((g: any) => {
-        if (!g.date) return false;
-        const d = new Date(g.date);
-        return !isNaN(d.getTime()) && d >= now;
-      });
+  // Discover's calendar = the viewer's followed + managed teams, served as
+  // canonical event cards by the single /event-discovery?scope=following
+  // endpoint (future-only, unbounded window). Replaces the former three queries
+  // (followed games, followed events, managed-team games/events).
+  const { data: followingCalendarData, isPending: followingCalendarPending } = useQuery({
+    queryKey: ['discover-following-calendar', viewerId ?? 'guest'],
+    enabled: interactionsDone && isSignedIn,
+    queryFn: async () => {
+      const res: unknown = await httpGet('/event-discovery?scope=following');
+      const cards = validateEventCards('/event-discovery?scope=following', res);
+      return splitCalendarCards(cards);
     },
   });
-  const followedGames = useMemo(() => followedGamesData ?? [], [followedGamesData]);
+  const calendarGames = useMemo(() => followingCalendarData?.games ?? [], [followingCalendarData]);
+  const calendarEvents = useMemo(
+    () => followingCalendarData?.events ?? [],
+    [followingCalendarData]
+  );
 
-  // Standalone events (practices, meetings, fundraisers) for the teams the
-  // viewer follows — the game-backed ones already arrive via followedGames, so
-  // we keep only events with no linked game to avoid duplicate calendar rows.
-  const { data: followedEventsData, isPending: followedEventsPending } = useQuery({
-    queryKey: ['discover-followed-events', user?.id ?? 'guest'],
-    enabled: interactionsDone,
-    queryFn: async (): Promise<any[]> => {
-      const raw = await Event.filter({ following: true }, 'date', 100);
-      const list = Array.isArray(raw) ? raw : [];
-      const now = new Date();
-      return list.filter((e: any) => {
-        if (e.game_id) return false;
-        if (!e.date) return false;
-        const d = new Date(e.date);
-        return !isNaN(d.getTime()) && d >= now;
-      });
-    },
-  });
-  const followedEvents = useMemo(() => followedEventsData ?? [], [followedEventsData]);
-
-  const personalizationQueryKey = ['discover-personalization', user?.id ?? 'guest'];
+  const personalizationQueryKey = ['discover-personalization', viewerId ?? 'guest'];
   const {
     data: personalization,
     isPending: personalizationPending,
@@ -473,7 +570,7 @@ function CommunityDiscoverScreen() {
     queryKey: personalizationQueryKey,
     enabled: interactionsDone,
     queryFn: async () => {
-      const snapshot: any = await getAuthSnapshot(checkAuth, user).catch(() => null);
+      const snapshot: any = user ? await getAuthSnapshot(checkAuth, user).catch(() => null) : null;
 
       // Fetch posts and people in parallel — people used to wait for posts to finish
       const fetchPosts = async (): Promise<any[]> => {
@@ -507,41 +604,14 @@ function CommunityDiscoverScreen() {
 
       const fetchPeople = async (): Promise<any[]> => {
         try {
-          const school = snapshot?.preferences?.school || snapshot?.school || null;
-          const league = snapshot?.preferences?.league || snapshot?.league || null;
-          const zipQ = snapshot?.preferences?.zip_code
-            ? String(snapshot.preferences.zip_code).trim()
-            : '';
-          if (school || league) {
-            const q = String(school || league);
-            try {
-              const members = await Team.allMembers(q);
-              const arr = Array.isArray(members)
-                ? members
-                : Array.isArray((members as any)?.items)
-                  ? (members as any).items
-                  : [];
-              return arr.slice(0, 20);
-            } catch {
-              if (zipQ) {
-                const users = await User.listAll(zipQ, 30);
-                const arr = Array.isArray(users)
-                  ? users
-                  : Array.isArray((users as any)?.items)
-                    ? (users as any).items
-                    : [];
-                return arr.slice(0, 20);
-              }
-            }
-          } else if (zipQ) {
-            const users = await User.listAll(zipQ, 30);
-            const arr = Array.isArray(users)
-              ? users
-              : Array.isArray((users as any)?.items)
-                ? (users as any).items
-                : [];
-            return arr.slice(0, 20);
-          }
+          if (!snapshot?.id) return [];
+          const suggested = await User.suggested(20);
+          const arr = Array.isArray(suggested)
+            ? suggested
+            : Array.isArray((suggested as any)?.items)
+              ? (suggested as any).items
+              : [];
+          return arr.slice(0, 20);
         } catch (peopleError) {
           if (__DEV__) console.warn('Discover load: nearby people failed', peopleError);
         }
@@ -582,7 +652,7 @@ function CommunityDiscoverScreen() {
   // the derived followingPosts/discoverPosts re-render from the cache.
   const patchDiscoverPosts = useCallback(
     (mapPosts: (posts: any[]) => any[]) => {
-      queryClient.setQueryData(['discover-personalization', user?.id ?? 'guest'], (old: any) =>
+      queryClient.setQueryData(['discover-personalization', viewerId ?? 'guest'], (old: any) =>
         old
           ? {
               ...old,
@@ -592,14 +662,17 @@ function CommunityDiscoverScreen() {
           : old
       );
     },
-    [queryClient, user?.id]
+    [queryClient, viewerId]
   );
 
   // Suggested users load non-blocking, mirroring the old fire-and-forget .then()
-  const suggestedQueryKey = ['discover-suggested-people'];
+  const suggestedQueryKey = useMemo(
+    () => ['discover-suggested-people', viewerId ?? 'guest'],
+    [viewerId]
+  );
   const { data: suggestedData, refetch: refetchSuggested } = useQuery({
     queryKey: suggestedQueryKey,
-    enabled: interactionsDone,
+    enabled: interactionsDone && isSignedIn,
     queryFn: async () => {
       const res: any = await User.suggested(10);
       const items = Array.isArray(res?.items) ? res.items : [];
@@ -612,11 +685,9 @@ function CommunityDiscoverScreen() {
   const suggestedPeople = suggestedData ?? [];
   const patchSuggestedPeople = useCallback(
     (mapPeople: (people: any[]) => any[]) => {
-      queryClient.setQueryData(['discover-suggested-people'], (old: any) =>
-        old ? mapPeople(old) : old
-      );
+      queryClient.setQueryData(suggestedQueryKey, (old: any) => (old ? mapPeople(old) : old));
     },
-    [queryClient]
+    [queryClient, suggestedQueryKey]
   );
 
   // Full-screen skeleton until both primary queries have data (isPending only —
@@ -625,8 +696,20 @@ function CommunityDiscoverScreen() {
 
   const refreshAll = useCallback(async () => {
     // refetch() resolves (never throws); failed refreshes keep cached data.
-    await Promise.all([refetchGames(), refetchPersonalization(), refetchSuggested()]);
-  }, [refetchGames, refetchPersonalization, refetchSuggested]);
+    await Promise.all([
+      refetchGames(),
+      refetchPersonalization(),
+      ...(isSignedIn ? [refetchSuggested()] : []),
+      ...(viewMode === 'map' ? [refetchMapEvents()] : []),
+    ]);
+  }, [
+    isSignedIn,
+    refetchGames,
+    refetchPersonalization,
+    refetchSuggested,
+    refetchMapEvents,
+    viewMode,
+  ]);
 
   // Debounced unified search (users, teams, organizations, games, events)
   useEffect(() => {
@@ -1049,6 +1132,79 @@ function CommunityDiscoverScreen() {
     setViewMode(newMode);
   }, [viewMode, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
 
+  const markedCalendarDates = useMemo(
+    () =>
+      buildDiscoverMarkedDates(
+        calendarGames,
+        calendarEvents,
+        selectedDate,
+        Colors[colorScheme].tint
+      ),
+    [calendarEvents, calendarGames, colorScheme, selectedDate]
+  );
+
+  const onCalendarDayPress = useCallback((day: DateData) => {
+    setSelectedDate(current => (current === day.dateString ? '' : day.dateString));
+  }, []);
+
+  const getSelectedDateGames = useCallback(() => {
+    if (!selectedDate) return [];
+    return calendarGames.filter(game => {
+      if (!game.date) return false;
+      const d = new Date(game.date);
+      return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === selectedDate;
+    });
+  }, [calendarGames, selectedDate]);
+
+  const getSelectedDateEvents = useCallback(() => {
+    if (!selectedDate) return [];
+    return calendarEvents.filter(event => {
+      if (!event.date) return false;
+      const d = new Date(event.date);
+      return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === selectedDate;
+    });
+  }, [calendarEvents, selectedDate]);
+
+  const renderCalendar = () => (
+    <View
+      style={[
+        styles.calendarSection,
+        {
+          backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+          borderColor: colorScheme === 'light' ? '#E5E7EB' : Colors[colorScheme].border,
+        },
+      ]}
+    >
+      <Calendar
+        onDayPress={onCalendarDayPress}
+        markedDates={markedCalendarDates}
+        enableSwipeMonths
+        theme={
+          {
+            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+            calendarBackground:
+              colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+            textSectionTitleColor: Colors[colorScheme].mutedText,
+            selectedDayBackgroundColor: Colors[colorScheme].tint,
+            selectedDayTextColor: '#FFFFFF',
+            todayTextColor: Colors[colorScheme].tint,
+            dayTextColor: Colors[colorScheme].text,
+            textDisabledColor: colorScheme === 'light' ? '#9CA3AF' : Colors[colorScheme].mutedText,
+            monthTextColor: Colors[colorScheme].text,
+            textMonthFontWeight: '700',
+            arrowColor: Colors[colorScheme].text,
+            textDayFontFamily: 'system',
+            textMonthFontFamily: 'system',
+            textDayHeaderFontFamily: 'system',
+            textDayFontSize: 14,
+            textMonthFontSize: 16,
+            textDayHeaderFontSize: 13,
+          } as any
+        }
+      />
+    </View>
+  );
+
   const ListHeader = (
     <View>
       {showPrecisionBanner ? (
@@ -1449,7 +1605,10 @@ function CommunityDiscoverScreen() {
                         if (next) await Team.follow(t.id);
                         else await Team.unfollow(t.id);
                         void queryClient.invalidateQueries({
-                          queryKey: ['discover-followed-games', user?.id ?? 'guest'],
+                          queryKey: ['discover-following-calendar', user?.id ?? 'guest'],
+                        });
+                        void queryClient.invalidateQueries({
+                          queryKey: ['discover-games', user?.id ?? 'guest'],
                         });
                       } catch {
                         setUnifiedSearchResults(prev =>
@@ -1756,86 +1915,9 @@ function CommunityDiscoverScreen() {
       ) : null}
 
       {/* Calendar - Right below search */}
-      <View
-        style={[
-          styles.calendarSection,
-          {
-            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-            borderColor: colorScheme === 'light' ? '#E5E7EB' : Colors[colorScheme].border,
-          },
-        ]}
-      >
-        <Calendar
-          key={`calendar-${colorScheme}`}
-          onDayPress={day => {
-            setSelectedDate(day.dateString);
-          }}
-          markedDates={useMemo(() => {
-            const marked: Record<string, any> = {};
-            const now = new Date();
-            // Mark only future dates with events (followed games + standalone events)
-            const markFuture = (dateVal: any) => {
-              if (!dateVal) return;
-              const d = new Date(dateVal);
-              if (isNaN(d.getTime()) || d < now) return;
-              const dateKey = d.toISOString().split('T')[0];
-              if (!marked[dateKey]) {
-                marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
-              }
-            };
-            followedGames.forEach(game => markFuture(game.date));
-            followedEvents.forEach(event => markFuture(event.date));
-            // Highlight selected date
-            if (selectedDate) {
-              marked[selectedDate] = {
-                ...marked[selectedDate],
-                selected: true,
-                selectedColor: Colors[colorScheme].tint,
-              };
-            }
-            return marked;
-          }, [followedGames, followedEvents, selectedDate, colorScheme])}
-          style={{
-            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-          }}
-          theme={{
-            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-            calendarBackground:
-              colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-            textSectionTitleColor: Colors[colorScheme].mutedText,
-            selectedDayBackgroundColor: Colors[colorScheme].tint,
-            selectedDayTextColor: '#FFFFFF',
-            todayTextColor: Colors[colorScheme].tint,
-            dayTextColor: Colors[colorScheme].text,
-            textDisabledColor: colorScheme === 'light' ? '#9CA3AF' : Colors[colorScheme].mutedText,
-            arrowColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].tint, // audit: intentional
-            monthTextColor: Colors[colorScheme].text,
-            textDayFontWeight: '500',
-            textMonthFontWeight: '800',
-            textDayHeaderFontWeight: '600',
-            textDayFontSize: 15,
-            // @ts-ignore - headerStyle not in TS types but supported by react-native-calendars
-            'stylesheet.calendar.header': {
-              header: {
-                backgroundColor:
-                  colorScheme === 'light' ? '#F9FAFB' : Colors[colorScheme].background,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                borderBottomWidth: colorScheme === 'light' ? 1 : 0,
-                borderBottomColor: '#E5E7EB',
-              },
-            },
-          }}
-        />
-      </View>
+      {renderCalendar()}
 
-      {followedGames.length === 0 &&
-      followedEvents.length === 0 &&
-      !followedGamesPending &&
-      !followedEventsPending ? (
+      {calendarGames.length === 0 && calendarEvents.length === 0 && !followingCalendarPending ? (
         <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
           You&apos;re not following any teams yet — search above to find and follow teams, and their
           games and events show up here.
@@ -1845,15 +1927,8 @@ function CommunityDiscoverScreen() {
       {/* Games on Selected Date */}
       {selectedDate &&
         (() => {
-          const onSelectedDate = (dateVal: any) => {
-            if (!dateVal) return false;
-            const d = new Date(dateVal);
-            // Only show future items on the selected date
-            if (isNaN(d.getTime()) || d < new Date()) return false;
-            return d.toISOString().split('T')[0] === selectedDate;
-          };
-          const gamesOnDate = followedGames.filter(g => onSelectedDate(g.date));
-          const eventsOnDate = followedEvents.filter(e => onSelectedDate(e.date));
+          const gamesOnDate = getSelectedDateGames();
+          const eventsOnDate = getSelectedDateEvents();
 
           if (gamesOnDate.length === 0 && eventsOnDate.length === 0) return null;
 
@@ -1876,7 +1951,6 @@ function CommunityDiscoverScreen() {
                 })}
               </Text>
               {gamesOnDate.map(game => {
-                const labels = deriveTeamLabels(game);
                 const time = game.date
                   ? new Date(game.date).toLocaleTimeString('en-US', {
                       hour: 'numeric',
@@ -1894,10 +1968,14 @@ function CommunityDiscoverScreen() {
                       },
                     ]}
                     onPress={() =>
-                      void router.push({ pathname: '/game/[id]', params: { id: String(game.id) } })
+                      void router.push(
+                        game.source_type === 'event'
+                          ? buildEventDetailRoute(game.event_id || game.id, game.game_id)
+                          : { pathname: '/game/[id]', params: { id: String(game.id) } }
+                      )
                     }
                     accessibilityRole="button"
-                    accessibilityLabel={`${game.title || (labels ? `${labels.teamA} vs ${labels.teamB}` : 'Game')} at ${time}`}
+                    accessibilityLabel={`${game.title} at ${time}`}
                   >
                     <View style={styles.dateGameTime}>
                       <MaterialIcons
@@ -1913,7 +1991,7 @@ function CommunityDiscoverScreen() {
                       style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]}
                       numberOfLines={1}
                     >
-                      {game.title || (labels ? `${labels.teamA} vs ${labels.teamB}` : 'Game')}
+                      {game.title}
                     </Text>
                     {game.location && (
                       <View style={styles.dateGameLocation}>
@@ -2364,100 +2442,13 @@ function CommunityDiscoverScreen() {
       ) : (
         <View style={{ marginBottom: 12, gap: 10 }}>
           {(tab === 'following' ? followingPosts : discoverPosts).map((p, _i, _arr) => {
-            const author = p?.author || null;
-            const authorId = author?.id ? String(author.id) : null;
             return (
               <View key={String(p.id)}>
-                <View style={styles.postHeaderRow}>
-                  <Pressable
-                    style={styles.postHeaderLeft}
-                    onPress={() => {
-                      if (!authorId) return;
-                      // Navigate to the specific user's profile, not own profile
-                      void router.push(`/user-profile?id=${authorId}`);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`View profile of ${author?.display_name || 'User'}`}
-                  >
-                    <View style={styles.postAvatarWrap}>
-                      {author?.avatar_url ? (
-                        <Image
-                          source={{ uri: optimizeImageUrl(String(author.avatar_url), 80) }}
-                          style={styles.postAvatar}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.postAvatar} />
-                      )}
-                    </View>
-                    <Text
-                      style={[styles.postAuthorName, { color: Colors[colorScheme].text }]}
-                      numberOfLines={1}
-                    >
-                      {author?.display_name || 'User'}
-                    </Text>
-                  </Pressable>
-                  {authorId && me?.id !== authorId ? (
-                    <Pressable
-                      onPress={async () => {
-                        if (!user) {
-                          promptForSignIn(() => router.push('/sign-in'), {
-                            message: 'Sign in to follow.',
-                          });
-                          return;
-                        }
-                        // Optimistic toggle
-                        const nextVal = !p.is_following_author;
-                        patchDiscoverPosts(posts =>
-                          posts.map(item =>
-                            item.id === p.id ? { ...item, is_following_author: nextVal } : item
-                          )
-                        );
-                        try {
-                          if (nextVal) {
-                            await User.follow(authorId);
-                          } else {
-                            await User.unfollow(authorId);
-                          }
-                        } catch {
-                          // Revert on failure
-                          patchDiscoverPosts(posts =>
-                            posts.map(item =>
-                              item.id === p.id ? { ...item, is_following_author: !nextVal } : item
-                            )
-                          );
-                        }
-                      }}
-                      style={[
-                        styles.followBtn,
-                        {
-                          backgroundColor: p.is_following_author
-                            ? Colors[colorScheme].border
-                            : Colors[colorScheme].tint,
-                        },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        p.is_following_author
-                          ? `Unfollow ${author?.display_name || 'user'}`
-                          : `Follow ${author?.display_name || 'user'}`
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.followBtnText,
-                          {
-                            color: p.is_following_author
-                              ? Colors[colorScheme].text
-                              : Colors[colorScheme].background,
-                          },
-                        ]}
-                      >
-                        {p.is_following_author ? 'Following' : 'Follow'}
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+                {/* Owner note 5c: the redundant "User … Follow" header that sat
+                    above every Discover post is removed. PostCard already renders
+                    the author (as @username, not the "User" fallback) and its
+                    EventChip "View Game" link, so this row only duplicated identity
+                    and pushed a follow CTA the owner didn't want on Discover. */}
                 <PostCard
                   post={p}
                   onPress={() => {
@@ -2768,32 +2759,21 @@ function CommunityDiscoverScreen() {
 
             {/* Full Map View */}
             {(() => {
-              // Filter to upcoming games with coordinates only
-              const nowMs = Date.now();
-              const allGamesWithCoords = games.filter(g => {
-                if (typeof g.latitude !== 'number' || typeof g.longitude !== 'number') return false;
-                if (!g.date) return true; // keep undated games
-                const d = new Date(g.date);
-                return !isNaN(d.getTime()) && d.getTime() >= nowMs;
-              });
-
               return (
                 <EventMap
-                  events={allGamesWithCoords.map(
-                    (game): EventMapData => ({
-                      id: String(game.id),
-                      title: String(game.title || 'Game'),
-                      date: String(game.date || new Date().toISOString()),
-                      location: String(game.location || ''),
-                      latitude: Number(game.latitude as number),
-                      longitude: Number(game.longitude as number),
-                      type: 'game',
-                    })
-                  )}
-                  onEventPress={eventId => {
+                  events={mapEvents}
+                  onEventPress={(eventId, eventType) => {
+                    if (eventType === 'event') {
+                      router.push(buildEventDetailRoute(eventId));
+                      return;
+                    }
                     router.push({ pathname: '/game/[id]', params: { id: eventId } });
                   }}
+                  initialRegion={USA_WIDE_REGION}
                   showUserLocation={true}
+                  preventAutoCenterOnUser
+                  dataLoaded={!mapEventsPending}
+                  autoFitPins={false}
                 />
               );
             })()}
@@ -2815,7 +2795,11 @@ function CommunityDiscoverScreen() {
                   },
                 ]}
                 onPress={() =>
-                  void router.push({ pathname: '/game/[id]', params: { id: String(item.id) } })
+                  void router.push(
+                    item.source_type === 'event' || item.event_id
+                      ? buildEventDetailRoute(item.event_id || item.id, item.game_id)
+                      : { pathname: '/game/[id]', params: { id: String(item.id) } }
+                  )
                 }
                 accessibilityRole="button"
                 accessibilityLabel={`View game: ${item.title ? String(item.title) : 'Game'}${item.location ? `, ${String(item.location)}` : ''}`}
@@ -2904,19 +2888,17 @@ function CommunityDiscoverScreen() {
           />
         )}
 
-        <Modal
-          visible={viewerOpen}
-          animationType="slide"
-          onRequestClose={() => setViewerOpen(false)}
-        >
-          <GameVerticalFeedScreen
-            onClose={() => setViewerOpen(false)}
-            initialPosts={viewerPosts}
-            startIndex={viewerIndex}
-            title={tab === 'following' ? 'Following' : 'Discover'}
-            showHeader
-          />
-        </Modal>
+        {viewerOpen ? (
+          <Modal visible animationType="slide" onRequestClose={() => setViewerOpen(false)}>
+            <GameVerticalFeedScreen
+              onClose={() => setViewerOpen(false)}
+              initialPosts={viewerPosts}
+              startIndex={viewerIndex}
+              title={tab === 'following' ? 'Following' : 'Discover'}
+              showHeader
+            />
+          </Modal>
+        ) : null}
 
         <QuickAddGameModal
           visible={createEventModalOpen}
@@ -2952,11 +2934,10 @@ const styles = StyleSheet.create({
   browseOrgsText: { flex: 1, fontWeight: '600', fontSize: 15 },
   error: { marginBottom: 8 },
   calendarSection: {
-    marginBottom: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-    padding: 4,
+    marginBottom: 12,
+    borderRadius: 8,
     borderWidth: 1,
+    overflow: 'hidden',
   },
   searchBox: {
     flexDirection: 'row',

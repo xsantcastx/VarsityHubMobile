@@ -64,7 +64,7 @@ function BlockedUsersScreen() {
       await User.block(match.id);
       setUsername('');
       await refetch();
-      Alert.alert('Blocked', `${match.display_name || trimmed} cannot message you.`);
+      Alert.alert('Blocked', `@${match.username || trimmed} cannot message you.`);
     } catch (err: any) {
       const message = err?.response?.data?.error || err?.message || 'Unable to block user.';
       Alert.alert('Error', message);

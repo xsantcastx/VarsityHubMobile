@@ -195,8 +195,10 @@ fi
 
 # Test 3.2: Team limit enforcement
 echo -e "${BLUE}Test 3.2: Team limit enforcement...${NC}"
-if grep -q "ownedTeamsCount.*>=.*maxTeams\|Team limit reached\|teamCount.*>=.*maxTeams" server/src/routes/teams.ts 2>/dev/null; then
-    echo -e "${GREEN}✅ Team limits checked${NC}"
+if grep -q "Program limit reached\|getTeamEntitlementState\|SERVER_ROOKIE_PROGRAM_LIMIT" server/src/routes/teams.ts 2>/dev/null && \
+   [ -f "server/src/__tests__/program-limit-enforcement.test.ts" ] && \
+   [ -f "server/src/__tests__/limits-endpoint-programs.test.ts" ]; then
+    echo -e "${GREEN}✅ Team/program limits checked${NC}"
 else
     echo -e "${YELLOW}⚠️  Team limits enforcement may need verification${NC}"
     WARNINGS=$((WARNINGS + 1))

@@ -534,10 +534,12 @@ export default function SignUpScreen() {
             {/* Apple Sign Up Option (iOS only) */}
             {Platform.OS === 'ios' ? (
               <View
-                pointerEvents={!agreedToTerms || !confirmedAge || authBusy ? 'none' : 'auto'}
-                style={
-                  !agreedToTerms || !confirmedAge || authBusy ? styles.buttonDisabled : undefined
-                }
+                style={[
+                  !agreedToTerms || !confirmedAge || authBusy ? styles.buttonDisabled : undefined,
+                  {
+                    pointerEvents: !agreedToTerms || !confirmedAge || authBusy ? 'none' : 'auto',
+                  },
+                ]}
                 accessibilityLabel="Sign up with Apple"
                 accessibilityRole="button"
                 accessibilityHint="Double tap to create an account with your Apple ID"

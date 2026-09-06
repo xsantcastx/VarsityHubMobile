@@ -109,4 +109,44 @@ describe('EventMap auto-fit', () => {
     });
     expect(fitToCoordinates).toHaveBeenCalledTimes(1);
   });
+
+  it('does NOT auto-fit to pins when autoFitPins is false (feed map opens USA-wide)', async () => {
+    const screen = render(
+      <EventMap events={EVENTS} dataLoaded showUserLocation autoFitPins={false} />
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+
+    // The whole point of the feed map: it must stay on its USA-wide initial
+    // region and NOT zoom into whatever pins happened to load.
+    expect(fitToCoordinates).not.toHaveBeenCalled();
+    screen.unmount();
+  });
+
+  it('uses a bounded region for one pin instead of zooming tightly into it', async () => {
+    render(<EventMap events={[EVENTS[0]]} dataLoaded showUserLocation />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      jest.advanceTimersByTime(600);
+    });
+
+    expect(fitToCoordinates).not.toHaveBeenCalled();
+    expect(animateToRegion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        latitude: EVENTS[0].latitude,
+        longitude: EVENTS[0].longitude,
+        latitudeDelta: 0.35,
+        longitudeDelta: 0.35,
+      }),
+      800
+    );
+  });
 });

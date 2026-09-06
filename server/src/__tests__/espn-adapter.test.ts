@@ -59,6 +59,68 @@ describe('espnAdapter parser', () => {
     expect(parsed[0].home_team_ref).toBe('wnba:atlanta-dream');
     expect(parsed[0].away_team_ref).toBeNull();
   });
+
+  it('carries NCAA provider teams and venue geocode queries for ingest', () => {
+    const ncaa = {
+      events: [
+        {
+          id: '401864494',
+          date: '2026-08-29T19:00Z',
+          competitions: [
+            {
+              venue: {
+                fullName: 'Los Angeles Memorial Coliseum',
+                address: { city: 'Los Angeles', state: 'CA', country: 'USA' },
+              },
+              status: { type: { name: 'STATUS_SCHEDULED' } },
+              competitors: [
+                {
+                  homeAway: 'home',
+                  team: {
+                    id: '30',
+                    displayName: 'USC Trojans',
+                    shortDisplayName: 'Trojans',
+                    abbreviation: 'USC',
+                    location: 'USC',
+                    color: '990000',
+                  },
+                },
+                {
+                  homeAway: 'away',
+                  team: {
+                    id: '23',
+                    displayName: 'San José State Spartans',
+                    shortDisplayName: 'Spartans',
+                    abbreviation: 'SJSU',
+                    location: 'San José State',
+                    color: '0055a2',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const [parsed] = adapter.__parseScoreboard!(
+      'ncaaf',
+      ncaa,
+      new Date('2026-08-01T00:00:00.000Z'),
+      new Date('2026-09-30T00:00:00.000Z')
+    );
+
+    expect(parsed.home_team_ref).toBe('ncaaf:espn-30');
+    expect(parsed.away_team_ref).toBe('ncaaf:espn-23');
+    expect(parsed.home_team).toMatchObject({
+      external_ref: 'ncaaf:espn-30',
+      name: 'USC Trojans',
+      short_name: 'Trojans',
+      primary_color: '#990000',
+    });
+    expect(parsed.venue_address).toBe('Los Angeles, CA, USA');
+    expect(parsed._geocodeQuery).toBe('Los Angeles Memorial Coliseum, Los Angeles, CA, USA');
+  });
 });
 
 describe('neutral-site detection', () => {
@@ -170,8 +232,20 @@ describe('resolveFixture neutral-site safety', () => {
 });
 
 describe('espnAdapter coverage', () => {
-  it('serves the four ESPN league sports, not WWE', () => {
-    expect(ESPN_LEAGUES.sort()).toEqual(['mlb', 'nba', 'nfl', 'wnba']);
+  it('serves ESPN league sports including NCAA, not WWE', () => {
+    expect(ESPN_LEAGUES.sort()).toEqual([
+      'atp',
+      'mlb',
+      'nba',
+      'ncaabaseball',
+      'ncaaf',
+      'ncaamb',
+      'ncaamhockey',
+      'ncaawb',
+      'nfl',
+      'wnba',
+      'wta',
+    ]);
     expect(ESPN_LEAGUES).not.toContain('wwe');
   });
 
@@ -204,6 +278,155 @@ describe('espnAdapter coverage', () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].home_team_ref).toBe('nfl:kansas-city-chiefs');
     expect(parsed[0].away_team_ref).toBe('nfl:chicago-bears');
+  });
+});
+
+describe('espnAdapter tennis parser', () => {
+  const tennisSample = {
+    events: [
+      {
+        id: '189-2026',
+        date: '2026-08-24T04:00Z',
+        name: 'US Open',
+        shortName: 'US Open',
+        venue: { displayName: 'New York, USA' },
+        groupings: [
+          {
+            grouping: { slug: 'mens-singles', displayName: "Men's Singles" },
+            competitions: [
+              {
+                id: '184607',
+                startDate: '2026-09-02T16:00Z',
+                venue: { fullName: 'New York, USA', court: 'Arthur Ashe Stadium' },
+                status: { type: { name: 'STATUS_SCHEDULED' } },
+                type: { text: "Men's Singles", slug: 'mens-singles' },
+                round: { displayName: 'Quarterfinal' },
+                competitors: [
+                  {
+                    homeAway: 'home',
+                    athlete: { displayName: 'Carlos Alcaraz', shortName: 'C. Alcaraz' },
+                  },
+                  {
+                    homeAway: 'away',
+                    athlete: { displayName: 'Novak Djokovic', shortName: 'N. Djokovic' },
+                  },
+                ],
+              },
+              {
+                id: '184609',
+                startDate: '2026-09-02T18:00Z',
+                venue: { fullName: 'New York, USA', court: 'Grandstand' },
+                status: { type: { name: 'STATUS_SCHEDULED' } },
+                type: { text: "Men's Singles", slug: 'mens-singles' },
+                round: { displayName: 'Quarterfinal' },
+                competitors: [
+                  {
+                    homeAway: 'home',
+                    athlete: { displayName: 'Jannik Sinner', shortName: 'J. Sinner' },
+                  },
+                  {
+                    homeAway: 'away',
+                    athlete: { displayName: 'Taylor Fritz', shortName: 'T. Fritz' },
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            grouping: { slug: 'womens-singles', displayName: "Women's Singles" },
+            competitions: [
+              {
+                id: '184608',
+                startDate: '2026-09-02T17:00Z',
+                venue: { fullName: 'New York, USA', court: 'Louis Armstrong Stadium' },
+                status: { type: { name: 'STATUS_SCHEDULED' } },
+                type: { text: "Women's Singles", slug: 'womens-singles' },
+                round: { displayName: 'Quarterfinal' },
+                competitors: [
+                  {
+                    homeAway: 'home',
+                    athlete: { displayName: 'Coco Gauff', shortName: 'C. Gauff' },
+                  },
+                  {
+                    homeAway: 'away',
+                    athlete: { displayName: 'Iga Swiatek', shortName: 'I. Swiatek' },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it('collapses ATP tournament matches into a venue-local 12-hour window', () => {
+    const parsed = adapter.__parseScoreboard!(
+      'atp',
+      tennisSample,
+      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-09-03T00:00:00.000Z')
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]).toMatchObject({
+      external_ref: 'atp:189-2026:2026-09-02:h12',
+      league: 'atp',
+      title: 'US Open ATP 2026-09-02 12 PM-12 AM',
+      starts_at: new Date('2026-09-02T16:00:00.000Z'),
+      venue_name: 'USTA Billie Jean King National Tennis Center',
+      venue_address: 'Flushing Meadows Corona Park, Queens, NY 11368',
+      venue_lat: 40.7499,
+      venue_lng: -73.8476,
+      timezone: 'America/New_York',
+    });
+  });
+
+  it('collapses WTA tournament matches without duplicating ATP draws', () => {
+    const parsed = adapter.__parseScoreboard!(
+      'wta',
+      tennisSample,
+      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-09-03T00:00:00.000Z')
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].external_ref).toBe('wta:189-2026:2026-09-02:h12');
+    expect(parsed[0].title).toBe('US Open WTA 2026-09-02 12 PM-12 AM');
+  });
+
+  it('does not create generic round events when ESPN omits tennis competitors', () => {
+    const genericRound = {
+      events: [
+        {
+          id: '189-2026',
+          date: '2026-09-03T04:00Z',
+          name: 'US Open',
+          shortName: 'US Open',
+          groupings: [
+            {
+              grouping: { slug: 'mens-singles', displayName: "Men's Singles" },
+              competitions: [
+                {
+                  id: 'round-container',
+                  startDate: '2026-09-03T04:00Z',
+                  type: { text: "Men's Singles", slug: 'mens-singles' },
+                  round: { displayName: 'Round 2' },
+                  competitors: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const parsed = adapter.__parseScoreboard!(
+      'atp',
+      genericRound,
+      new Date('2026-09-01T00:00:00.000Z'),
+      new Date('2026-09-04T00:00:00.000Z')
+    );
+
+    expect(parsed).toEqual([]);
   });
 });
 

@@ -14,8 +14,8 @@ const ROOT = join(process.cwd());
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const authProvider = read('context/AuthProvider.tsx');
-const authApi = read('api/auth.ts');
-const httpApi = read('api/http.ts');
+const authApi = read('apiclient/auth.ts');
+const httpApi = read('apiclient/http.ts');
 const serverAuthRoutes = read('server/src/routes/auth.ts');
 const signIn = read('app/sign-in.tsx');
 const signUp = read('app/sign-up.tsx');
@@ -294,10 +294,10 @@ describe('account boundary invariants', () => {
 
     it('server profile mutation routes require verified accounts before changing canonical user state', () => {
       expect(serverAuthRoutes).toMatch(
-        /authRouter\.put\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/
+        /authRouter\.put\(\s*'\/me',\s*profileUpdateLimiter,\s*requireAuth as any,\s*requireVerified as any,/
       );
       expect(serverAuthRoutes).toMatch(
-        /authRouter\.patch\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/
+        /authRouter\.patch\(\s*'\/me',\s*profileUpdateLimiter,\s*requireAuth as any,\s*requireVerified as any,/
       );
       expect(serverAuthRoutes).toMatch(
         /authRouter\.patch\(\s*'\/me\/preferences',\s*requireAuth as any,\s*requireVerified as any,/

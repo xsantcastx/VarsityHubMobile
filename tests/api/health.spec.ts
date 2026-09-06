@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 /**
  * API Health Check Smoke Tests
- * 
+ *
  * These tests verify that the backend API is healthy and all
  * critical integrations are configured correctly.
  */
@@ -27,7 +27,9 @@ test.describe('API Health Checks', () => {
   });
 
   test.describe('Detailed health (requires HEALTH_CHECK_SECRET)', () => {
-    test.skip(!HEALTH_SECRET, 'Set HEALTH_CHECK_SECRET to run detailed health assertions');
+    test.beforeAll(() => {
+      expect(HEALTH_SECRET).toBeTruthy();
+    });
 
     const headers = { 'x-health-check-secret': HEALTH_SECRET };
 

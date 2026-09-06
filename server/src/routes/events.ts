@@ -17,6 +17,7 @@ import { debugLog } from '../lib/debugLog.js';
 import { sendError } from '../lib/http/sendError.js';
 import { geoBoundingBox, getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { proLeagueToSport } from '../lib/proSchedule/leagueSport.js';
+import { PRO_SCHEDULE_LEAGUES } from '../lib/proSchedule/types.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { serializeLiveWindow, viewerHasPostedOnEntity } from '../lib/geofencing.js';
 import {
@@ -26,18 +27,25 @@ import {
   sendPushNotification,
 } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import {
+  buildPrivateTeamEventVisibilityWhere,
+  getExcludedPrivateTeamIds,
+  mergeAndWhere,
+} from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { mustSucceed } from '../lib/sideEffect.js';
 import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
+import { SPORTS_LEAGUE_CATALOG } from '../lib/sportsLeagueCatalog.js';
 import {
   canManageAnyTeam,
   canManageTeam as canManageTeamScoped,
 } from '../lib/teamAuthorization.js';
+import { buildBinaryVoteSummary } from '../lib/voteSummary.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
+import { eventCreationLimiter, rsvpLimiter, voteLimiter } from '../middleware/rateLimiters.js';
 import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -47,13 +55,31 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
 
+type SportsLeagueScheduleStatus = 'provider_backed' | 'event_seeded' | 'catalog_only';
+
+const PROVIDER_BACKED_SCHEDULE_SLUGS = new Set<string>(PRO_SCHEDULE_LEAGUES);
+
+function getSportsLeagueScheduleStatus(
+  league: { slug: string; provider: string | null; provider_league_id: string | null },
+  currentEventCount: number
+): SportsLeagueScheduleStatus {
+  if (
+    PROVIDER_BACKED_SCHEDULE_SLUGS.has(league.slug) &&
+    league.provider &&
+    league.provider_league_id
+  ) {
+    return 'provider_backed';
+  }
+  if (currentEventCount > 0) return 'event_seeded';
+  return 'catalog_only';
+}
+
 /** Hard cap on RSVPs we'll fan out to per event update/cancel. Past this we
  *  stop and trust the next surface (re-open the event, manual notification)
  *  to catch up. 50k is ~2 orders of magnitude above today's largest event;
  *  raise if/when production traces show a real ceiling. */
 const RSVP_FANOUT_LIMIT = 50_000;
 const RSVP_FANOUT_BATCH = 200;
-const PRO_LEAGUES = ['nfl', 'nba', 'wnba', 'mlb', 'wwe'] as const;
 const encodeEventRsvpCursor = (row: { created_at: Date | string; id: string }) => {
   const createdAt =
     row.created_at instanceof Date
@@ -79,6 +105,54 @@ const buildCreatedAtIdCursorWhere = (cursor: { createdAt: Date; id: string } | n
       id: { lt: cursor.id },
     },
   ];
+};
+
+const isCompetitivePollEventType = (eventType?: string | null) => {
+  if (!eventType) return true;
+  return String(eventType).trim().toLowerCase() === 'game';
+};
+
+const getEventPollEligibility = async (eventId: string) => {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, event_type: true, game_id: true },
+  });
+  if (!event) return { ok: false as const, status: 404, body: { error: 'Not found' } };
+  if (event.game_id) {
+    return {
+      ok: false as const,
+      status: 409,
+      body: {
+        error: 'Game-backed events vote through the linked game.',
+        code: 'POLL_USES_GAME',
+        game_id: event.game_id,
+      },
+    };
+  }
+  if (!isCompetitivePollEventType(event.event_type)) {
+    return {
+      ok: false as const,
+      status: 409,
+      body: {
+        error: 'Polls are only available for competitive games.',
+        code: 'POLL_NOT_AVAILABLE',
+      },
+    };
+  }
+  return { ok: true as const, event };
+};
+
+const summarizeEventVotes = async (eventId: string, userId?: string | null) => {
+  const [teamA, teamB, mine] = await Promise.all([
+    prisma.eventVote.count({ where: { event_id: eventId, team: 'A' } }),
+    prisma.eventVote.count({ where: { event_id: eventId, team: 'B' } }),
+    userId
+      ? prisma.eventVote.findUnique({
+          where: { event_id_user_id: { event_id: eventId, user_id: userId } },
+        })
+      : Promise.resolve(null),
+  ]);
+  return buildBinaryVoteSummary(teamA, teamB, mine?.team);
 };
 
 /**
@@ -364,8 +438,14 @@ const serializeEvent = (
       event.team?.sport ??
       event.game?.homeTeam?.sport ??
       event.game?.awayTeam?.sport ??
+      event.sportsLeague?.sport_slug ??
       proLeagueToSport(event.proHomeTeam?.league ?? event.proAwayTeam?.league) ??
       null,
+    sports_league_id: event.sports_league_id ?? null,
+    league_slug: event.sportsLeague?.slug ?? null,
+    league_name: event.sportsLeague?.name ?? null,
+    league_level: event.sportsLeague?.level ?? null,
+    league_gender: event.sportsLeague?.gender ?? null,
     // Pro teams carry no logo (trademark), only an accent color. The card uses
     // these two to render a branded gradient when a pro event has no banner.
     pro_home_color: event.proHomeTeam?.primary_color ?? null,
@@ -401,6 +481,95 @@ const serializeEvent = (
 };
 
 eventsRouter.get(
+  '/sports-leagues',
+  asyncHandler(async (req, res) => {
+    const slugPattern = /^[a-z0-9_-]{1,120}$/;
+    const sportSlug =
+      typeof req.query.sport === 'string' ? req.query.sport.trim().toLowerCase() : '';
+    const leagueLevel =
+      typeof req.query.level === 'string' ? req.query.level.trim().toLowerCase() : '';
+    const leagueGender =
+      typeof req.query.gender === 'string' ? req.query.gender.trim().toLowerCase() : '';
+    const searchRaw = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (searchRaw.length > 80) return sendError(res, 400, 'Invalid search');
+    const search = searchRaw;
+    for (const [label, value] of [
+      ['sport', sportSlug],
+      ['level', leagueLevel],
+      ['gender', leagueGender],
+    ] as const) {
+      if (value && !slugPattern.test(value)) return sendError(res, 400, `Invalid ${label}`);
+    }
+    const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
+    const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 300) : 300;
+
+    const rows = await prisma.sportsLeague.findMany({
+      where: {
+        active: true,
+        ...(sportSlug ? { sport_slug: sportSlug } : {}),
+        ...(leagueLevel ? { level: leagueLevel } : {}),
+        ...(leagueGender ? { gender: leagueGender } : {}),
+        ...(search
+          ? {
+              OR: [
+                { slug: { contains: search, mode: 'insensitive' } },
+                { name: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ level: 'asc' }, { sport_slug: 'asc' }, { name: 'asc' }],
+      take,
+    });
+
+    const catalogOrder = new Map(SPORTS_LEAGUE_CATALOG.map((entry, index) => [entry.slug, index]));
+    const sorted = [...rows].sort((a, b) => {
+      const ai = catalogOrder.get(a.slug) ?? Number.MAX_SAFE_INTEGER;
+      const bi = catalogOrder.get(b.slug) ?? Number.MAX_SAFE_INTEGER;
+      return ai - bi || a.name.localeCompare(b.name);
+    });
+    const leagueIds = sorted.map(row => row.id);
+    const currentEventCounts = leagueIds.length
+      ? await prisma.event.groupBy({
+          by: ['sports_league_id'],
+          where: {
+            sports_league_id: { in: leagueIds },
+            approval_status: 'approved',
+            status: { not: 'cancelled' },
+            date: { gte: new Date() },
+          },
+          _count: { _all: true },
+        })
+      : [];
+    const currentEventCountByLeagueId = new Map(
+      currentEventCounts.flatMap(row =>
+        row.sports_league_id ? [[row.sports_league_id, row._count._all] as const] : []
+      )
+    );
+
+    return res.json({
+      items: sorted.map(row => {
+        const currentEventCount = currentEventCountByLeagueId.get(row.id) ?? 0;
+        return {
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          sport_slug: row.sport_slug,
+          level: row.level,
+          gender: row.gender,
+          country_code: row.country_code,
+          provider: row.provider,
+          provider_league_id: row.provider_league_id,
+          schedule_status: getSportsLeagueScheduleStatus(row, currentEventCount),
+          has_current_events: currentEventCount > 0,
+          current_event_count: currentEventCount,
+        };
+      }),
+    });
+  })
+);
+
+eventsRouter.get(
   '/',
   asyncHandler(async (req, res) => {
     const status = String(req.query.status || '').trim();
@@ -418,21 +587,46 @@ eventsRouter.get(
             .filter(Boolean)
             .slice(0, 50)
         : [];
+    const proOnly = String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
+    const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
     // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
     // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
-    const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
+    const maxTake = proOnly ? 300 : 100;
+    const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, maxTake) : 100;
     const dateFrom = typeof req.query.from === 'string' ? new Date(req.query.from) : null;
     const dateTo = typeof req.query.to === 'string' ? new Date(req.query.to) : null;
-    const proOnly =
-      String(req.query.pro_only || req.query.pro || '').toLowerCase() === 'true';
-    const eventOnly = String(req.query.event_only || '').toLowerCase() === 'true';
     const proLeagueRaw =
       typeof req.query.pro_league === 'string' ? req.query.pro_league.trim().toLowerCase() : '';
-    if (proLeagueRaw && !PRO_LEAGUES.includes(proLeagueRaw as (typeof PRO_LEAGUES)[number])) {
+    const sportsLeagueId =
+      typeof req.query.sports_league_id === 'string' ? req.query.sports_league_id.trim() : '';
+    const leagueSlug =
+      typeof req.query.league_slug === 'string' ? req.query.league_slug.trim().toLowerCase() : '';
+    const sportSlug =
+      typeof req.query.sport === 'string' ? req.query.sport.trim().toLowerCase() : '';
+    const leagueLevel =
+      typeof req.query.level === 'string' ? req.query.level.trim().toLowerCase() : '';
+    const leagueGender =
+      typeof req.query.gender === 'string' ? req.query.gender.trim().toLowerCase() : '';
+    const slugPattern = /^[a-z0-9_-]{1,120}$/;
+    if (sportsLeagueId && !/^[a-zA-Z0-9_-]{1,120}$/.test(sportsLeagueId)) {
+      return sendError(res, 400, 'Invalid sports_league_id');
+    }
+    for (const [label, value] of [
+      ['league_slug', leagueSlug],
+      ['sport', sportSlug],
+      ['level', leagueLevel],
+      ['gender', leagueGender],
+    ] as const) {
+      if (value && !slugPattern.test(value)) return sendError(res, 400, `Invalid ${label}`);
+    }
+    if (
+      proLeagueRaw &&
+      !PRO_SCHEDULE_LEAGUES.includes(proLeagueRaw as (typeof PRO_SCHEDULE_LEAGUES)[number])
+    ) {
       return sendError(res, 400, 'Invalid pro_league');
     }
-    const proLeague = proLeagueRaw as (typeof PRO_LEAGUES)[number] | '';
+    const proLeague = proLeagueRaw as (typeof PRO_SCHEDULE_LEAGUES)[number] | '';
 
     const where: any = {};
     if (status) where.status = status;
@@ -454,14 +648,48 @@ eventsRouter.get(
           { game: { is: { date: { lt: new Date() } } } },
         ],
       });
+      mergeAndWhere(
+        where,
+        buildPrivateTeamEventVisibilityWhere(
+          await getExcludedPrivateTeamIds((req as any).user?.id ?? null)
+        )
+      );
     }
     if (eventType) where.event_type = eventType;
     if (eventOnly) where.game_id = null;
     if (proOnly) {
       where.AND = where.AND || [];
       where.AND.push({
-        OR: [{ pro_home_team_id: { not: null } }, { pro_away_team_id: { not: null } }],
+        OR: [
+          { pro_home_team_id: { not: null } },
+          { pro_away_team_id: { not: null } },
+          { sports_league_id: { not: null } },
+        ],
       });
+    }
+    if (sportsLeagueId) where.sports_league_id = sportsLeagueId;
+    if (leagueSlug) {
+      where.AND = where.AND || [];
+      where.AND.push({ sportsLeague: { is: { slug: leagueSlug } } });
+    }
+    if (sportSlug) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { team: { is: { sport: sportSlug } } },
+          { game: { is: { homeTeam: { is: { sport: sportSlug } } } } },
+          { game: { is: { awayTeam: { is: { sport: sportSlug } } } } },
+          { sportsLeague: { is: { sport_slug: sportSlug } } },
+        ],
+      });
+    }
+    if (leagueLevel) {
+      where.AND = where.AND || [];
+      where.AND.push({ sportsLeague: { is: { level: leagueLevel } } });
+    }
+    if (leagueGender) {
+      where.AND = where.AND || [];
+      where.AND.push({ sportsLeague: { is: { gender: leagueGender } } });
     }
     if (proLeague) {
       where.AND = where.AND || [];
@@ -469,6 +697,7 @@ eventsRouter.get(
         OR: [
           { proHomeTeam: { is: { league: proLeague } } },
           { proAwayTeam: { is: { league: proLeague } } },
+          { sportsLeague: { is: { slug: proLeague } } },
         ],
       });
     }
@@ -606,6 +835,9 @@ eventsRouter.get(
         // game-linked event borrows its matchup's sport; a pro event derives
         // it from its league.
         team: { select: { sport: true } },
+        sportsLeague: {
+          select: { slug: true, name: true, sport_slug: true, level: true, gender: true },
+        },
         proHomeTeam: { select: { league: true, primary_color: true } },
         proAwayTeam: { select: { league: true, primary_color: true } },
         game: {
@@ -1205,6 +1437,79 @@ eventsRouter.post(
   })
 );
 
+eventsRouter.get(
+  '/:id/votes/summary',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const eventId = String(req.params.id);
+      const eligibility = await getEventPollEligibility(eventId);
+      if (!eligibility.ok) {
+        return res.status(eligibility.status).json(eligibility.body);
+      }
+      const summary = await summarizeEventVotes(eventId, req.user?.id);
+      return res.json(summary);
+    } catch (err) {
+      console.error('[events] votes-summary-single error:', err);
+      return sendError(res, 500, 'Internal server error');
+    }
+  })
+);
+
+eventsRouter.post(
+  '/:id/votes',
+  requireAuth as any,
+  voteLimiter,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
+      const eventId = String(req.params.id);
+      const eligibility = await getEventPollEligibility(eventId);
+      if (!eligibility.ok) {
+        return res.status(eligibility.status).json(eligibility.body);
+      }
+      const teamInput = String(req.body?.team ?? '')
+        .trim()
+        .toUpperCase();
+      if (teamInput !== 'A' && teamInput !== 'B') {
+        return sendError(res, 400, 'Invalid team option');
+      }
+
+      await prisma.eventVote.upsert({
+        where: { event_id_user_id: { event_id: eventId, user_id: req.user.id } },
+        update: { team: teamInput },
+        create: { event_id: eventId, user_id: req.user.id, team: teamInput },
+      });
+
+      const summary = await summarizeEventVotes(eventId, req.user.id);
+      return res.json(summary);
+    } catch (err) {
+      console.error('[events] cast-vote error:', err);
+      return sendError(res, 500, 'Internal server error');
+    }
+  })
+);
+
+eventsRouter.delete(
+  '/:id/votes',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
+      const eventId = String(req.params.id);
+      const eligibility = await getEventPollEligibility(eventId);
+      if (!eligibility.ok) {
+        return res.status(eligibility.status).json(eligibility.body);
+      }
+      await prisma.eventVote.deleteMany({ where: { event_id: eventId, user_id: req.user.id } });
+      const summary = await summarizeEventVotes(eventId, req.user.id);
+      return res.json(summary);
+    } catch (err) {
+      console.error('[events] delete-vote error:', err);
+      return sendError(res, 500, 'Internal server error');
+    }
+  })
+);
+
 // Create event (fans & coaches)
 const createEventSchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -1273,6 +1578,14 @@ eventsRouter.post(
     // Normalize: accept either team_id or home_team_id from frontend
     if (data.team_id && !data.home_team_id) {
       data.home_team_id = data.team_id;
+    }
+
+    if (data.event_type === 'game' && !data.game_id) {
+      return sendError(res, 400, 'Competitive games must be created through /games', {
+        message:
+          'Competitive games require a linked game_id so polls, scores, stories, and approvals use the Game record. Use /games for competitive games and /events for non-competitive events.',
+        code: 'COMPETITIVE_EVENT_REQUIRES_GAME',
+      });
     }
 
     // Validate event date is in the future
@@ -1501,47 +1814,74 @@ eventsRouter.post(
   '/:id/approve',
   asyncHandler(async (req: AuthedRequest, res) => handleEventTokenReview(req, res, 'approve'))
 );
+
+async function loadAuthorizedEventReview(params: {
+  req: AuthedRequest;
+  action: 'approve' | 'reject';
+}) {
+  const { req, action } = params;
+  if (!req.user) {
+    return { ok: false as const, status: 401, body: { error: 'Unauthorized' } };
+  }
+
+  const userId = req.user.id;
+  const isAdmin = await getIsAdmin(req as any);
+  const eventId = String(req.params.id);
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) {
+    return { ok: false as const, status: 404, body: { error: 'Event not found' } };
+  }
+
+  if (!isAdmin) {
+    if (event.creator_id === userId) {
+      return {
+        ok: false as const,
+        status: 403,
+        body: { error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' },
+      };
+    }
+    const canReview = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
+    if (!canReview) {
+      return {
+        ok: false as const,
+        status: 403,
+        body: {
+          error: `Only coaches of this team or organization admins can ${action} events`,
+        },
+      };
+    }
+  }
+
+  return { ok: true as const, userId, eventId, event };
+}
+
+function eventReviewErrorMessage(action: 'approve' | 'reject', error: string) {
+  if (action === 'approve') {
+    if (error === 'Event already approved') return 'This event has already been approved.';
+    if (error === 'Event already rejected')
+      return 'This event has already been rejected. Cannot approve a rejected event.';
+    return 'Can only approve pending events.';
+  }
+
+  if (error === 'Event already approved')
+    return 'This event has already been approved. Cannot reject an approved event.';
+  if (error === 'Event already rejected') return 'This event has already been rejected.';
+  return 'Can only reject pending events.';
+}
+
 eventsRouter.put(
   '/:id/approve',
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    // req.user is guaranteed by requireVerified middleware
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
-    const userId = req.user.id;
-    const isAdmin = await getIsAdmin(req as any);
-
-    const eventId = String(req.params.id);
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-
-    // Scope approval: must be admin, or coach/admin of the event's team/org
-    if (!isAdmin) {
-      // IDOR self-action guard (parity with PUT /games/:id/approve) — a user
-      // must not approve their own submission. Audit 2026-07-14.
-      if (event.creator_id === userId) {
-        return res
-          .status(403)
-          .json({ error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' });
-      }
-      const canApprove = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
-      if (!canApprove) {
-        return res
-          .status(403)
-          .json({ error: 'Only coaches of this team or organization admins can approve events' });
-      }
-    }
+    const review = await loadAuthorizedEventReview({ req, action: 'approve' });
+    if (!review.ok) return res.status(review.status).json(review.body);
+    const { userId, eventId, event } = review;
 
     // Delegate state validation, DB write, and notifications to the approval service
     const result = await approveEventService(eventId, userId, prisma);
     if (result.error) {
-      const msg =
-        result.error === 'Event already approved'
-          ? 'This event has already been approved.'
-          : result.error === 'Event already rejected'
-            ? 'This event has already been rejected. Cannot approve a rejected event.'
-            : 'Can only approve pending events.';
+      const msg = eventReviewErrorMessage('approve', result.error);
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
@@ -1581,31 +1921,9 @@ eventsRouter.put(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    // req.user is guaranteed by requireVerified middleware
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
-    const userId = req.user.id;
-    const isAdmin = await getIsAdmin(req as any);
-
-    const eventId = String(req.params.id);
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-
-    // Scope rejection: must be admin, or coach/admin of the event's team/org
-    if (!isAdmin) {
-      // IDOR self-action guard (parity with games) — no reviewing your own event.
-      if (event.creator_id === userId) {
-        return res
-          .status(403)
-          .json({ error: 'You cannot review your own event', code: 'SELF_REVIEW_FORBIDDEN' });
-      }
-      const canReject = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
-      if (!canReject) {
-        return res
-          .status(403)
-          .json({ error: 'Only coaches of this team or organization admins can reject events' });
-      }
-    }
+    const review = await loadAuthorizedEventReview({ req, action: 'reject' });
+    if (!review.ok) return res.status(review.status).json(review.body);
+    const { userId, eventId, event } = review;
 
     const parsed = rejectEventSchema.safeParse(req.body);
     const reason = parsed.success ? parsed.data.reason : undefined;
@@ -1613,12 +1931,7 @@ eventsRouter.put(
     // Delegate state validation, DB write, and notifications to the approval service
     const result = await rejectEventService(eventId, userId, prisma, { reason });
     if (result.error) {
-      const msg =
-        result.error === 'Event already approved'
-          ? 'This event has already been approved. Cannot reject an approved event.'
-          : result.error === 'Event already rejected'
-            ? 'This event has already been rejected.'
-            : 'Can only reject pending events.';
+      const msg = eventReviewErrorMessage('reject', result.error);
       return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
@@ -1684,49 +1997,69 @@ const COACH_EDITABLE_FIELDS = [
   'away_team_name',
 ];
 
+async function loadEditableEventForAction(params: {
+  req: AuthedRequest;
+  cancelledError: string;
+  permissionMessage: string;
+}) {
+  const { req, cancelledError, permissionMessage } = params;
+  const eventId = String(req.params.id);
+  const userId = req.user?.id;
+  if (!userId) {
+    return { ok: false as const, status: 401, body: { error: 'Unauthorized' } };
+  }
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      game: { select: { id: true, home_team_id: true, away_team_id: true } },
+    },
+  });
+
+  if (!event) return { ok: false as const, status: 404, body: { error: 'Event not found' } };
+  if (event.status === 'cancelled') {
+    return { ok: false as const, status: 400, body: { error: cancelledError } };
+  }
+
+  const isCreator = event.creator_id === userId;
+  const linkedTeamIds: Array<string | null | undefined> = [
+    event.game?.home_team_id ?? null,
+    event.game?.away_team_id ?? null,
+    (event as any).team_id ?? null,
+  ];
+  const canManageLinkedTeam = linkedTeamIds.some(Boolean)
+    ? await canManageAnyTeam(userId, linkedTeamIds)
+    : false;
+  const isAdmin = await getIsAdmin(req as any);
+
+  if (!isCreator && !canManageLinkedTeam && !isAdmin) {
+    return {
+      ok: false as const,
+      status: 403,
+      body: {
+        error: 'Permission denied',
+        message: permissionMessage,
+      },
+    };
+  }
+
+  return { ok: true as const, eventId, userId, event, isCreator, canManageLinkedTeam, isAdmin };
+}
+
 eventsRouter.patch(
   '/:id',
   requireAuth as any,
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const eventId = String(req.params.id);
-    const userId = req.user!.id;
-
-    const event = await prisma.event.findUnique({
-      where: { id: eventId },
-      include: {
-        game: { select: { id: true, home_team_id: true, away_team_id: true } },
-      },
+    const editable = await loadEditableEventForAction({
+      req,
+      cancelledError: 'Cannot edit cancelled event',
+      permissionMessage:
+        'Only the event creator, team staff, or a league admin can edit this event.',
     });
-
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.status === 'cancelled') {
-      return res.status(400).json({ error: 'Cannot edit cancelled event' });
-    }
-
-    // Permission: creator OR any team staff (including org admin fallback)
-    // for any team linked to this event — same rule as /:id/cancel below.
-    // Previously this used an inline membership query without the org-admin
-    // fallback, so league owners couldn't edit events in their own league
-    // (2026-07-13 audit; the cancel handler had already been fixed).
-    const isCreator = event.creator_id === userId;
-    const linkedTeamIds: Array<string | null | undefined> = [
-      event.game?.home_team_id ?? null,
-      event.game?.away_team_id ?? null,
-      (event as any).team_id ?? null,
-    ];
-    const canManageLinkedTeam = linkedTeamIds.some(Boolean)
-      ? await canManageAnyTeam(userId, linkedTeamIds)
-      : false;
-    const isAdmin = await getIsAdmin(req as any);
-
-    if (!isCreator && !canManageLinkedTeam && !isAdmin) {
-      return res.status(403).json({
-        error: 'Permission denied',
-        message: 'Only the event creator, team staff, or a league admin can edit this event.',
-      });
-    }
+    if (!editable.ok) return res.status(editable.status).json(editable.body);
+    const { eventId, userId, event, isCreator, canManageLinkedTeam, isAdmin } = editable;
 
     const parsed = updateEventSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -1920,44 +2253,14 @@ eventsRouter.patch(
   requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const eventId = String(req.params.id);
-    const userId = req.user!.id;
-
-    const event = await prisma.event.findUnique({
-      where: { id: eventId },
-      include: {
-        game: { select: { id: true, home_team_id: true, away_team_id: true } },
-      },
+    const editable = await loadEditableEventForAction({
+      req,
+      cancelledError: 'Event already cancelled',
+      permissionMessage:
+        'Only the event creator, team staff, or a league admin can cancel this event.',
     });
-
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    if (event.status === 'cancelled') {
-      return res.status(400).json({ error: 'Event already cancelled' });
-    }
-
-    // Permission: creator OR any team staff (including org admin fallback)
-    // for any team linked to this event. Previously this check accepted only
-    // role='owner' and skipped the org-admin fallback — league owners
-    // couldn't cancel events in their own league, and team coaches couldn't
-    // cancel events they scheduled. `canManageAnyTeam` consolidates the
-    // same rule used by team update / game approval / chat creation.
-    const isCreator = event.creator_id === userId;
-    const linkedTeamIds: Array<string | null | undefined> = [
-      event.game?.home_team_id ?? null,
-      event.game?.away_team_id ?? null,
-      (event as any).team_id ?? null,
-    ];
-    const canManageLinkedTeam = linkedTeamIds.some(Boolean)
-      ? await canManageAnyTeam(userId, linkedTeamIds)
-      : false;
-
-    const isAdmin = await getIsAdmin(req as any);
-    if (!isCreator && !canManageLinkedTeam && !isAdmin) {
-      return res.status(403).json({
-        error: 'Permission denied',
-        message: 'Only the event creator, team staff, or a league admin can cancel this event.',
-      });
-    }
+    if (!editable.ok) return res.status(editable.status).json(editable.body);
+    const { eventId, userId, event } = editable;
 
     // Update event status
     const updated = await prisma.event.update({

@@ -15,8 +15,8 @@
  *   - downgrades to rookie when the store reports the subscription expired or
  *     cancelled.
  *
- * It reuses the exported verification helper from routes/payments.ts (already
- * loaded in-process) so there is a single source of truth for Google verify.
+ * It reuses the payment service verifier so there is a single source of truth
+ * for Google verify without importing the HTTP route module.
  */
 
 import { prisma } from './prisma.js';
@@ -27,7 +27,7 @@ import {
   GOOGLE_ALLOWED_PACKAGES,
   hasGooglePlayVerifierConfig,
   verifyGooglePurchaseWithPlayApi,
-} from '../routes/payments.js';
+} from '../services/payments/googlePlayVerifier.js';
 
 const BATCH_LIMIT = 200;
 

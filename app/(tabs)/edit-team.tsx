@@ -837,7 +837,7 @@ function EditTeamScreen() {
               }
               renderItem={({ item: m }) => {
                 const uid = m.user_id || m.user?.id;
-                const displayName = m.user?.display_name || m.display_name || 'Unknown';
+                const displayName = m.user?.username || 'Unknown';
                 const email = m.user?.email || m.email || '';
                 const role = m.role || 'member';
 

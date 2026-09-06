@@ -68,11 +68,15 @@ export function scrubSentryRequestData<T extends { request?: any }>(event: T): T
   // Never send cookies.
   delete request.cookies;
 
-  // Strip Authorization / Cookie headers regardless of casing.
+  // Strip sensitive headers regardless of casing.
   const headers = request.headers;
   if (headers && typeof headers === 'object') {
     for (const key of Object.keys(headers)) {
-      if (/authorization|cookie/i.test(key)) {
+      if (
+        /authorization|cookie|stripe-signature|x-health-check-secret|x-idempotency-key|x-sendgrid-event-webhook/i.test(
+          key
+        )
+      ) {
         delete headers[key];
       }
     }

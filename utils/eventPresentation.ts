@@ -39,11 +39,13 @@ export const getEventPresentationPhase = (
 
 export const canShowGamePoll = ({
   gameId,
+  eventId,
   eventType,
 }: {
   gameId?: string | null;
+  eventId?: string | null;
   eventType?: string | null;
 }) => {
-  if (!gameId) return false;
+  if (!gameId && !eventId) return false;
   return isCompetitiveEventType(eventType);
 };

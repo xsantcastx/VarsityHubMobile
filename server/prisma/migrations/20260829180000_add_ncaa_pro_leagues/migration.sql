@@ -1,0 +1,5 @@
+ALTER TYPE "ProLeague" ADD VALUE IF NOT EXISTS 'ncaaf';
+ALTER TYPE "ProLeague" ADD VALUE IF NOT EXISTS 'ncaamb';
+ALTER TYPE "ProLeague" ADD VALUE IF NOT EXISTS 'ncaawb';
+ALTER TYPE "ProLeague" ADD VALUE IF NOT EXISTS 'ncaabaseball';
+ALTER TYPE "ProLeague" ADD VALUE IF NOT EXISTS 'ncaamhockey';

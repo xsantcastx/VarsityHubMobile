@@ -499,7 +499,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           clearLocalAuthState();
           try {
             await auth.logout();
-          } catch {}
+          } catch (error) {
+            captureException(error, { tags: { context: 'auth_logout_after_ban_failed' } });
+          }
           return;
         }
 

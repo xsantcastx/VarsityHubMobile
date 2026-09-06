@@ -131,19 +131,20 @@ function buildRejectedCoachPreferences(params: {
   return next;
 }
 
-export async function approveJoinRequest(params: {
-  requestId: string;
-  reviewerUserId: string;
-  context: JoinRequestReviewContext;
-}): Promise<JoinRequestDecisionResult> {
-  const { requestId, reviewerUserId, context } = params;
-
+async function loadJoinRequestDecisionContext(
+  requestId: string,
+  options: { includeAdminApproved?: boolean } = {}
+) {
   const joinRequest = await getOrganizationJoinRequestState(requestId);
   const [organization, user] = await Promise.all([
     joinRequest
       ? prisma.organization.findUnique({
           where: { id: joinRequest.organization_id },
-          select: { id: true, name: true, admin_approved: true },
+          select: {
+            id: true,
+            name: true,
+            ...(options.includeAdminApproved ? { admin_approved: true } : {}),
+          },
         })
       : Promise.resolve(null),
     joinRequest
@@ -153,6 +154,20 @@ export async function approveJoinRequest(params: {
         })
       : Promise.resolve(null),
   ]);
+
+  return { joinRequest, organization, user };
+}
+
+export async function approveJoinRequest(params: {
+  requestId: string;
+  reviewerUserId: string;
+  context: JoinRequestReviewContext;
+}): Promise<JoinRequestDecisionResult> {
+  const { requestId, reviewerUserId, context } = params;
+
+  const { joinRequest, organization, user } = await loadJoinRequestDecisionContext(requestId, {
+    includeAdminApproved: true,
+  });
   if (!joinRequest || !organization || !user) {
     return { ok: false, status: 404, error: 'Join request not found' };
   }
@@ -372,21 +387,7 @@ export async function denyJoinRequest(params: {
 }): Promise<JoinRequestDecisionResult> {
   const { requestId, reviewerUserId, context, reason } = params;
 
-  const joinRequest = await getOrganizationJoinRequestState(requestId);
-  const [organization, user] = await Promise.all([
-    joinRequest
-      ? prisma.organization.findUnique({
-          where: { id: joinRequest.organization_id },
-          select: { id: true, name: true },
-        })
-      : Promise.resolve(null),
-    joinRequest
-      ? prisma.user.findUnique({
-          where: { id: joinRequest.user_id },
-          select: { id: true, email: true, display_name: true, preferences: true },
-        })
-      : Promise.resolve(null),
-  ]);
+  const { joinRequest, organization, user } = await loadJoinRequestDecisionContext(requestId);
   if (!joinRequest || !organization || !user) {
     return { ok: false, status: 404, error: 'Join request not found' };
   }

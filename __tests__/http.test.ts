@@ -414,3 +414,48 @@ describe('api/http — timeout', () => {
     });
   });
 });
+
+describe('api/http — Sentry reporting boundaries', () => {
+  it('does not capture handled 4xx responses such as the non-admin seed endpoint', async () => {
+    const fetchMock = jest
+      .fn<(input: any, init?: any) => Promise<any>>()
+      .mockResolvedValue(mkJsonResponse(403, { error: 'Admin only' }));
+
+    const http = freshHttp(fetchMock);
+    const { captureException } = require('@/utils/sentry') as {
+      captureException: jest.MockedFunction<
+        (error: unknown, context?: Record<string, unknown>) => void
+      >;
+    };
+
+    await expect(http.httpPost('/games/seed-samples', {})).rejects.toMatchObject({
+      status: 403,
+      message: 'Admin only',
+    });
+
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it('still captures server-side 5xx responses exactly once', async () => {
+    const fetchMock = jest
+      .fn<(input: any, init?: any) => Promise<any>>()
+      .mockResolvedValue(mkJsonResponse(500, { error: 'Internal server error' }));
+
+    const http = freshHttp(fetchMock);
+    const { captureException } = require('@/utils/sentry') as {
+      captureException: jest.MockedFunction<
+        (error: unknown, context?: Record<string, unknown>) => void
+      >;
+    };
+
+    await expect(http.httpGet('/feed', {}, undefined, 0)).rejects.toMatchObject({
+      status: 500,
+      message: 'Internal server error',
+    });
+
+    expect(captureException).toHaveBeenCalledTimes(1);
+    expect(captureException.mock.calls[0]?.[1]).toMatchObject({
+      tags: { component: 'http-client', endpoint: '/feed' },
+    });
+  });
+});

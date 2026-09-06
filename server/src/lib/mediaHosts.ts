@@ -69,6 +69,39 @@ export function isAllowedMediaUrl(value: string): boolean {
 }
 
 /**
+ * Client-submitted post media must already be a platform-owned uploaded asset.
+ * Do not accept data:, file:, arbitrary relative paths, or another Cloudinary
+ * customer's cloud; those bypass the upload/moderation/cleanup pipeline.
+ */
+export function isAllowedPostMediaUrl(value: string): boolean {
+  const v = value.trim();
+  if (!/^https:\/\//i.test(v)) return false;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(v);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:') return false;
+
+  const r2base = (process.env.R2_PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
+  if (r2base && v.startsWith(`${r2base}/`)) return true;
+
+  if (parsed.hostname === 'res.cloudinary.com') {
+    const cloudName = (process.env.CLOUDINARY_CLOUD_NAME || '').trim();
+    if (!cloudName) return false;
+    return parsed.pathname.startsWith(`/${cloudName}/`) && parsed.pathname.includes('/upload/');
+  }
+
+  if (parsed.hostname === 'varsityhub.app' || parsed.hostname.endsWith('.varsityhub.app')) {
+    return parsed.pathname.startsWith('/uploads/');
+  }
+
+  return false;
+}
+
+/**
  * An uploaded asset that must be a bare absolute https URL — team/org logos,
  * banners, story media. No data:/relative forms.
  */

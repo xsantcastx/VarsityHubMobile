@@ -167,6 +167,14 @@ enum ProLeague {
   wnba
   mlb
   wwe
+  ufc
+  atp
+  wta
+  ncaaf
+  ncaamb
+  ncaawb
+  ncaabaseball
+  ncaamhockey
 }
 
 // ===========================
@@ -330,6 +338,7 @@ model User {
   postUpvotes      PostUpvote[]
   postBookmarks    PostBookmark[]
   gameVotes        GameVote[]
+  eventVotes       EventVote[]
   pollVotes        PollVote[]
 
   // Blocking
@@ -713,6 +722,12 @@ model Event {
   // place instead of inserting a duplicate event page.
   pro_external_ref String? @unique @db.VarChar(200)
 
+  // Data-driven league metadata layer. Nullable during migration so existing
+  // VarsityHub-created events and legacy pro/NCAA rows continue to work while
+  // schedule coverage moves away from the fixed ProLeague enum.
+  sports_league_id String?
+  sportsLeague     SportsLeague? @relation(fields: [sports_league_id], references: [id], onDelete: SetNull)
+
   // Exclusive poster (owner one-off feature, 2026-07-14): when set, ONLY this
   // user may post to this event — every other user (even attendees who were
   // there) is blocked. Null = normal multi-fan posting. Plain id column (no FK
@@ -728,11 +743,12 @@ model Event {
   // 1 hour before start.
   live_window_hours_after_start Int?
 
-  game             Game?                   @relation(fields: [game_id], references: [id], onDelete: SetNull)
-  creator          User?                   @relation(fields: [creator_id], references: [id], onDelete: SetNull)
-  rsvps            EventRsvp[]
-  posts            Post[]
-  postingUnlocks   EventPostingUnlock[]
+  game              Game?                   @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  creator           User?                   @relation(fields: [creator_id], references: [id], onDelete: SetNull)
+  rsvps             EventRsvp[]
+  posts             Post[]
+  votes             EventVote[]
+  postingUnlocks    EventPostingUnlock[]
   designatedPosters EventDesignatedPoster[]
 
   @@index([date])
@@ -748,6 +764,75 @@ model Event {
   @@index([exclusive_poster_id])
   @@index([pro_home_team_id, date])
   @@index([pro_away_team_id, date])
+  @@index([sports_league_id])
+}
+
+// Data-driven sports schedule catalog. This is intentionally separate from
+// Team/Organization and from ProTeam ownership surfaces: leagues are external
+// competition metadata, not user-claimable VarsityHub resources.
+model SportsLeague {
+  id                 String   @id @default(cuid())
+  slug               String   @unique @db.VarChar(80)
+  name               String   @db.VarChar(160)
+  sport_slug         String   @db.VarChar(80)
+  level              String   @db.VarChar(40) // major, minor, college, international, other
+  gender             String   @db.VarChar(40) // men, women, coed, mixed, unknown
+  country_code       String?  @db.VarChar(2)
+  provider           String?  @db.VarChar(60)
+  provider_league_id String?  @db.VarChar(120)
+  active             Boolean  @default(false)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @default(now()) @updatedAt
+
+  events     Event[]
+  seasons    SportsSeason[]
+  ingestRuns SportsIngestRun[]
+
+  @@index([sport_slug, active])
+  @@index([level, active])
+  @@index([gender, active])
+  @@index([provider, provider_league_id])
+}
+
+model SportsSeason {
+  id                 String       @id @default(cuid())
+  sports_league_id   String
+  sportsLeague       SportsLeague @relation(fields: [sports_league_id], references: [id], onDelete: Cascade)
+  season_key         String       @db.VarChar(80)
+  label              String       @db.VarChar(120)
+  starts_on          DateTime?
+  ends_on            DateTime?
+  provider_season_id String?      @db.VarChar(120)
+  active             Boolean      @default(true)
+  is_current         Boolean      @default(false)
+  created_at         DateTime     @default(now())
+  updated_at         DateTime     @default(now()) @updatedAt
+
+  @@unique([sports_league_id, season_key])
+  @@index([sports_league_id, is_current])
+  @@index([provider_season_id])
+}
+
+model SportsIngestRun {
+  id               String        @id @default(cuid())
+  sports_league_id String?
+  sportsLeague     SportsLeague? @relation(fields: [sports_league_id], references: [id], onDelete: SetNull)
+  provider         String        @db.VarChar(60)
+  status           String        @db.VarChar(40) // dry_run, success, partial, failed
+  window_from      DateTime?
+  window_to        DateTime?
+  fetched_count    Int           @default(0)
+  created_count    Int           @default(0)
+  updated_count    Int           @default(0)
+  skipped_count    Int           @default(0)
+  failure_count    Int           @default(0)
+  message          String?       @db.VarChar(2000)
+  started_at       DateTime      @default(now())
+  finished_at      DateTime?
+
+  @@index([sports_league_id, started_at])
+  @@index([provider, started_at])
+  @@index([status, started_at])
 }
 
 // Durable "was there" ledger for location-based event posting (owner rule,
@@ -1065,6 +1150,21 @@ model GameVote {
   @@index([game_id, team])
 }
 
+model EventVote {
+  id         String   @id @default(cuid())
+  event_id   String
+  user_id    String
+  team       String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, user_id])
+  @@index([event_id, team])
+}
+
 model Story {
   id String @id @default(cuid())
 
@@ -1202,39 +1302,39 @@ model SportProgram {
   logo_url        String?
   created_at      DateTime @default(now())
 
-  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
-  teams        Team[]
-  followers    ProgramFollow[]
-  fanned_out_team_follows TeamFollow[] @relation("TeamFollowViaProgram")
+  organization            Organization    @relation(fields: [organization_id], references: [id], onDelete: Restrict)
+  teams                   Team[]
+  followers               ProgramFollow[]
+  fanned_out_team_follows TeamFollow[]    @relation("TeamFollowViaProgram")
 
   @@unique([organization_id, sport])
   @@index([organization_id])
 }
 
 model Team {
-  id                       String     @id @default(cuid())
-  name                     String     @db.VarChar(100)
-  description              String?    @db.VarChar(1000)
+  id                       String      @id @default(cuid())
+  name                     String      @db.VarChar(100)
+  description              String?     @db.VarChar(1000)
   // Logo and optional avatar URL for backward compatibility with front-end
   logo_url                 String?
   avatar_url               String?
-  sport                    String?    @db.VarChar(100)
-  club_type                String     @default("sport") // "sport" or "extracurricular"
-  extracurricular_category String?    @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
-  season                   String?    @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
+  sport                    String?     @db.VarChar(100)
+  club_type                String      @default("sport") // "sport" or "extracurricular"
+  extracurricular_category String?     @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
+  season                   String?     @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
   level                    TeamLevel?
   gender                   TeamGender?
   program_id               String?
-  primary_color            String?    @db.VarChar(20) // hex color for team branding
+  primary_color            String?     @db.VarChar(20) // hex color for team branding
   season_start             DateTime?
   season_end               DateTime?
   organization_id          String
-  status                   TeamStatus @default(active)
+  status                   TeamStatus  @default(active)
   // When true, the team is hidden from public search and discover. Only team
   // members, followers, and org admins (owner/manager) can list the roster
   // or pull the full profile. Set via the team-update endpoint by team staff
   // or org admins.
-  is_private               Boolean    @default(false)
+  is_private               Boolean     @default(false)
 
   // Venue information
   venue_place_id   String?   @db.VarChar(255)

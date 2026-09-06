@@ -65,10 +65,7 @@ const requiredVars = ['SENDGRID_API_KEY'];
 requiredVars.forEach(varName => {
   const value = process.env[varName];
   if (value) {
-    const displayValue = varName.includes('KEY')
-      ? `${value.substring(0, 5)}...${value.substring(value.length - 5)}`
-      : value;
-    console.log(`   ✅ ${varName}: ${displayValue}`);
+    console.log(`   ✅ ${varName}: Set`);
   } else {
     console.log(`   ❌ ${varName}: Not set`);
   }
@@ -92,7 +89,7 @@ for (const [label, diag] of Object.entries(baseUrlDiagnostics)) {
       ? 'using configured value'
       : `using fallback (${diag.reason.replace(/_/g, ' ')})`;
   console.log(`   ${prefix} ${diag.envKey}: ${diag.resolvedValue}`);
-  console.log(`      Raw: ${diag.rawValue || '(unset)'}`);
+  console.log(`      Raw value: ${diag.rawValue ? 'set' : '(unset)'}`);
   console.log(`      Status: ${reason}`);
 }
 

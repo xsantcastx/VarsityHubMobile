@@ -13,11 +13,24 @@ import { redactIdentifier } from '../lib/logRedaction.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import {
+  formatUsd,
+  getCheckoutReturnUrls,
+  getPastAdDates,
+} from '../services/payments/checkoutHelpers.js';
+import {
+  getGooglePurchaseOrderId,
+  GOOGLE_ALLOWED_PACKAGES,
+  GOOGLE_PRODUCT_TO_PLAN,
+  hasGooglePlayVerifierConfig,
+  verifyGooglePurchaseWithPlayApi,
+} from '../services/payments/googlePlayVerifier.js';
+import {
   AD_PRODUCT_CENTS,
   APPLE_PRODUCT_TO_PLAN,
   ensureApplePendingTransactionLog,
   finalizeAppleAdPurchase,
   finalizeAppleSubscriptionPurchase,
+  getFullAdSlotDates,
   getVeteranBillingSnapshot,
   getVeteranTotalTeamAllowance,
   isUniqueConstraintError,
@@ -86,7 +99,6 @@ const stripe = new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_conf
   timeout: 20000,
   maxNetworkRetries: 2,
 });
-const MAX_AD_SLOTS = 2;
 const webhookEventLocks = new Map<string, Promise<any>>();
 const isJestRuntime = process.env.JEST_WORKER_ID != null;
 const hasStripeWebhookSecret = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
@@ -153,29 +165,16 @@ async function activateApprovedAdPaymentIntent(
   });
 
   if (adRecord?.target_zip_code) {
-    const reservedAdsInZip = await tx.ad.findMany({
-      where: {
-        target_zip_code: adRecord.target_zip_code,
-        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-        NOT: { id: adId },
-      },
-      select: { id: true },
-      take: 100,
+    const fullDates = await getFullAdSlotDates(tx, {
+      adId,
+      targetZipCode: adRecord.target_zip_code,
+      isoDates: dates,
     });
-    if (reservedAdsInZip.length > 0) {
-      const dateObjects = dates.map(s => new Date(s + 'T00:00:00.000Z'));
-      const bookedSlots = await tx.adReservation.groupBy({
-        by: ['date'],
-        where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-        _count: { date: true },
-      });
-      const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-      if (fullDates.length > 0) {
-        const err = new Error('SLOT_FULL') as Error & { slotFull?: boolean; dates?: string[] };
-        err.slotFull = true;
-        err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-        throw err;
-      }
+    if (fullDates.length > 0) {
+      const err = new Error('SLOT_FULL') as Error & { slotFull?: boolean; dates?: string[] };
+      err.slotFull = true;
+      err.dates = fullDates;
+      throw err;
     }
   }
 
@@ -803,65 +802,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           try {
             await prisma.$transaction(
               async tx => {
-                const adRecord = await tx.ad.findUnique({
-                  where: { id: adId },
-                  select: { target_zip_code: true, status: true, payment_status: true },
-                });
-                if (adRecord?.target_zip_code) {
-                  const reservedAdsInZip = await tx.ad.findMany({
-                    where: {
-                      target_zip_code: adRecord.target_zip_code,
-                      payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-                      NOT: { id: adId },
-                    },
-                    select: { id: true },
-                    take: 100,
-                  });
-                  if (reservedAdsInZip.length > 0) {
-                    const dateObjects = piDates.map(s => new Date(s + 'T00:00:00.000Z'));
-                    const bookedSlots = await tx.adReservation.groupBy({
-                      by: ['date'],
-                      where: {
-                        ad_id: { in: reservedAdsInZip.map(a => a.id) },
-                        date: { in: dateObjects },
-                      },
-                      _count: { date: true },
-                    });
-                    const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-                    if (fullDates.length > 0) {
-                      const err = new Error('SLOT_FULL') as any;
-                      err.slotFull = true;
-                      err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-                      throw err;
-                    }
-                  }
-                }
-                if (!adRecord || (adRecord.status !== 'approved' && adRecord.status !== 'active')) {
-                  throw new Error(
-                    `AD_NOT_APPROVED: Ad ${adId} status is ${adRecord?.status}, cannot activate`
-                  );
-                }
-                if (adRecord.payment_status === 'paid') {
-                  return;
-                }
-
-                const updated = await tx.ad.updateMany({
-                  where: {
-                    id: adId,
-                    status: { in: ['approved', 'active'] },
-                    payment_status: { not: 'paid' },
-                  },
-                  data: { payment_status: 'paid', status: 'active' },
-                });
-                if (updated.count === 0) {
-                  throw new Error(
-                    `AD_NOT_APPROVED: Ad ${adId} was no longer approved at activation time`
-                  );
-                }
-                await tx.adReservation.createMany({
-                  data: piDates.map(s => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
-                  skipDuplicates: true,
-                });
+                await activateApprovedAdPaymentIntent(tx, adId, piDates);
               },
               { isolationLevel: 'Serializable' }
             );
@@ -1144,18 +1085,6 @@ paymentsRouter.post(
   })
 );
 
-const formatUsd = (cents?: number | null) => {
-  if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
-  return `$${(cents / 100).toFixed(2)}`;
-};
-
-function getPastAdDates(isoDates: string[], now: Date = new Date()): string[] {
-  const todayIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    .toISOString()
-    .slice(0, 10);
-  return isoDates.filter(dateIso => dateIso < todayIso);
-}
-
 async function buildAdQuote(params: {
   adId: string;
   userId: string;
@@ -1227,26 +1156,89 @@ async function buildAdQuote(params: {
   };
 }
 
-function getCheckoutReturnUrls(params: { type: 'subscription' | 'ad'; mode?: 'app' | 'web' }) {
-  if (params.mode === 'web') {
-    const appBase = (process.env.APP_BASE_URL || process.env.EXPO_PUBLIC_API_URL || '')
-      .trim()
-      .replace(/\/$/, '');
-    if (!appBase && process.env.NODE_ENV === 'production') {
-      throw new Error('APP_BASE_URL must be set in production');
+async function handleFullyCompedAdPayment(params: {
+  res: Response;
+  userId: string;
+  adId: string;
+  isoDates: string[];
+  appliedCode?: string | null;
+  subtotalCents: number;
+  discountCents: number;
+  ad: {
+    target_zip_code?: string | null;
+    business_name?: string | null;
+  };
+  transactionLogContext: string;
+}) {
+  const { res, userId, adId, isoDates, appliedCode, subtotalCents, discountCents, ad } = params;
+
+  if (appliedCode) {
+    await redeemPromo({
+      code: appliedCode,
+      subtotalCents,
+      userId,
+      service: 'booking',
+      orderId: `FREE-${crypto.randomUUID()}`,
+    });
+  }
+  try {
+    await prisma.$transaction(
+      async tx => {
+        await reserveAdSlots(tx, {
+          adId,
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'paid',
+          status: 'active',
+        });
+      },
+      { isolationLevel: 'Serializable' }
+    );
+  } catch (e: any) {
+    if (e?.slotFull) {
+      return res.status(409).json({
+        error: 'One or more selected dates are fully booked',
+        dates: e.dates,
+      });
     }
-    const base = appBase || 'http://localhost:8081';
-    return {
-      success: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}&type=${params.type}`,
-      cancel: `${base}/payment-cancel${params.type === 'ad' ? '?type=ad' : ''}`,
-    };
+    console.error('Failed to create ad reservations for free promo:', e);
+    return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
   }
 
-  const appScheme = 'varsityhubmobile';
-  return {
-    success: `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=${params.type}`,
-    cancel: `${appScheme}://payment-cancel${params.type === 'ad' ? '?type=ad' : ''}`,
-  };
+  try {
+    await logTransaction({
+      transactionType: 'AD_PURCHASE',
+      status: 'COMPLETED',
+      userId,
+      subtotalCents,
+      taxCents: 0,
+      discountCents,
+      promoCode: appliedCode || undefined,
+      promoDiscountCents: discountCents,
+      totalCents: 0,
+      netCents: 0,
+      currency: 'usd',
+      metadata: { free_promo: true, ad_id: adId, dates: isoDates },
+    });
+  } catch (err) {
+    console.error('[payments] Failed to log free promo transaction:', err);
+    captureException(err as Error, {
+      context: params.transactionLogContext,
+      adId,
+    });
+  }
+
+  sendAdPaymentEmail({
+    userId,
+    adId,
+    dates: isoDates,
+    totalCents: 0,
+    businessName: ad.business_name,
+    zipCode: ad.target_zip_code,
+  }).catch((err: any) =>
+    console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
+  );
+  return res.json({ free: true });
 }
 
 // Ad pricing now uses the shared helper from utils/adPricing.ts
@@ -1628,32 +1620,19 @@ paymentsRouter.post(
     }
 
     // Slot availability check — reject before Stripe if any date is already full.
-    // Up to MAX_AD_SLOTS different ads may run per date per zip.
+    // Up to the shared ad-slot cap may run per date per zip.
     if (ad.target_zip_code) {
       // Include paid, hold, and pending_approval — align with PaymentSheet to prevent overfilling zip
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id: String(ad_id) },
-        },
-        select: { id: true },
-        take: 100,
+      const fullDates = await getFullAdSlotDates(prisma, {
+        adId: String(ad_id),
+        targetZipCode: ad.target_zip_code,
+        isoDates,
       });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
+      if (fullDates.length > 0) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: fullDates,
         });
-        const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-          });
-        }
       }
     }
 
@@ -1666,75 +1645,17 @@ paymentsRouter.post(
     // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
     const isFullyComped = discount >= subtotal;
     if (total === 0 || isFullyComped) {
-      // Record redemption and create reservations
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId: req.user!.id,
-          service: 'booking',
-          orderId: `FREE-${crypto.randomUUID()}`,
-        });
-      }
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'paid',
-              status: 'active',
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-      } catch (e) {
-        if ((e as any)?.slotFull) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: (e as any).dates,
-          });
-        }
-        console.error('Failed to create ad reservations for free promo:', e);
-        return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
-      }
-      // v1.0.2 audit fix: await so financial audit trail can't silently drop.
-      // On DB failure, the user-facing response succeeds but we capture to Sentry at error level.
-      try {
-        await logTransaction({
-          transactionType: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          userId: req.user!.id,
-          subtotalCents: subtotal,
-          taxCents: 0,
-          discountCents: discount,
-          promoCode: appliedCode || undefined,
-          promoDiscountCents: discount,
-          totalCents: 0,
-          netCents: 0,
-          currency: 'usd',
-          metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-        });
-      } catch (err) {
-        console.error('[payments] Failed to log free promo transaction:', err);
-        captureException(err as Error, {
-          context: 'free_promo_transaction_log',
-          adId: String(ad_id),
-        });
-      }
-      // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
-      sendAdPaymentEmail({
+      return handleFullyCompedAdPayment({
+        res,
         userId: req.user!.id,
         adId: String(ad_id),
-        dates: isoDates,
-        totalCents: 0,
-        businessName: ad.business_name,
-        zipCode: ad.target_zip_code,
-      }).catch((err: any) =>
-        console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
-      );
-      return res.json({ free: true });
+        isoDates,
+        appliedCode,
+        subtotalCents: subtotal,
+        discountCents: discount,
+        ad,
+        transactionLogContext: 'free_promo_transaction_log',
+      });
     }
 
     const { success, cancel } = getCheckoutReturnUrls({ type: 'ad', mode: checkout_mode });
@@ -2215,31 +2136,17 @@ paymentsRouter.post(
     }
 
     // Slot availability check — include 'hold' and 'pending_approval' ads
-    const MAX_AD_SLOTS = 2;
     if (ad.target_zip_code) {
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id: String(ad_id) },
-        },
-        select: { id: true },
-        take: 100,
+      const fullDates = await getFullAdSlotDates(prisma, {
+        adId: String(ad_id),
+        targetZipCode: ad.target_zip_code,
+        isoDates,
       });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
+      if (fullDates.length > 0) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: fullDates,
         });
-        const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-          });
-        }
       }
     }
 
@@ -2251,74 +2158,17 @@ paymentsRouter.post(
     const total = quote.totalCents;
     const isFullyComped = discount >= subtotal;
     if (total === 0 || isFullyComped) {
-      // Free via promo — only if already approved (approval required before any charge/activation)
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId,
-          service: 'booking',
-          orderId: `FREE-${crypto.randomUUID()}`,
-        });
-      }
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'paid',
-              status: 'active',
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-      } catch (e: any) {
-        if (e?.slotFull) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: e.dates,
-          });
-        }
-        console.error('Failed to create ad reservations for free promo:', e);
-        return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
-      }
-      // v1.0.2 audit fix: await to preserve audit trail on PaymentSheet free-promo path.
-      try {
-        await logTransaction({
-          transactionType: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          userId,
-          subtotalCents: subtotal,
-          taxCents: 0,
-          discountCents: discount,
-          promoCode: appliedCode || undefined,
-          promoDiscountCents: discount,
-          totalCents: 0,
-          netCents: 0,
-          currency: 'usd',
-          metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-        });
-      } catch (err) {
-        console.error('[payments] Failed to log free promo transaction:', err);
-        captureException(err as Error, {
-          context: 'free_promo_transaction_log_pi',
-          adId: String(ad_id),
-        });
-      }
-      // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
-      sendAdPaymentEmail({
+      return handleFullyCompedAdPayment({
+        res,
         userId,
         adId: String(ad_id),
-        dates: isoDates,
-        totalCents: 0,
-        businessName: ad.business_name,
-        zipCode: ad.target_zip_code,
-      }).catch((err: any) =>
-        console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
-      );
-      return res.json({ free: true });
+        isoDates,
+        appliedCode,
+        subtotalCents: subtotal,
+        discountCents: discount,
+        ad,
+        transactionLogContext: 'free_promo_transaction_log_pi',
+      });
     }
 
     try {
@@ -4014,31 +3864,17 @@ paymentsRouter.post(
         return res.status(400).json({ error: 'Missing Apple transaction ids in purchase data' });
       }
 
-      const MAX_AD_SLOTS = 2;
       if (ad.target_zip_code) {
-        const reservedAdsInZip = await prisma.ad.findMany({
-          where: {
-            target_zip_code: ad.target_zip_code,
-            payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-            NOT: { id: String(ad_id) },
-          },
-          select: { id: true },
-          take: 100,
+        const fullDates = await getFullAdSlotDates(prisma, {
+          adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates: dates,
         });
-        if (reservedAdsInZip.length > 0) {
-          const dateObjects = dates.map((s: string) => new Date(s + 'T00:00:00.000Z'));
-          const bookedSlots = await prisma.adReservation.groupBy({
-            by: ['date'],
-            where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-            _count: { date: true },
+        if (fullDates.length > 0) {
+          return res.status(409).json({
+            error: 'One or more dates are fully booked',
+            dates: fullDates,
           });
-          const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-          if (fullDates.length > 0) {
-            return res.status(409).json({
-              error: 'One or more dates are fully booked',
-              dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-            });
-          }
         }
       }
 
@@ -4540,130 +4376,13 @@ paymentsRouter.post(
 );
 
 // ── Google Play Billing verification ────────────────────────────────
-// Google Play uses the same subscription SKU strings as Apple, so reuse the one
-// canonical product→plan map (imported above) rather than a second literal that
-// could silently drift.
-export const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = APPLE_PRODUCT_TO_PLAN;
-export const GOOGLE_ALLOWED_PACKAGES = (
-  process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub,com.xsantcastx.varsityhub'
-)
-  .split(',')
-  .map(value => value.trim())
-  .filter(Boolean);
-const GOOGLE_PLAY_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const GOOGLE_PLAY_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
-const GOOGLE_PLAY_API_BASE = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
-const GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL = (
-  process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || ''
-).trim();
-const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (
-  process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY || ''
-)
-  .replace(/\\n/g, '\n')
-  .trim();
-const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
 // Security audit 2026-06 #4 (P2): the unverified-fallback flag is a hard no-op in
 // production — resolveGooglePlayUnverifiedFallback() ignores it (with a console.warn)
 // when NODE_ENV === 'production', so this constant is always false in prod and the
 // no-credentials path below fails closed with 503. This supersedes the old M3 block
 // that crashed the server at boot when the flag was set in prod without credentials.
 const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = resolveGooglePlayUnverifiedFallback(process.env);
-
-function getGooglePurchaseOrderId(purchaseToken: string): string {
-  return `google_purchase:${crypto.createHash('sha256').update(String(purchaseToken)).digest('hex')}`;
-}
-
-export function hasGooglePlayVerifierConfig() {
-  return Boolean(GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL && GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY);
-}
-
-async function getGooglePlayAccessToken(): Promise<string | null> {
-  if (!hasGooglePlayVerifierConfig()) return null;
-  const now = Math.floor(Date.now() / 1000);
-  const assertion = jwt.sign(
-    {
-      iss: GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL,
-      scope: GOOGLE_PLAY_SCOPE,
-      aud: GOOGLE_PLAY_TOKEN_URL,
-      iat: now,
-      exp: now + 3600,
-    },
-    GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY,
-    { algorithm: 'RS256' }
-  );
-
-  const body = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion,
-  });
-  const response = await runWithBreaker(
-    'google-play',
-    () =>
-      fetch(GOOGLE_PLAY_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      }),
-    { timeout: 10000 }
-  );
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(
-      `Google token exchange failed (${response.status}): ${text || 'no response body'}`
-    );
-  }
-  const payload: any = await response.json();
-  return typeof payload?.access_token === 'string' ? payload.access_token : null;
-}
-
-export async function verifyGooglePurchaseWithPlayApi(params: {
-  packageName: string;
-  productId: string;
-  purchaseToken: string;
-}) {
-  const accessToken = await getGooglePlayAccessToken();
-  if (!accessToken) {
-    return { verified: false as const, reason: 'google_verifier_not_configured' };
-  }
-
-  const { packageName, productId, purchaseToken } = params;
-  const url = `${GOOGLE_PLAY_API_BASE}/applications/${encodeURIComponent(packageName)}/purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}`;
-  const response = await runWithBreaker(
-    'google-play',
-    () =>
-      fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }),
-    { timeout: 10000 }
-  );
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    return {
-      verified: false as const,
-      reason: `google_play_api_${response.status}`,
-      details: text || null,
-    };
-  }
-
-  const payload: any = await response.json();
-  const expiryTimeMillis = Number(payload?.expiryTimeMillis || 0);
-  const cancelReason = payload?.cancelReason;
-  const isExpired = !expiryTimeMillis || expiryTimeMillis <= Date.now();
-  const isCanceled = cancelReason !== undefined && cancelReason !== null;
-  if (isExpired || isCanceled) {
-    return {
-      verified: false as const,
-      reason: isExpired ? 'google_subscription_expired' : 'google_subscription_canceled',
-      details: payload,
-    };
-  }
-
-  return {
-    verified: true as const,
-    expiresAt: new Date(expiryTimeMillis).toISOString(),
-    details: payload,
-  };
-}
+const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
 
 // Google Play purchase verification
 paymentsRouter.post(
