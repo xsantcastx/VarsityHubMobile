@@ -22,3 +22,9 @@ Remaining limits are explicit:
 - Symbol upload checks, test coverage and successful OTA publication do not constitute seven days of crash-free TestFlight evidence.
 
 Local evidence: `/tmp/vh-reschedule-before.log`, `/tmp/vh-reschedule-db-final.log`, `/tmp/vh-reschedule-local.log`, `/tmp/vh-reschedule-map-tests.log`, `/tmp/vh-reschedule-discovery-tests.log`, `/tmp/vh-reschedule-native-gates.log`.
+
+## Restore round-trip correction
+
+The first actual-backup restore after deploying `55248b5c` matched all data but failed strict schema parity on the new combined date constraint. Independent run [34061950505](https://github.com/emilmancero-dev/VarsityHubMobile/actions/runs/34061950505) also failed. No OTA was published while that gate was failing.
+
+PostgreSQL dump/reparse regroups the combined BETWEEN/AND expression. Additive migration `20260906223000_canonical_date_revision_constraints` splits it into one bound check per array, preserving both NOT NULL requirements and the same 1–56 limits. The already-applied migration is unchanged, and schema comparison remains strict. A complete isolated dump/restore with this correction passes content equality, schema parity, migration deploy, all purchase recovery tests and application constraints; temporary target cleaned up. Evidence: `/tmp/vh-reschedule-before-restore.json` and `/tmp/vh-reschedule-canonical-local-restore.json`.
