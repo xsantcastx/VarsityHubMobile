@@ -3810,6 +3810,8 @@ paymentsRouter.post(
         const unitCents = AD_PRODUCT_CENTS[productId];
         if (!unitCents) return res.status(400).json({ error: `Unknown ad product: ${productId}` });
 
+        let purchasedQty: number;
+        let transactionId: string;
         if (jws) {
           let signedTransaction: any;
           try {
@@ -3827,19 +3829,17 @@ paymentsRouter.post(
               .status(400)
               .json({ error: 'Signed Apple transaction does not match requested product' });
           }
-          const purchasedQty = Math.max(
+          purchasedQty = Math.max(
             1,
             Number(signedTransaction.quantity || signedTransaction.quantityIOS || 1)
           );
-          verifiedCents += unitCents * purchasedQty;
-          const txId = String(
+          transactionId = String(
             signedTransaction.transactionId ||
               signedTransaction.id ||
               signedTransaction.originalTransactionId ||
               signedTransaction.originalTransactionIdentifierIOS ||
               ''
           ).trim();
-          if (txId) appleTransactionIds.push(txId);
         } else {
           let result = await verifyAppleReceipt(receipt!, false);
           if (result.status === 21007) result = await verifyAppleReceipt(receipt!, true);
@@ -3857,19 +3857,26 @@ paymentsRouter.post(
               product_id: productId,
             });
           }
-          const purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
-          verifiedCents += unitCents * purchasedQty;
+          purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
 
-          const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
-          if (txId) appleTransactionIds.push(String(txId));
+          transactionId = String(
+            matching[0]?.transaction_id || matching[0]?.original_transaction_id || ''
+          ).trim();
         }
+        if (!transactionId) {
+          return sendError(res, 400, 'Missing Apple transaction ID in receipt', {
+            code: 'APPLE_TRANSACTION_ID_REQUIRED',
+          });
+        }
+        // Settlement deduplicates claims. Valuation must use the same identity
+        // boundary so repeating a receipt cannot pay for a larger booking.
+        if (appleTransactionIds.includes(transactionId)) continue;
+        appleTransactionIds.push(transactionId);
+        verifiedCents += unitCents * purchasedQty;
       }
 
       if (verifiedCents < expectedPricing.totalCents) {
         return res.status(400).json({ error: 'Receipt total does not match expected amount' });
-      }
-      if (Array.from(new Set(appleTransactionIds.filter(Boolean))).length === 0) {
-        return res.status(400).json({ error: 'Missing Apple transaction ids in purchase data' });
       }
 
       if (ad.target_zip_code) {
