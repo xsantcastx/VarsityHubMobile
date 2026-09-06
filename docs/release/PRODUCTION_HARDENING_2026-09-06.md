@@ -117,3 +117,7 @@ References: [Sentry debug-file API](https://docs.sentry.io/api/projects/list-a-p
 - Runtime verification passed. Build readiness passed with four warnings and no blocking errors. These commands did not build or submit a native binary.
 - Fresh independent restore drill [34060166554](https://github.com/emilmancero-dev/VarsityHubMobile/actions/runs/34060166554) passed at 2026-09-06T21:10:29Z: 62 tables / 4,338 rows, exact content match, migrations, purchase recovery and constraints; disposable database cleaned up. No backend/schema change was needed for this follow-up.
 - The remaining native crashes, missing providers, legacy/needs-action purchases and physical/TestFlight verification gates remain open. This verification is not blanket certification of every app flow.
+
+### Review OTA publication
+
+The verified follow-up is live through EAS Update on production: [8fa50fd4-e597-4aeb-9d30-bc9d5b70a5f8](https://expo.dev/accounts/varsity-hub/projects/varsityhub/updates/8fa50fd4-e597-4aeb-9d30-bc9d5b70a5f8), source `87cd91984e63b6dee3eb429ccfb76c566b8c4ad0`, runtime `1.0.5`. iOS update `01a07892-855d-77c4-819a-f11227d1892b`; Android update `01a07892-855d-767e-8e89-93d883801e51`. EAS update-view confirmed both platforms and the exact source. Guarded publication and Sentry bundle/source-map upload exited successfully. No native build or simulator was run; the previously listed unfinished native/provider/purchase-exception gates remain open.
