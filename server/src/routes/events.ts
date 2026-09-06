@@ -1,3 +1,5 @@
+import { getCatalogHealth } from '../lib/sportsCatalogHealth.js';
+import { resolveConfiguredAdapter } from '../lib/proSchedule/adapters.js';
 import {
   canViewEventRecord,
   EVENT_VISIBILITY_SELECT,
@@ -524,10 +526,15 @@ eventsRouter.get(
             }
           : {}),
       },
+      include: {
+        ingestRuns: { orderBy: { started_at: 'desc' }, take: 1 },
+        seasons: { where: { is_current: true }, orderBy: { updated_at: 'desc' }, take: 1 },
+      },
       orderBy: [{ level: 'asc' }, { sport_slug: 'asc' }, { name: 'asc' }],
       take,
     });
 
+    const supportedSlugs = new Set<string>(resolveConfiguredAdapter()?.leagues ?? []);
     const catalogOrder = new Map(SPORTS_LEAGUE_CATALOG.map((entry, index) => [entry.slug, index]));
     const sorted = [...rows].sort((a, b) => {
       const ai = catalogOrder.get(a.slug) ?? Number.MAX_SAFE_INTEGER;
@@ -567,6 +574,12 @@ eventsRouter.get(
           provider: row.provider,
           provider_league_id: row.provider_league_id,
           schedule_status: getSportsLeagueScheduleStatus(row, currentEventCount),
+          catalog_status: getCatalogHealth({
+            supported: supportedSlugs.has(row.slug) && !!row.provider && !!row.provider_league_id,
+            currentEvents: currentEventCount,
+            latestRun: row.ingestRuns[0],
+            confirmedSeason: row.seasons[0],
+          }),
           has_current_events: currentEventCount > 0,
           current_event_count: currentEventCount,
         };

@@ -54,6 +54,6 @@ describe('events sports league query contract', () => {
     expect(feedScreen).not.toContain('NCAA_FEED_LEAGUES');
     expect(feedScreen).not.toContain('feed-pro-events-upcoming-wwe');
     expect(feedScreen).not.toContain('feed-pro-events-upcoming-nfl');
-    expect(feedScreen).toContain("'feed-pro-events-upcoming'");
+    expect(feedScreen).toContain('fetchDiscoveryItems');
   });
 });

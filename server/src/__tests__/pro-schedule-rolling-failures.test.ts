@@ -4,6 +4,8 @@ const ingest = jest.fn<(...args: any[]) => Promise<any>>();
 const createRun = jest.fn(async () => ({ id: 'run' }));
 const updateRun = jest.fn(async () => ({}));
 let adapterName = 'espn';
+const report = jest.fn();
+jest.unstable_mockModule('../lib/sentry.js', () => ({ captureMessage: report }));
 jest.unstable_mockModule('../lib/proSchedule/adapters.js', () => ({
   NO_ADAPTER_MESSAGE: 'disabled',
   resolveConfiguredAdapter: () => ({ name: adapterName, leagues: ['ncaaf', 'nfl'] }),
@@ -83,4 +85,20 @@ describe('rolling schedule worker outcome', () => {
     );
     expect(updateRun).toHaveBeenCalledTimes(1);
   });
+});
+
+it('reports empty successful imports as unverified instead of silently declaring offseason', async () => {
+  ingest
+    .mockReset()
+    .mockResolvedValue({ fetched: 0, created: 0, updated: 0, skipped: 0, failures: [] });
+  await runRollingScheduleIngest({ apply: true });
+  expect(report).toHaveBeenCalledWith(
+    expect.any(String),
+    'warning',
+    expect.objectContaining({
+      context: 'schedule_empty_unverified',
+      source_id: 'ncaaf',
+      run_id: 'run',
+    })
+  );
 });

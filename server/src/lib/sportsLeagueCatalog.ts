@@ -34,7 +34,7 @@ function league(
     country_code,
     provider,
     provider_league_id,
-    active: true,
+    active: Boolean(provider && provider_league_id),
   };
 }
 

@@ -18,7 +18,7 @@ describe('sports league catalog', () => {
     for (const league of SPORTS_LEAGUE_CATALOG) {
       expect(league.slug).toMatch(/^[a-z0-9_]+$/);
       expect(league.id).toBe(`sports_league_${league.slug}`);
-      expect(league.active).toBe(true);
+      expect(league.active).toBe(Boolean(league.provider && league.provider_league_id));
     }
   });
 
@@ -87,4 +87,16 @@ describe('sports league catalog', () => {
       expect(taxonomySlugs.has(league.sport_slug)).toBe(true);
     }
   });
+});
+
+it('does not advertise unsupported minor league or MLS NEXT feeds as active', () => {
+  for (const slug of [
+    'milb_triple_a',
+    'milb_double_a',
+    'milb_high_a',
+    'milb_single_a',
+    'mls_next_pro',
+  ]) {
+    expect(SPORTS_LEAGUE_CATALOG.find(league => league.slug === slug)?.active).toBe(false);
+  }
 });

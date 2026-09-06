@@ -1,3 +1,4 @@
+import { captureMessage } from '../lib/sentry.js';
 /**
  * Rolling pro-schedule ingest — all leagues, preseason-safe horizon.
  *
@@ -28,6 +29,7 @@ export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): 
   const adapter = resolveConfiguredAdapter();
   if (!adapter) {
     console.warn(NO_ADAPTER_MESSAGE);
+    if (apply) throw new Error('Scheduled import has no configured provider');
     return;
   }
 
@@ -69,6 +71,16 @@ export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): 
       }
       stats = await ingestLeague(adapter, league, from, to, { dryRun: !apply });
       failed = stats.failures.length > 0;
+      if (apply && stats.fetched === 0 && !failed) {
+        captureMessage('Schedule import empty; season coverage unverified', 'warning', {
+          context: 'schedule_empty_unverified',
+          source_id: league,
+          provider: adapter.name.startsWith('json:') ? 'json' : adapter.name.slice(0, 60),
+          run_id: runId,
+          window_from: from.toISOString(),
+          window_to: to.toISOString(),
+        });
+      }
     } catch (err) {
       // One league's provider failure must not abort the others.
       failed = true;

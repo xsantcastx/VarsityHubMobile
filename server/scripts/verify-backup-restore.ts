@@ -195,6 +195,8 @@ try {
   report.success = true;
 } catch (error: any) {
   report.failedPhase = phase;
+  if (phase === 'schema_parity' && String(error?.message).startsWith('Backup schema mismatch:'))
+    report.schemaMismatch = error.message;
   report.errorCode =
     error?.code || String(error?.stderr || '').match(/P[0-9]{4}/)?.[0] || error?.name || 'unknown';
   // Child output can include data/connection details; emit phase/code only.

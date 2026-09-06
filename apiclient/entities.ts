@@ -58,6 +58,13 @@ export type SportsLeagueSummary = {
   provider: string | null;
   provider_league_id: string | null;
   schedule_status: SportsLeagueScheduleStatus;
+  catalog_status?:
+    | 'ACTIVE_SYNCING'
+    | 'UNSUPPORTED_PROVIDER'
+    | 'OFFSEASON_NO_EVENTS'
+    | 'STALE_IMPORT'
+    | 'EMPTY_UNVERIFIED'
+    | 'SEEDED_EVENTS';
   has_current_events: boolean;
   current_event_count: number;
 };
