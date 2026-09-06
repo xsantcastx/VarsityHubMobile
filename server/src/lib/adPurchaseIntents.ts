@@ -129,6 +129,77 @@ async function lockedIntent(tx: Prisma.TransactionClient, id: string, userId?: s
     throw new AdIntentError('PURCHASE_INTENT_NOT_FOUND', 404);
   return intent;
 }
+
+/** Explicit owner action: reuse the same purchased products on replacement dates. */
+export async function reviseAdPurchaseIntentDates(userId: string, id: string, input: unknown) {
+  const body = z
+    .object({
+      dates: z.array(adDateSchema).min(1).max(56),
+      expected_dates: z.array(adDateSchema).min(1).max(56),
+    })
+    .strict()
+    .parse(input);
+  const dates = [...new Set(body.dates)].sort();
+  const expectedDates = [...new Set(body.expected_dates)].sort();
+  const today = new Date().toISOString().slice(0, 10);
+  if (dates.some(date => date < today) || getDatesPastBookingHorizon(dates, new Date(), 56).length)
+    throw new AdIntentError('INVALID_BOOKING_DATES', 400);
+  const pricing = calculateAdPriceCents(dates);
+  try {
+    await serializable(async tx => {
+      const intent = await lockedIntent(tx, id, userId);
+      // A retry after a lost response must not charge or revise history again.
+      if (JSON.stringify(intent.dates) === JSON.stringify(dates)) return;
+      if (intent.status === 'completed') throw new AdIntentError('PURCHASE_ALREADY_COMPLETED');
+      if (JSON.stringify(intent.dates) !== JSON.stringify(expectedDates))
+        throw new AdIntentError('PURCHASE_DATES_CHANGED');
+      const quantities = new Map(intent.items.map(item => [item.sku, item.quantity]));
+      if (
+        pricing.weekdayBlocks !== (quantities.get('MOND_THURS') || 0) ||
+        pricing.weekendBlocks !== (quantities.get('FRI_SUN') || 0)
+      )
+        throw new AdIntentError('REPLACEMENT_PRODUCT_MISMATCH', 400);
+      await tx.$queryRaw`SELECT id FROM "Ad" WHERE id=${intent.ad_id} FOR UPDATE`;
+      const ad = await tx.ad.findUnique({ where: { id: intent.ad_id } });
+      if (!ad || ad.user_id !== userId) throw new AdIntentError('AD_NOT_FOUND', 404);
+      if (!['approved', 'active', 'archived'].includes(ad.status))
+        throw new AdIntentError('AD_NOT_APPROVED', 403);
+      const purchaseReference = `apple-intent:${id}`;
+      // Only this unfinished intent's holds move. Paid reservations remain untouched.
+      // On capacity failure the transaction restores the original holds and dates.
+      await tx.adSlotHold.deleteMany({
+        where: { ad_id: intent.ad_id, purchase_reference: purchaseReference },
+      });
+      await reserveAdSlots(tx, {
+        adId: intent.ad_id,
+        isoDates: dates,
+        paymentStatus: 'hold',
+        purchaseReference,
+      });
+      await tx.adPurchaseIntentRevision.create({
+        data: { intent_id: id, before_dates: intent.dates, after_dates: dates },
+      });
+      await tx.adPurchaseIntent.update({
+        where: { id },
+        data: { dates, status: 'pending', last_error_code: null },
+      });
+    });
+  } catch (error: any) {
+    if (!(error instanceof AdIntentError)) {
+      captureException(new Error('Ad purchase date revision failed'), {
+        context: 'ad_intent_date_revision',
+        intent_id: id,
+        failure_code: error?.code || (error?.slotFull ? 'SLOT_FULL' : 'unknown'),
+      });
+    }
+    if (error?.slotFull) throw new AdIntentError(error.code || 'SLOT_FULL');
+    throw error;
+  }
+  // Full payment settles here without another StoreKit request. Partial payments
+  // retain their receipts and await an explicit checkout for remaining products.
+  return reconcileAdPurchaseIntent(id, userId);
+}
+
 export async function reconcileAdPurchaseIntent(id: string, userId?: string) {
   try {
     return await serializable(async tx => {

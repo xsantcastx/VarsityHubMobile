@@ -1,4 +1,5 @@
-import { recoverAdReceipt } from '@/lib/adPurchaseRecovery';
+import { recoverAdReceipt, reviseAdIntentDates } from '@/lib/adPurchaseRecovery';
+import { httpPost } from '@/api/http';
 jest.mock('expo-modules-core', () => ({ uuid: { v4: jest.fn() } }));
 jest.mock('@/api/http', () => ({ httpPost: jest.fn() }));
 const purchase = {
@@ -60,4 +61,27 @@ it('preserves unbound legacy receipts instead of finishing an unidentified purch
   ).rejects.toThrow();
   expect(save).not.toHaveBeenCalled();
   expect(finish).not.toHaveBeenCalled();
+});
+
+it('binds a date revision to the reviewed purchase dates and validates the response', async () => {
+  const saved = {
+    id: purchase.appAccountToken,
+    ad_id: 'test-ad',
+    status: 'needs_action' as const,
+    dates: ['2026-09-07'],
+    last_error_code: 'BOOKING_DATES_EXPIRED',
+    items: [{ sku: 'MOND_THURS' as const, quantity: 1, remaining: 0 }],
+  };
+  const dates = ['2026-09-14'];
+  jest.mocked(httpPost).mockResolvedValueOnce({ ...saved, dates, status: 'completed' });
+  await expect(reviseAdIntentDates(saved, dates)).resolves.toMatchObject({
+    status: 'completed',
+    dates,
+  });
+  expect(httpPost).toHaveBeenLastCalledWith(`/payments/apple/ad-intents/${saved.id}/dates`, {
+    dates,
+    expected_dates: saved.dates,
+  });
+  jest.mocked(httpPost).mockResolvedValueOnce({ ...saved, status: 'silently_changed_contract' });
+  await expect(reviseAdIntentDates(saved, dates)).rejects.toThrow();
 });

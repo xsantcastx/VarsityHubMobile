@@ -74,6 +74,7 @@ export const TABLES_IN_ORDER = [
   'PromoRedemption',
   'TransactionLog',
   'AdPurchaseIntent', // User + Ad + optional completed TransactionLog
+  'AdPurchaseIntentRevision',
   'AdPurchaseIntentItem',
   'AdPurchaseReceipt',
   'AbuseReport',

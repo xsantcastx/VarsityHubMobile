@@ -4,6 +4,7 @@ import {
   listAdPurchaseIntents,
   recordAdPurchaseReceipt,
   reconcileReadyAdPurchases,
+  reviseAdPurchaseIntentDates,
 } from '../lib/adPurchaseIntents.js';
 import {
   verifyAppleSignedJws,
@@ -3672,8 +3673,23 @@ function adIntentHandler(fn: (req: AuthedRequest, res: Response) => Promise<unkn
         return sendError(res, 400, 'Invalid purchase intent payload', {
           code: 'INVALID_PURCHASE_INTENT',
         });
-      if (error instanceof AdIntentError)
-        return sendError(res, error.statusCode, error.message, { code: error.code });
+      if (error instanceof AdIntentError) {
+        const messages: Record<string, string> = {
+          REPLACEMENT_PRODUCT_MISMATCH:
+            'Select the same number of weekday and weekend blocks as your saved purchase.',
+          PURCHASE_DATES_CHANGED:
+            'This purchase was updated elsewhere. Refresh it before changing dates.',
+          PURCHASE_ALREADY_COMPLETED: 'This purchase is already booked and cannot be moved here.',
+          INVALID_BOOKING_DATES: 'Select future dates within the next eight weeks.',
+          SLOT_FULL: 'Some selected dates are full. Choose other dates; your payment is saved.',
+          AD_DATES_ALREADY_BOOKED:
+            'This ad already has a booking on some selected dates. Choose other dates.',
+          AD_NOT_APPROVED: 'This ad needs approval before it can be booked.',
+        };
+        return sendError(res, error.statusCode, messages[error.code] || error.message, {
+          code: error.code,
+        });
+      }
       captureException(new Error('Ad intent request failed'), {
         context: 'ad_intent_request',
         failure_code: error?.code || 'unknown',
@@ -3709,6 +3725,16 @@ paymentsRouter.post(
   // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
   adIntentHandler(async (req, res) => {
     res.json(await reconcileReadyAdPurchases(req.user!.id));
+  })
+);
+paymentsRouter.post(
+  '/apple/ad-intents/:id/dates',
+  requireAuth as any,
+  paymentLimiter,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
+  adIntentHandler(async (req, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    res.json(await reviseAdPurchaseIntentDates(req.user!.id, id, req.body));
   })
 );
 paymentsRouter.post(

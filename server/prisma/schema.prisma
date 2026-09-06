@@ -1976,9 +1976,22 @@ model AdPurchaseIntent {
   ad                       Ad                     @relation(fields: [ad_id], references: [id], onDelete: Cascade)
   completed_transaction    TransactionLog?        @relation(fields: [completed_transaction_id], references: [id], onDelete: Restrict)
   items                    AdPurchaseIntentItem[]
+  revisions                AdPurchaseIntentRevision[]
 
   @@index([user_id, status])
   @@index([status, updated_at])
+}
+
+// A date change never rewrites the products or receipts that were purchased.
+model AdPurchaseIntentRevision {
+  id           String           @id @default(uuid()) @db.Uuid
+  intent_id    String           @db.Uuid
+  before_dates String[]
+  after_dates  String[]
+  created_at   DateTime         @default(now())
+  intent       AdPurchaseIntent @relation(fields: [intent_id], references: [id], onDelete: Cascade)
+
+  @@index([intent_id, created_at])
 }
 
 model AdPurchaseIntentItem {

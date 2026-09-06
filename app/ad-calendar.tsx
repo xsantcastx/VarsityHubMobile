@@ -1,6 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthProvider';
-import { listAdIntents } from '@/lib/adPurchaseRecovery';
+import {
+  listAdIntents,
+  reviseAdIntentDates,
+  type AdPurchaseIntent,
+} from '@/lib/adPurchaseRecovery';
 import { Colors } from '@/constants/Colors';
 import { useAdIAP } from '@/hooks/useAdIAP';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -217,6 +221,76 @@ function AdCalendarScreen() {
     enabled: Platform.OS === 'ios' && !!user?.id,
   });
   const savedPurchase = pendingPurchases.data?.find(intent => intent.ad_id === adId);
+  const queryClient = useQueryClient();
+  const currentAccount = useRef(user?.id);
+  currentAccount.current = user?.id;
+  const dateRevision = useMutation({
+    mutationFn: ({ intent, dates }: { intent: AdPurchaseIntent; dates: string[] }) =>
+      reviseAdIntentDates(intent, dates),
+  });
+  const reviseSavedDates = () => {
+    if (!savedPurchase || !user?.id || !selected.size || submitting || dateRevision.isPending)
+      return;
+    const accountId = user.id;
+    const intent = savedPurchase;
+    const dates = [...selected].sort();
+    Alert.alert(
+      'Use these dates for your saved purchase?',
+      'Keep the same number of weekday and weekend blocks. Accepted payments carry over; changing dates does not charge you. Availability will be checked before saving.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Use selected dates',
+          onPress: () => {
+            if (currentAccount.current !== accountId) return;
+            dateRevision.mutate(
+              { intent, dates },
+              {
+                onSuccess: updated => {
+                  if (currentAccount.current !== accountId) return;
+                  queryClient.setQueryData<AdPurchaseIntent[]>(
+                    ['ad-purchase-intents', accountId],
+                    previous =>
+                      previous?.flatMap(row =>
+                        row.id !== updated.id
+                          ? [row]
+                          : updated.status === 'completed'
+                            ? []
+                            : [updated]
+                      )
+                  );
+                  if (updated.status === 'completed') {
+                    setSelected(new Set());
+                    setDirty(false);
+                    Alert.alert(
+                      'Booking confirmed',
+                      'Your saved payment covered the replacement dates. No additional charge was made.'
+                    );
+                  } else {
+                    Alert.alert(
+                      'Dates saved',
+                      'Continue checkout when ready. Only the remaining unpaid products will be requested.'
+                    );
+                  }
+                },
+                onError: error => {
+                  if (currentAccount.current !== accountId) return;
+                  void pendingPurchases.refetch();
+                  Alert.alert(
+                    'Could not confirm replacement dates',
+                    toUserMessage(
+                      error,
+                      'Your accepted payments are saved. Refresh your purchase and try again.'
+                    )
+                  );
+                },
+              }
+            );
+          },
+        },
+      ]
+    );
+  };
 
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates
@@ -610,6 +684,7 @@ function AdCalendarScreen() {
   };
 
   const handlePayment = async () => {
+    if (dateRevision.isPending) return;
     if (paymentsTemporarilyDisabled) {
       Alert.alert(
         'Payments Unavailable',
@@ -1054,8 +1129,14 @@ function AdCalendarScreen() {
             <View style={{ paddingVertical: 12 }}>
               <Text style={{ color: Colors[colorScheme].text }}>
                 {savedPurchase.status === 'needs_action'
-                  ? 'Your payment is saved, but booking needs attention. Contact support before purchasing again.'
+                  ? 'Your accepted payments are saved. If the original dates are unavailable, select replacement dates with the same number of weekday and weekend blocks.'
                   : 'You have an unfinished purchase. Restore its dates to continue; accepted payments will not be charged again.'}
+              </Text>
+              <Text style={{ color: Colors[colorScheme].text }}>
+                Saved purchase:{' '}
+                {savedPurchase.items.find(item => item.sku === 'MOND_THURS')?.quantity || 0} weekday
+                block(s), {savedPurchase.items.find(item => item.sku === 'FRI_SUN')?.quantity || 0}{' '}
+                weekend block(s).
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -1072,6 +1153,23 @@ function AdCalendarScreen() {
                   }}
                 >
                   Restore saved purchase dates
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={submitting || dateRevision.isPending || !selected.size}
+                onPress={reviseSavedDates}
+              >
+                <Text
+                  style={{
+                    color: Colors[colorScheme].text,
+                    fontWeight: '700',
+                    paddingVertical: 12,
+                  }}
+                >
+                  {dateRevision.isPending
+                    ? 'Checking replacement dates…'
+                    : 'Use selected dates for saved purchase'}
                 </Text>
               </Pressable>
             </View>

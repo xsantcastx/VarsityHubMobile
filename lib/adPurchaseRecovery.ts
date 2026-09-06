@@ -33,6 +33,14 @@ export async function saveAdReceipt(intentId: string, jws: string) {
     await httpPost(`/payments/apple/ad-intents/${intentId}/receipts`, { jws })
   );
 }
+export async function reviseAdIntentDates(intent: AdPurchaseIntent, dates: string[]) {
+  return intentSchema.parse(
+    await httpPost(`/payments/apple/ad-intents/${intent.id}/dates`, {
+      dates,
+      expected_dates: intent.dates,
+    })
+  );
+}
 export function reconcileAdIntents() {
   return httpPost('/payments/apple/ad-intents/reconcile', {});
 }

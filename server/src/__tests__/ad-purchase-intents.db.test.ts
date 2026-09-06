@@ -23,6 +23,11 @@ monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
 const friday = new Date(monday);
 friday.setUTCDate(friday.getUTCDate() + 4);
 const dates = [monday, friday].map(date => date.toISOString().slice(0, 10));
+const replacementDates = [monday, friday].map(date => {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + 7);
+  return next.toISOString().slice(0, 10);
+});
 async function fixture() {
   const user = await prisma.user.create({
     data: { email: `intent-${randomUUID()}@example.invalid`, email_verified: true },
@@ -72,6 +77,122 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 describe('durable ad purchase recovery against PostgreSQL', () => {
+  it('moves an expired fully paid intent and five concurrent retries fulfill only once', async () => {
+    const { user, ad, intent, receipt } = await fixture();
+    await service.recordAdPurchaseReceipt(user.id, intent.id, receipt('MOND_THURS'));
+    const expired = dates.map(date => {
+      const past = new Date(`${date}T00:00:00Z`);
+      past.setUTCDate(past.getUTCDate() - 28);
+      return past.toISOString().slice(0, 10);
+    });
+    await prisma.adPurchaseIntent.update({ where: { id: intent.id }, data: { dates: expired } });
+    await expect(
+      service.recordAdPurchaseReceipt(user.id, intent.id, receipt('FRI_SUN'))
+    ).rejects.toMatchObject({ code: 'BOOKING_DATES_EXPIRED' });
+    expect(await prisma.adPurchaseReceipt.count({ where: { intent_id: intent.id } })).toBe(2);
+    // Original checkout cannot recover this purchase: it refuses replacement dates.
+    await expect(
+      service.createAdPurchaseIntent(user.id, {
+        ad_id: ad.id,
+        dates: replacementDates,
+        client_transaction_id: randomUUID(),
+      })
+    ).rejects.toMatchObject({ code: 'RESUME_EXISTING_PURCHASE_DATES' });
+    const recovered = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        service.reviseAdPurchaseIntentDates(user.id, intent.id, {
+          dates: replacementDates,
+          expected_dates: expired,
+        })
+      )
+    );
+    expect(recovered.every(row => row.status === 'completed')).toBe(true);
+    expect(await prisma.adPurchaseReceipt.count({ where: { intent_id: intent.id } })).toBe(2);
+    expect(await prisma.adPurchaseIntentRevision.count({ where: { intent_id: intent.id } })).toBe(
+      1
+    );
+    expect(
+      await prisma.transactionLog.count({ where: { order_id: ad.id, status: 'COMPLETED' } })
+    ).toBe(1);
+    const booked = await prisma.adReservation.findMany({
+      where: { ad_id: ad.id },
+      orderBy: { date: 'asc' },
+    });
+    expect(booked.map(row => row.date.toISOString().slice(0, 10))).toEqual(replacementDates);
+  });
+  it('preserves partial payment and rejects account, price and stale-date changes', async () => {
+    const { user, ad, intent, receipt } = await fixture();
+    await service.recordAdPurchaseReceipt(user.id, intent.id, receipt('MOND_THURS'));
+    const change = { dates: replacementDates, expected_dates: dates };
+    await expect(
+      service.reviseAdPurchaseIntentDates(`not-${user.id}`, intent.id, change)
+    ).rejects.toMatchObject({ code: 'PURCHASE_INTENT_NOT_FOUND' });
+    await expect(
+      service.reviseAdPurchaseIntentDates(user.id, intent.id, {
+        dates: [replacementDates[1]],
+        expected_dates: dates,
+      })
+    ).rejects.toMatchObject({ code: 'REPLACEMENT_PRODUCT_MISMATCH' });
+    const updated = await service.reviseAdPurchaseIntentDates(user.id, intent.id, change);
+    expect(updated.items.find(row => row.sku === 'MOND_THURS')?.remaining).toBe(0);
+    expect(updated.items.find(row => row.sku === 'FRI_SUN')?.remaining).toBe(1);
+    expect(updated.status).toBe('pending');
+    expect(await prisma.adReservation.count({ where: { ad_id: ad.id } })).toBe(0);
+    await expect(
+      service.reviseAdPurchaseIntentDates(user.id, intent.id, {
+        dates,
+        expected_dates: dates,
+      })
+    ).rejects.toMatchObject({ code: 'PURCHASE_DATES_CHANGED' });
+    await service.recordAdPurchaseReceipt(user.id, intent.id, receipt('FRI_SUN'));
+    await expect(
+      service.reviseAdPurchaseIntentDates(user.id, intent.id, {
+        dates,
+        expected_dates: replacementDates,
+      })
+    ).rejects.toMatchObject({ code: 'PURCHASE_ALREADY_COMPLETED' });
+  });
+  it('rolls back changed holds and dates when replacement inventory is unavailable', async () => {
+    const { user, ad, intent } = await fixture();
+    const competitors = await Promise.all([fixture(), fixture()]);
+    for (const other of competitors) {
+      await prisma.ad.update({
+        where: { id: other.ad.id },
+        data: { target_zip_code: ad.target_zip_code },
+      });
+      await prisma.adSlotHold.createMany({
+        data: replacementDates.map(date => ({
+          ad_id: other.ad.id,
+          date: new Date(`${date}T00:00:00Z`),
+          purchase_reference: `capacity-${other.intent.id}`,
+          expires_at: new Date(Date.now() + 600000),
+        })),
+      });
+    }
+    await expect(
+      service.reviseAdPurchaseIntentDates(user.id, intent.id, {
+        dates: replacementDates,
+        expected_dates: dates,
+      })
+    ).rejects.toThrow('SLOT_FULL');
+    const preserved = await prisma.adPurchaseIntent.findUniqueOrThrow({ where: { id: intent.id } });
+    expect(preserved.dates).toEqual(dates);
+    const holds = await prisma.adSlotHold.findMany({
+      where: { ad_id: ad.id },
+      orderBy: { date: 'asc' },
+    });
+    expect(holds.map(row => row.date.toISOString().slice(0, 10))).toEqual(dates);
+    expect(await prisma.adPurchaseIntentRevision.count({ where: { intent_id: intent.id } })).toBe(
+      0
+    );
+    expect(capture).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        context: 'ad_intent_date_revision',
+        intent_id: intent.id,
+      })
+    );
+  });
   it('recovers in a fresh process after receipts commit but fulfillment is interrupted', async () => {
     const { user, ad, intent, receipt } = await fixture();
     await service.recordAdPurchaseReceipt(user.id, intent.id, receipt('MOND_THURS'));
