@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 73bfa87c1c8f6f8687cd3dba2b8032267313f99b
+          ref: 55248b5cd85442587e5ec6a5efba8499a51d3a32
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
