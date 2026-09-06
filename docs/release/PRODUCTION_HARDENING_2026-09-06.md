@@ -24,12 +24,12 @@ See [backup repair procedure](../../server/backup-migrations/README.md). Schedul
 
 ## Remaining ordered gates
 
-| Phase | Required result                                                                                  | Current status                                                                                |
-| ----- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| 1     | Unmodified repaired backup passes migration startup; daily check active; guarded mirror deployed | Passed: deployed mirror, as-is local restore and independent scheduled-runner drill           |
-| 2     | Durable account-bound purchase intent and re-authentication reconciliation                       | Backend/live DB verified; client prepared; physical and legacy/needs-action cases remain open |
-| 3     | Explicit provider/coverage health, including unsupported leagues                                 | Deployed; unsupported entries disabled                                                        |
-| 4     | Native dSYM delivery and physical/TestFlight lifetime/session evidence                           | Open; seven-day evidence cannot be manufactured in one session                                |
+| Phase | Required result                                                                                  | Current status                                                                      |
+| ----- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| 1     | Unmodified repaired backup passes migration startup; daily check active; guarded mirror deployed | Passed: deployed mirror, as-is local restore and independent scheduled-runner drill |
+| 2     | Durable account-bound purchase intent and re-authentication reconciliation                       | Backend and OTA live; physical and legacy/needs-action cases remain open            |
+| 3     | Explicit provider/coverage health, including unsupported leagues                                 | Deployed; unsupported entries disabled                                              |
+| 4     | Native dSYM delivery and physical/TestFlight lifetime/session evidence                           | Open; seven-day evidence cannot be manufactured in one session                      |
 
 Whole-service failover, external storage/Redis recovery and ownership/ACL provisioning remain distinct from this database restore drill. Existing PushTicket data remains an intentional ephemeral exclusion.
 
@@ -100,3 +100,12 @@ References: [Sentry debug-file API](https://docs.sentry.io/api/projects/list-a-p
 - Live catalog API: 13 entries, with 10 ACTIVE_SYNCING, one STALE_IMPORT (MLB: latest import fetched 337, updated 291, skipped/failed 46), one SEEDED_EVENTS (FIBA), one EMPTY_UNVERIFIED (NCAA baseball: zero fixtures, no confirmed season metadata). Disabled unsupported MiLB/MLS NEXT Pro entries are absent from the active catalog response. These remaining ingestion conditions are visible, not declared resolved.
 - Initial authorized OTA group `440b184d-b6d3-4243-b3d0-a045b438e20b`, runtime 1.0.5, source `c9898af6`; Sentry bundle/source-map upload completed.
 - Final account-switch regression failed before the follow-up: a new login inherited the previous account's in-flight recovery promise and did not start its own recovery. Recovery now waits for that superseded operation and starts for the current account. Eight focused mobile recovery tests pass afterward; client typecheck passes. No additional charge is initiated by recovery.
+
+## Final mobile publication
+
+- Final production OTA [2d6352bc-1d7a-460d-bda2-efba93114181](https://expo.dev/accounts/varsity-hub/projects/varsityhub/updates/2d6352bc-1d7a-460d-bda2-efba93114181), runtime `1.0.5`, source `1307a5fd372a4a343e61a6e3e6a9e65b413d7c3c`, published 2026-09-06T20:49:06Z.
+- iOS update `01a0787b-60db-7d24-9cc9-05fd6db87ff2`; Android update `01a0787b-60db-7686-8d5e-33748d3426aa`. EAS update-view verified both against the exact source commit.
+- EAS reported publication, then DNS failure interrupted its final GraphQL read. Verified the existing published group rather than publishing a duplicate; completed the production-environment Sentry source-map upload separately. Upload command succeeded; this does not claim observation of a new production crash with those maps.
+- PR #281 remains open and mergeable; fork branch contains the release source. Upstream merge access remains unavailable. API deployment and OTA publication are independently verified, not inferred from the PR.
+- The temporary isolated PostgreSQL cluster and restored customer data were removed. GitHub retains only aggregate restore evidence.
+- Native build gates are prepared for a subsequent archive. No native binary was built or shipped, and the native crashes remain unresolved. Existing legacy/needs-action purchases and unconnected league providers remain documented open work.
