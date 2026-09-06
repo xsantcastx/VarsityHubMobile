@@ -71,7 +71,7 @@ describe('ad payment lifecycle behavior', () => {
   it('cancellation of one Run Again attempt preserves earlier paid dates and another pending attempt', async () => {
     const ad = await campaign();
     await hold(ad.id, 'pi_canceled');
-    await hold(ad.id, 'pi_other');
+    await hold(ad.id, 'pi_other', [new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10)]);
     await releaseAdPurchaseHolds(ad.id, 'pi_canceled');
     await releaseAdPurchaseHolds(ad.id, 'pi_canceled');
     const state = await snapshot(ad.id);

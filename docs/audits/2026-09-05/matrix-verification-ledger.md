@@ -1,5 +1,12 @@
 # Matrix verification ledger
 
+Latest re-audit: [current production matrix review](current-production-reaudit.md),
+pinned to `fccdc186` and checked against fresh EAS/Railway/live-web metadata.
+It adds three reproduced team/game defects, two ad refund defects, a published
+host-request rendering error, and a fresh Sentry native-crash review. Passing
+historical rows below do not close those additional cases. Scenario outcomes and
+unrun acceptance groups are retained in [current evidence](current-reaudit-evidence.json).
+
 This ledger supplements the historical September 5 matrix. A passing historical
 row does not certify a later release. The owner requested explicit evidence that
 the latest app, fixes and notes have been verified.
@@ -76,3 +83,7 @@ For each new fix: preserve a before-fix repro, assert the after-fix result, test
 sibling routes, run the required release gates, verify actual delivery, and update
 the note-to-test-to-release links. Never erase a failed first run; record the cause
 and the exact rerun that resolved it.
+
+## September 6 local root-cause patch
+
+See [root-cause fixes and verification](root-cause-fixes-2026-09-06.md) for the local fixes to ROLE-C01/C02/C03, AD-C01/C02, SET-C01, durable feedback and monitoring. Reproducing scenarios now pass locally; production closure remains pending release and deployed acceptance. NATIVE-C01, OPS-C01 and live provider/alert receipt checks remain open. Earlier production failures are retained as before-fix evidence.

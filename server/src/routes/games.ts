@@ -38,6 +38,11 @@ import { stripHtml } from '../lib/sanitizeHtml.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
 import { creatorSideTeamIds, deriveGameApproval } from '../lib/gameApproval.js';
+import {
+  assertGameCreationOrganizationApproved,
+  assertPendingGameCapacity,
+  gameEventStatus,
+} from '../lib/gameCreation.js';
 import { formatEventTime } from '../lib/formatEventTime.js';
 import {
   canManageAnyTeam,
@@ -1635,30 +1640,6 @@ gamesRouter.post(
       isCoach = approvalDecision.isCoach;
       managedTeamId = approvalDecision.managedTeamId;
 
-      // Verify the caller's managed team's org is admin-approved (coach path only)
-      if (isCoach && !isAdmin && managedTeamId) {
-        const team = await prisma.team.findUnique({
-          where: { id: managedTeamId },
-          select: { organization_id: true },
-        });
-        if (team?.organization_id) {
-          const org = await prisma.organization.findUnique({
-            where: { id: team.organization_id },
-            select: { admin_approved: true },
-          });
-          if (org && !org.admin_approved) {
-            return res.status(403).json({
-              error: 'Your organization must be approved before creating games.',
-              code: 'ORG_NOT_APPROVED',
-            });
-          }
-        }
-      } else if (isAdmin) {
-        debugLog(
-          `✅ Admin ${currentUser?.email} creating event for team ${managedTeamId || 'N/A'}`
-        );
-      }
-
       const associatedTeamId =
         managedTeamId || parsed.data.home_team_id || parsed.data.away_team_id || null;
 
@@ -1667,60 +1648,52 @@ gamesRouter.post(
       gameData.approval_status = approvalDecision.approvalStatus;
       gameData.created_by_id = req.user.id;
 
-      // Enforce fan pending event limit (matches POST /events limit of 3)
-      if (gameData.approval_status === 'pending') {
-        const pendingCount = await prisma.game.count({
-          where: { created_by_id: req.user.id, approval_status: 'pending' },
-        });
-        if (pendingCount >= 3) {
-          return res.status(403).json({
-            error: 'Event limit reached',
-            message:
-              "You've reached your limit of 3 pending events. Wait for one to be approved or rejected before submitting another.",
-            code: 'EVENT_LIMIT_EXCEEDED',
-            limit: 3,
-            current: pendingCount,
-          });
-        }
-      }
-
       if (isCoach || isAdmin) {
         gameData.approved_by_id = req.user.id;
         gameData.approved_at = new Date();
       }
 
-      const game = (await (prisma.game.create as any)({
-        data: gameData,
-        include: {
-          events: { orderBy: { date: 'asc' }, take: 1 },
-          homeTeam: { select: { id: true, name: true, venue_address: true } },
-          awayTeam: { select: { id: true, name: true, venue_address: true } },
-        },
-      })) as any;
+      const { game, event } = await prisma.$transaction(
+        async tx => {
+          await assertGameCreationOrganizationApproved(tx, [approvalDecision], isAdmin);
+          await assertPendingGameCapacity(tx, req.user!.id, [approvalDecision]);
+          const game = (await (tx.game.create as any)({
+            data: gameData,
+            include: {
+              events: { orderBy: { date: 'asc' }, take: 1 },
+              homeTeam: { select: { id: true, name: true, venue_address: true } },
+              awayTeam: { select: { id: true, name: true, venue_address: true } },
+            },
+          })) as any;
 
-      // Automatically create an associated Event for RSVP functionality
-      // Copy venue coordinates from game so geofencing can enforce location-based posting
-      const eventLat = game.venue_lat ?? game.latitude ?? null;
-      const eventLng = game.venue_lng ?? game.longitude ?? null;
-      const event = await prisma.event.create({
-        data: {
-          title: game.title,
-          date: game.date,
-          timezone: game.timezone ?? null,
-          location: game.location || null,
-          latitude: eventLat,
-          longitude: eventLng,
-          game_id: game.id,
-          team_id: associatedTeamId,
-          status: gameData.approval_status || 'pending',
-          approval_status: gameData.approval_status || 'pending',
-          creator_id: req.user!.id,
-          creator_role: isCoach ? 'coach' : 'fan',
-          event_type: parsed.data.event_type || 'game',
-          live_window_hours_after_start: parsed.data.live_window_hours_after_start,
-          capacity: null,
-        } as any,
-      });
+          // Automatically create an associated Event for RSVP functionality
+          // Copy venue coordinates from game so geofencing can enforce location-based posting
+          const eventLat = game.venue_lat ?? game.latitude ?? null;
+          const eventLng = game.venue_lng ?? game.longitude ?? null;
+          const event = await tx.event.create({
+            data: {
+              title: game.title,
+              date: game.date,
+              timezone: game.timezone ?? null,
+              location: game.location || null,
+              latitude: eventLat,
+              longitude: eventLng,
+              game_id: game.id,
+              team_id: associatedTeamId,
+              status: gameEventStatus(gameData.approval_status),
+              approval_status: gameData.approval_status || 'pending',
+              creator_id: req.user!.id,
+              creator_role: isCoach ? 'coach' : 'fan',
+              event_type: parsed.data.event_type || 'game',
+              live_window_hours_after_start: parsed.data.live_window_hours_after_start,
+              capacity: null,
+            } as any,
+          });
+
+          return { game, event };
+        },
+        { isolationLevel: 'Serializable' }
+      );
 
       if (currentUser?.email) {
         sendEventSubmissionReceivedEmail({
@@ -1852,7 +1825,13 @@ gamesRouter.post(
 
       await invalidateGamesListCache();
       res.status(201).json(response);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === 'P2034')
+        return sendError(res, 409, 'The schedule changed. Please retry.', {
+          code: 'GAME_CREATION_CONFLICT',
+        });
+      if (error?.statusCode === 403)
+        return sendError(res, 403, error.message, { code: error.code });
       console.error('Error creating game:', error);
       sendError(res, 500, 'Failed to create game');
     }
@@ -1906,7 +1885,7 @@ gamesRouter.post(
     const userId = req.user!.id;
     const isAdmin = await isVerifiedAdminUser(userId);
 
-    if (!isAdmin && parsed.data.games.every(g => !g.home_team_id && !g.away_team_id)) {
+    if (!isAdmin && parsed.data.games.some(g => !g.home_team_id && !g.away_team_id)) {
       return sendError(res, 400, 'Each game must reference a home_team_id or away_team_id.');
     }
 
@@ -1923,56 +1902,61 @@ gamesRouter.post(
       const opponentTeamIdByIndex = decisionByIndex.map(d => d.opponentApprovalTeamId);
 
       // All-or-nothing: one failure rolls back the whole batch.
-      const created = await prisma.$transaction(async tx => {
-        const rows: any[] = [];
-        for (let i = 0; i < parsed.data.games.length; i++) {
-          const g = parsed.data.games[i];
-          const decision = decisionByIndex[i];
-          const associatedTeamId =
-            decision.managedTeamId || g.home_team_id || g.away_team_id || null;
-          const row = await tx.game.create({
-            data: {
-              title: stripHtml(g.title),
-              date: new Date(g.date),
-              location: stripHtml(g.location),
-              description: g.description ? stripHtml(g.description) : null,
-              home_team: g.home_team ?? null,
-              away_team: g.away_team ?? null,
-              home_team_id: g.home_team_id ?? null,
-              away_team_id: g.away_team_id ?? null,
-              event_type: g.event_type ?? 'game',
-              is_neutral: g.is_neutral ?? false,
-              created_by_id: userId,
-              approval_status: decision.approvalStatus as any,
-              approved_by_id: decision.isCoach ? userId : null,
-              approved_at: decision.isCoach ? new Date() : null,
-              opponent_approval_status: decision.opponentApprovalStatus as any,
-              opponent_approval_team_id: decision.opponentApprovalTeamId,
-            },
-            select: { id: true, title: true, date: true, location: true },
-          });
-          // Mirror single-create: every game gets a linked Event so RSVP +
-          // geofencing work. Without this, bulk games had no RSVP surface.
-          await tx.event.create({
-            data: {
-              title: row.title,
-              date: row.date,
-              location: row.location || null,
-              game_id: row.id,
-              team_id: associatedTeamId,
-              status: decision.approvalStatus,
-              approval_status: decision.approvalStatus,
-              creator_id: userId,
-              creator_role: decision.isCoach ? 'coach' : 'fan',
-              event_type: g.event_type ?? 'game',
-              live_window_hours_after_start: g.live_window_hours_after_start,
-              capacity: null,
-            } as any,
-          });
-          rows.push(row);
-        }
-        return rows;
-      });
+      const created = await prisma.$transaction(
+        async tx => {
+          await assertGameCreationOrganizationApproved(tx, decisionByIndex, isAdmin);
+          await assertPendingGameCapacity(tx, userId, decisionByIndex);
+          const rows: any[] = [];
+          for (let i = 0; i < parsed.data.games.length; i++) {
+            const g = parsed.data.games[i];
+            const decision = decisionByIndex[i];
+            const associatedTeamId =
+              decision.managedTeamId || g.home_team_id || g.away_team_id || null;
+            const row = await tx.game.create({
+              data: {
+                title: stripHtml(g.title),
+                date: new Date(g.date),
+                location: stripHtml(g.location),
+                description: g.description ? stripHtml(g.description) : null,
+                home_team: g.home_team ?? null,
+                away_team: g.away_team ?? null,
+                home_team_id: g.home_team_id ?? null,
+                away_team_id: g.away_team_id ?? null,
+                event_type: g.event_type ?? 'game',
+                is_neutral: g.is_neutral ?? false,
+                created_by_id: userId,
+                approval_status: decision.approvalStatus as any,
+                approved_by_id: decision.isCoach ? userId : null,
+                approved_at: decision.isCoach ? new Date() : null,
+                opponent_approval_status: decision.opponentApprovalStatus as any,
+                opponent_approval_team_id: decision.opponentApprovalTeamId,
+              },
+              select: { id: true, title: true, date: true, location: true },
+            });
+            // Mirror single-create: every game gets a linked Event so RSVP +
+            // geofencing work. Without this, bulk games had no RSVP surface.
+            await tx.event.create({
+              data: {
+                title: row.title,
+                date: row.date,
+                location: row.location || null,
+                game_id: row.id,
+                team_id: associatedTeamId,
+                status: gameEventStatus(decision.approvalStatus),
+                approval_status: decision.approvalStatus,
+                creator_id: userId,
+                creator_role: decision.isCoach ? 'coach' : 'fan',
+                event_type: g.event_type ?? 'game',
+                live_window_hours_after_start: g.live_window_hours_after_start,
+                capacity: null,
+              } as any,
+            });
+            rows.push(row);
+          }
+          return rows;
+        },
+        { isolationLevel: 'Serializable' }
+      );
 
       const triggeredOpponents = created
         .map((row, i) => ({ row, teamId: opponentTeamIdByIndex[i] }))
@@ -2018,6 +2002,11 @@ gamesRouter.post(
       await invalidateGamesListCache();
       return res.status(201).json({ ok: true, created_count: created.length, games: created });
     } catch (err: any) {
+      if (err?.code === 'P2034')
+        return sendError(res, 409, 'The schedule changed. Please retry.', {
+          code: 'GAME_CREATION_CONFLICT',
+        });
+      if (err?.statusCode === 403) return sendError(res, 403, err.message, { code: err.code });
       console.error('[games/bulk] failed — rolled back:', err?.message || err);
       return res.status(500).json({
         error: 'Bulk game creation failed and was rolled back.',

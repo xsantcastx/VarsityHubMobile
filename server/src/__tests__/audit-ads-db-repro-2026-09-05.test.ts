@@ -190,7 +190,7 @@ describe('ad inventory acceptance against real local PostgreSQL', () => {
     }
   });
 
-  it('counts unexpired holds once per campaign and retains capacity for another attempt', async () => {
+  it('counts historical overlapping holds once per campaign and releases only the matching attempt', async () => {
     const { getAdSlotCounts, releaseAdPurchaseHolds } = await import('../lib/adInventory.js');
     const ads = await Promise.all(
       [0, 1].map(() =>
@@ -205,18 +205,28 @@ describe('ad inventory acceptance against real local PostgreSQL', () => {
       )
     );
     adIds.push(...ads.map((ad: any) => ad.id));
-    for (const ad of ads)
-      for (const attempt of ['a', 'b'])
-        await prisma.$transaction(
-          (tx: any) =>
-            reserveAdSlots(tx, {
-              adId: ad.id,
-              isoDates: [tomorrow],
-              paymentStatus: 'hold',
-              purchaseReference: `pi_${ad.id}_${attempt}`,
-            }),
-          { isolationLevel: 'Serializable' }
-        );
+    for (const ad of ads) {
+      await prisma.$transaction(
+        (tx: any) =>
+          reserveAdSlots(tx, {
+            adId: ad.id,
+            isoDates: [tomorrow],
+            paymentStatus: 'hold',
+            purchaseReference: `pi_${ad.id}_a`,
+          }),
+        { isolationLevel: 'Serializable' }
+      );
+      // Old writers allowed overlapping holds. Retain this historical fixture
+      // to verify cancellation compatibility; new checkout rejects it.
+      await prisma.adSlotHold.create({
+        data: {
+          ad_id: ad.id,
+          date: new Date(`${tomorrow}T00:00:00Z`),
+          purchase_reference: `pi_${ad.id}_b`,
+          expires_at: new Date(Date.now() + 3600000),
+        },
+      });
+    }
     const counts = () => getAdSlotCounts(prisma, { targetZipCode: '77001', isoDates: [tomorrow] });
     expect(Number((await counts())[0].count)).toBe(2);
     const response = await request(app).get(

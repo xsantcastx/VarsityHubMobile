@@ -942,6 +942,7 @@ export const Support = {
     from_email?: string;
   }) => httpPost('/support/contact', data),
   feedback: (data: {
+    submission_id?: string;
     user_id?: string;
     category: 'bug' | 'idea' | 'other';
     message: string;

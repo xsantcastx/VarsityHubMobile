@@ -141,3 +141,5 @@ afterEach(() => {
     // Some tests intentionally mock or never load the HTTP layer.
   }
 });
+// Native OTA metadata has no module in Jest; tests can override these values.
+jest.mock('expo-updates', () => ({ updateId: null, channel: null, runtimeVersion: null }));

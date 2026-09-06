@@ -210,6 +210,7 @@ npm run audit:navigation        # classify all router.replace calls; flag REVIEW
 - Server geocoding depends on Railway `GOOGLE_MAPS_API_KEY`; mobile map rendering depends on EAS `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`
 - Poll voting now hits the API for all events including those without a linked `gameId` (uses `eventId` as fallback). Previously event-only pages silently discarded votes.
 - Signup email send is fire-and-forget — `POST /register` does not await SendGrid before responding.
+- Email delivery uses `EmailService` → `SendGridProvider` with existing retries/breaker. The legacy BullMQ email queue has no consumer; do not enqueue email jobs into it (`server/src/jobs/queues.ts`).
 
 ## Code Rules
 

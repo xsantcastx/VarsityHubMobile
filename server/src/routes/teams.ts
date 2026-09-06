@@ -27,6 +27,7 @@ import { customSportSlug, normalizeSportToSlug } from '../lib/sportsTaxonomy.js'
 import { getTeamScheduleFeed } from '../lib/teamScheduleFeed.js';
 import {
   canAdministerTeam as canAdministerTeamScoped,
+  isOrgOwner as isOrgOwnerScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
   canArchiveTeam as canArchiveTeamScoped,
   ORG_ADMIN_ROLES,
@@ -250,8 +251,8 @@ async function loadTeamViewerAccess(teamId: string, viewerId: string | null) {
         : Promise.resolve(null),
     ]);
     membership = resolvedMembership;
-    isOrgAdmin = !!orgMembership;
-    isOrgOwner = orgMembership?.role === 'owner';
+    isOrgOwner = await isOrgOwnerScoped(viewerId, team.organization_id);
+    isOrgAdmin = isOrgOwner || orgMembership?.role === 'manager';
   }
 
   return {

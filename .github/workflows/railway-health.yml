@@ -13,7 +13,7 @@ jobs:
   health-check:
     name: Verify Railway API Health
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +48,7 @@ jobs:
           fi
 
       - name: Alert on failure
-        if: steps.health.outputs.status == 'unhealthy'
+        if: failure() && steps.health.outputs.status == 'unhealthy'
         uses: actions/github-script@v7
         with:
           script: |

@@ -15,10 +15,13 @@ const mockUserFindUnique = jest.fn();
 const mockTransaction = jest.fn(async (callback: any) =>
   callback({
     game: {
+      create: mockGameCreate,
+      count: jest.fn(async () => 0),
       updateMany: mockGameUpdateMany,
       findUnique: mockGameFindUnique,
     },
     event: {
+      create: mockEventCreate,
       updateMany: mockEventUpdateMany,
     },
   })

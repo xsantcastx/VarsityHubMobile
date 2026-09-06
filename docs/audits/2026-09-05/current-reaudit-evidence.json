@@ -1,0 +1,3512 @@
+{
+  "checkedAt": "2026-09-06T00:14:37.480Z",
+  "source": "fccdc186d07d8f7588f0195e9655d0eb3ecb70a3",
+  "productModified": false,
+  "client": {
+    "numTotalTestSuites": 218,
+    "numPassedTestSuites": 218,
+    "numFailedTestSuites": 0,
+    "numTotalTests": 1541,
+    "numPassedTests": 1541,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "serverFirst": {
+    "numTotalTestSuites": 321,
+    "numPassedTestSuites": 316,
+    "numFailedTestSuites": 5,
+    "numTotalTests": 2950,
+    "numPassedTests": 2907,
+    "numFailedTests": 43,
+    "numPendingTests": 0,
+    "success": false
+  },
+  "serverCorrectedRerun": {
+    "numTotalTestSuites": 5,
+    "numPassedTestSuites": 4,
+    "numFailedTestSuites": 1,
+    "numTotalTests": 93,
+    "numPassedTests": 53,
+    "numFailedTests": 40,
+    "numPendingTests": 0,
+    "success": false
+  },
+  "serverCriticalIsolated": {
+    "numTotalTestSuites": 1,
+    "numPassedTestSuites": 1,
+    "numFailedTestSuites": 0,
+    "numTotalTests": 40,
+    "numPassedTests": 40,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "serverFinalMerged": {
+    "suites": 321,
+    "passedSuites": 321,
+    "assertions": 2974,
+    "passedAssertions": 2974,
+    "notSingleCleanSweep": true
+  },
+  "newRoles": [
+    {
+      "suite": "server/src/__tests__/audit-20260905-current-team-isolation.test.ts",
+      "scenario": "current team boundary matrix R01 coach edits own team; same-org sibling and foreign team survive attempted edits",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/audit-20260905-current-team-isolation.test.ts",
+      "scenario": "current team boundary matrix R03 org owner administers both own-org teams but cannot foreign team; manager cannot edit",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/audit-20260905-current-team-isolation.test.ts",
+      "scenario": "current team boundary matrix R01 fan cannot edit or read team administration in any organization",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/audit-20260905-current-team-isolation.test.ts",
+      "scenario": "current team boundary matrix R06 mixed own/foreign bulk creation approves only managed rows",
+      "status": "failed"
+    },
+    {
+      "suite": "server/src/__tests__/audit-20260905-current-team-isolation.test.ts",
+      "scenario": "current team boundary matrix R06 opponent staff cannot delete shared game or overwrite creator-side scores",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/audit-20260905-current-team-isolation.test.ts",
+      "scenario": "current team boundary matrix R01 removing coach membership revokes next-request settings and admin-summary access",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/audit-20260905-current-team-isolation.test.ts",
+      "scenario": "current team boundary matrix R16 unapproved organization cannot bypass single-game rejection via bulk endpoint",
+      "status": "failed"
+    },
+    {
+      "suite": "server/src/__tests__/audit-20260905-current-team-isolation.test.ts",
+      "scenario": "current team boundary matrix R17 legacy pointer-only owner can open administration for the team they can edit",
+      "status": "failed"
+    }
+  ],
+  "newAds": [
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current fan ad persona through actual HTTP/DB creates own draft without accepting forged owner/payment/approval fields",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current fan ad persona through actual HTTP/DB cannot read/edit/delete/submit/price/pay for another account ad",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current fan ad persona through actual HTTP/DB cannot pay before platform approval on either Stripe rail",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current fan ad persona through actual HTTP/DB books and settles own approved ad with checkout",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current fan ad persona through actual HTTP/DB books and settles own approved ad with create-payment-sheet",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current coach ad persona through actual HTTP/DB creates own draft without accepting forged owner/payment/approval fields",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current coach ad persona through actual HTTP/DB cannot read/edit/delete/submit/price/pay for another account ad",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current coach ad persona through actual HTTP/DB cannot pay before platform approval on either Stripe rail",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current coach ad persona through actual HTTP/DB books and settles own approved ad with checkout",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current coach ad persona through actual HTTP/DB books and settles own approved ad with create-payment-sheet",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current organizer ad persona through actual HTTP/DB creates own draft without accepting forged owner/payment/approval fields",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current organizer ad persona through actual HTTP/DB cannot read/edit/delete/submit/price/pay for another account ad",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current organizer ad persona through actual HTTP/DB cannot pay before platform approval on either Stripe rail",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current organizer ad persona through actual HTTP/DB books and settles own approved ad with checkout",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current organizer ad persona through actual HTTP/DB books and settles own approved ad with create-payment-sheet",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current supplementary ad boundaries refunding an earlier purchase preserves an overlapping later paid purchase",
+      "status": "failed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current supplementary ad boundaries a PaymentSheet purchase can be found and fully refunded by its PaymentIntent",
+      "status": "failed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current supplementary ad boundaries unverified account cannot initiate ad payment",
+      "status": "passed"
+    },
+    {
+      "suite": "server/src/__tests__/current-ads-persona-reaudit-2026-09-05.test.ts",
+      "scenario": "current supplementary ad boundaries all personas can cancel only their own pending PaymentIntent",
+      "status": "passed"
+    }
+  ],
+  "roleFocused": {
+    "numTotalTestSuites": 16,
+    "numPassedTestSuites": 16,
+    "numFailedTestSuites": 0,
+    "numTotalTests": 136,
+    "numPassedTests": 136,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "fanFocused": {
+    "numTotalTestSuites": 20,
+    "numPassedTestSuites": 20,
+    "numFailedTestSuites": 0,
+    "numTotalTests": 137,
+    "numPassedTests": 137,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "fanPrivacy": [
+    {
+      "scenario": "games private post denied",
+      "pass": true
+    },
+    {
+      "scenario": "games private OG image denied with branded fallback",
+      "pass": true
+    },
+    {
+      "scenario": "games visible OG candidate chosen before ranking",
+      "pass": true
+    },
+    {
+      "scenario": "events private post denied",
+      "pass": true
+    },
+    {
+      "scenario": "events private OG image denied with branded fallback",
+      "pass": true
+    },
+    {
+      "scenario": "events visible OG candidate chosen before ranking",
+      "pass": true
+    },
+    {
+      "scenario": "public author post visible before settings change",
+      "pass": true
+    },
+    {
+      "scenario": "privacy setting is confirmed by actual preference endpoint",
+      "pass": true
+    },
+    {
+      "scenario": "independent viewer observes privacy change immediately",
+      "pass": true
+    },
+    {
+      "scenario": "public setting restores independent viewer access",
+      "pass": true
+    },
+    {
+      "scenario": "stories private story hidden for anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "media private story hidden for anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "stories private story hidden for stranger",
+      "pass": true
+    },
+    {
+      "scenario": "media private story hidden for stranger",
+      "pass": true
+    },
+    {
+      "scenario": "pending follow cannot view story",
+      "pass": true
+    },
+    {
+      "scenario": "accepted follow sees story",
+      "pass": true
+    },
+    {
+      "scenario": "author sees own story",
+      "pass": true
+    },
+    {
+      "scenario": "block outbound overrides accepted follow",
+      "pass": true
+    },
+    {
+      "scenario": "block inbound overrides accepted follow",
+      "pass": true
+    },
+    {
+      "scenario": "story privacy and expiry filter before newest50 limit",
+      "pass": true
+    },
+    {
+      "scenario": "legacy SQL hides private authors before limit with real PostgreSQL",
+      "pass": true
+    },
+    {
+      "scenario": "video without poster uses branded image",
+      "pass": true
+    },
+    {
+      "scenario": "private home game detail anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /summary anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /stories anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /media anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /posts anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /votes/summary anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private home game detail stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /summary stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /stories stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /media stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /posts stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private home game /votes/summary stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private away game detail anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /summary anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /stories anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /media anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /posts anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /votes/summary anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private away game detail stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /summary stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /stories stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /media stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /posts stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private away game /votes/summary stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private direct event detail anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private direct event /rsvp anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private direct event /votes/summary anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private direct event detail stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private direct event /rsvp stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private direct event /votes/summary stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private linked event detail anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private linked event /rsvp anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private linked event /votes/summary anonymous",
+      "pass": true
+    },
+    {
+      "scenario": "private linked event detail stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private linked event /rsvp stranger",
+      "pass": true
+    },
+    {
+      "scenario": "private linked event /votes/summary stranger",
+      "pass": true
+    },
+    {
+      "scenario": "og private SECRET_HOME_1788646209034 generic",
+      "pass": true
+    },
+    {
+      "scenario": "share private SECRET_HOME_1788646209034 generic",
+      "pass": true
+    },
+    {
+      "scenario": "og private SECRET_AWAY_1788646209034 generic",
+      "pass": true
+    },
+    {
+      "scenario": "share private SECRET_AWAY_1788646209034 generic",
+      "pass": true
+    },
+    {
+      "scenario": "og private SECRET_EVENT_1788646209034 generic",
+      "pass": true
+    },
+    {
+      "scenario": "share private SECRET_EVENT_1788646209034 generic",
+      "pass": true
+    },
+    {
+      "scenario": "og private SECRET_LINKED_1788646209034 generic",
+      "pass": true
+    },
+    {
+      "scenario": "share private SECRET_LINKED_1788646209034 generic",
+      "pass": true
+    },
+    {
+      "scenario": "owner can view SECRET_HOME_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "owner can view SECRET_EVENT_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "owner can view SECRET_LINKED_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "assistant can view SECRET_HOME_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "assistant can view SECRET_EVENT_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "assistant can view SECRET_LINKED_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "team follower can view SECRET_HOME_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "team follower can view SECRET_EVENT_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "team follower can view SECRET_LINKED_1788646209034",
+      "pass": true
+    },
+    {
+      "scenario": "permanent contributor game access",
+      "pass": true
+    },
+    {
+      "scenario": "permanent contributor media access",
+      "pass": true
+    },
+    {
+      "scenario": "permanent contributor event access",
+      "pass": true
+    },
+    {
+      "scenario": "private game absent from vote batch",
+      "pass": true
+    },
+    {
+      "scenario": "private event absent from RSVP batch",
+      "pass": true
+    },
+    {
+      "scenario": "private game vote rejected",
+      "pass": true
+    },
+    {
+      "scenario": "private event RSVP rejected",
+      "pass": true
+    },
+    {
+      "scenario": "linked event enforces opponent consent",
+      "pass": true
+    },
+    {
+      "scenario": "public game remains visible",
+      "pass": true
+    }
+  ],
+  "fanDm": [
+    {
+      "scenario": "adult to adult default policy",
+      "status": 201,
+      "code": null,
+      "pass": true
+    },
+    {
+      "scenario": "adult to minor without follow",
+      "status": 403,
+      "code": "AGE_POLICY_BLOCKED",
+      "pass": true
+    },
+    {
+      "scenario": "adult to minor pending follow",
+      "status": 403,
+      "code": "AGE_POLICY_BLOCKED",
+      "pass": true
+    },
+    {
+      "scenario": "adult to minor accepted follow",
+      "status": 201,
+      "code": null,
+      "pass": true
+    },
+    {
+      "scenario": "minor to adult no follow",
+      "status": 403,
+      "code": "AGE_POLICY_BLOCKED",
+      "pass": true
+    },
+    {
+      "scenario": "unknown DOB sender cannot bypass",
+      "status": 403,
+      "code": "AGE_POLICY_BLOCKED",
+      "pass": true
+    },
+    {
+      "scenario": "unknown DOB recipient cannot bypass",
+      "status": 403,
+      "code": "AGE_POLICY_BLOCKED",
+      "pass": true
+    },
+    {
+      "scenario": "recipient no_one policy",
+      "status": 403,
+      "code": "DM_RESTRICTED",
+      "pass": true
+    },
+    {
+      "scenario": "recipient following-only rejects stranger",
+      "status": 403,
+      "code": "DM_RESTRICTED",
+      "pass": true
+    },
+    {
+      "scenario": "recipient following-only allows accepted relation",
+      "status": 201,
+      "code": null,
+      "pass": true
+    },
+    {
+      "scenario": "client conversation id is replaced",
+      "status": 201,
+      "code": null,
+      "pass": true
+    },
+    {
+      "scenario": "unrelated fan cannot read conversation",
+      "status": 403,
+      "code": null,
+      "pass": true
+    },
+    {
+      "scenario": "recipient block overrides accepted follow",
+      "status": 403,
+      "code": "MESSAGE_BLOCKED",
+      "pass": true
+    },
+    {
+      "scenario": "sender block direction enforced too",
+      "status": 403,
+      "code": "MESSAGE_BLOCKED",
+      "pass": true
+    },
+    {
+      "scenario": "message length 5001 rejected",
+      "status": 400,
+      "code": null,
+      "pass": true
+    }
+  ],
+  "fanRedis": [
+    {
+      "scenario": "real Redis roundtrip",
+      "pass": true
+    },
+    {
+      "scenario": "initial public and unblocked controls",
+      "pass": true
+    },
+    {
+      "scenario": "public game visible before restriction",
+      "pass": true
+    },
+    {
+      "scenario": "private author immediately hidden across processes",
+      "pass": true
+    },
+    {
+      "scenario": "private team immediately hidden across processes",
+      "pass": true
+    },
+    {
+      "scenario": "block immediately applied across processes",
+      "pass": true
+    },
+    {
+      "scenario": "cached game payload revalidates new team privacy",
+      "pass": true
+    },
+    {
+      "scenario": "direct game denied after restriction",
+      "pass": true
+    },
+    {
+      "scenario": "stale Redis repopulation cannot restore author/team/block visibility",
+      "pass": true
+    }
+  ],
+  "browser": {
+    "rows": [
+      {
+        "id": "fan:/feed",
+        "passed": true
+      },
+      {
+        "id": "fan:/highlights",
+        "passed": true
+      },
+      {
+        "id": "fan:/create",
+        "passed": true
+      },
+      {
+        "id": "fan:/discover",
+        "passed": true
+      },
+      {
+        "id": "fan:/profile",
+        "passed": true
+      },
+      {
+        "id": "fan:privacy-save-navigate-reopen",
+        "passed": true
+      },
+      {
+        "id": "fan:notification-save-roundtrip",
+        "passed": true
+      },
+      {
+        "id": "fan:no-founder-controls",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/edit-username",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/rsvp-history",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/followed-teams",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/favorites",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/blocked-users",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/feedback",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/data-export",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/privacy-policy",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/terms-of-service",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/dmca",
+        "passed": true
+      },
+      {
+        "id": "fan:settings/request-host-event",
+        "passed": false,
+        "error": "Expected values to be strictly equal:\n\n1 !== 0\n"
+      },
+      {
+        "id": "fan:settings/billing-history",
+        "passed": true
+      },
+      {
+        "id": "coach:/feed",
+        "passed": true
+      },
+      {
+        "id": "coach:/highlights",
+        "passed": true
+      },
+      {
+        "id": "coach:/create",
+        "passed": true
+      },
+      {
+        "id": "coach:/discover",
+        "passed": true
+      },
+      {
+        "id": "coach:/profile",
+        "passed": true
+      },
+      {
+        "id": "coach:privacy-save-navigate-reopen",
+        "passed": true
+      },
+      {
+        "id": "coach:notification-save-roundtrip",
+        "passed": true
+      },
+      {
+        "id": "coach:no-founder-controls",
+        "passed": true
+      },
+      {
+        "id": "organizer:/feed",
+        "passed": true
+      },
+      {
+        "id": "organizer:/highlights",
+        "passed": true
+      },
+      {
+        "id": "organizer:/create",
+        "passed": true
+      },
+      {
+        "id": "organizer:/discover",
+        "passed": true
+      },
+      {
+        "id": "organizer:/profile",
+        "passed": true
+      },
+      {
+        "id": "organizer:privacy-save-navigate-reopen",
+        "passed": true
+      },
+      {
+        "id": "organizer:notification-save-roundtrip",
+        "passed": true
+      },
+      {
+        "id": "organizer:no-founder-controls",
+        "passed": true
+      }
+    ],
+    "errors": [
+      {
+        "persona": "fan",
+        "error": "Minified React error #418; visit https://react.dev/errors/418?args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."
+      }
+    ],
+    "apiCalls": [
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/highlights",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/organizations/mine/review-summaries",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/teams/managed",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/teams",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/teams/managed",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/users/cmtp1sm3v0000gybi9x1u8hn7/posts",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/teams",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/users/cmtp1sm3v0000gybi9x1u8hn7/posts",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me/preferences",
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/payments/subscription/summary",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me/preferences",
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/payments/subscription/summary",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/events/my-rsvps",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/follows/teams",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/users/blocked",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me/data-exports",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me/data-export-availability",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "fan",
+        "path": "/payments/history",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/highlights",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/teams/managed",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/teams",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/users/cmtp1sm460001gybiwx5sddfs/posts",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/teams",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/organizations/cmtp1sm4a0004gybihnbfmg5h",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/users/cmtp1sm460001gybiwx5sddfs/posts",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me/preferences",
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/payments/subscription/summary",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me/preferences",
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/payments/subscription/summary",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "coach",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/highlights",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/teams/managed",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/teams",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/users/cmtp1sm480002gybiv9ning5i/posts",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/teams",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/users/cmtp1sm480002gybiv9ning5i/posts",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me/preferences",
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/payments/subscription/summary",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me/preferences",
+        "method": "PATCH",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/notifications/push-diagnostics",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/games",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/events",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/feed/bundle",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/payments/subscription/summary",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/health",
+        "method": "GET",
+        "status": 200
+      },
+      {
+        "persona": "organizer",
+        "path": "/me",
+        "method": "GET",
+        "status": 200
+      }
+    ]
+  },
+  "liveWeb": {
+    "checkedAt": "2026-09-05T23:59:04.967Z",
+    "status": 200,
+    "url": "https://www.varsityhub.app/settings",
+    "scripts": [
+      {
+        "path": "/_expo/static/js/web/entry-b8803f9237ff9f192e05de1188373291.js",
+        "status": 200,
+        "sha256": "70e7ad5835d5236677b7fc3202698a602bbb35b9a673d846280fa0eab38d4258"
+      }
+    ]
+  },
+  "ota": [
+    {
+      "id": "01a07376-a17d-7f77-8030-fc4026e161bc",
+      "createdAt": "2026-09-05T21:25:49.565Z",
+      "group": "7e09e4a5-4dd3-4437-bf3b-a32535ab96e1",
+      "branch": "production",
+      "message": "fix(settings): secure data export lifecycle and verify archive contents",
+      "runtimeVersion": "1.0.5",
+      "platform": "ios",
+      "manifestPermalink": "https://u.expo.dev/update/01a07376-a17d-7f77-8030-fc4026e161bc",
+      "isRollBackToEmbedded": false,
+      "gitCommitHash": "cab5b1339feadf4db5c06466fb4022f53e23912d"
+    },
+    {
+      "id": "01a07376-a17d-73e7-ad8b-042e52f945c4",
+      "createdAt": "2026-09-05T21:25:49.565Z",
+      "group": "7e09e4a5-4dd3-4437-bf3b-a32535ab96e1",
+      "branch": "production",
+      "message": "fix(settings): secure data export lifecycle and verify archive contents",
+      "runtimeVersion": "1.0.5",
+      "platform": "android",
+      "manifestPermalink": "https://u.expo.dev/update/01a07376-a17d-73e7-ad8b-042e52f945c4",
+      "isRollBackToEmbedded": false,
+      "gitCommitHash": "cab5b1339feadf4db5c06466fb4022f53e23912d"
+    }
+  ],
+  "production": {
+    "checkedAt": "2026-09-05T23:57:54.151Z",
+    "exportStorage": {
+      "DATA_EXPORT_S3_BUCKET": false,
+      "DATA_EXPORT_S3_ENDPOINT": false,
+      "DATA_EXPORT_S3_ACCESS_KEY_ID": false,
+      "DATA_EXPORT_S3_SECRET_ACCESS_KEY": false
+    },
+    "health": {
+      "status": 200,
+      "health": "ok",
+      "ready": true,
+      "integrations": {
+        "database": true,
+        "jwt": true,
+        "cloudinary": true,
+        "twilio": true,
+        "stripe": true,
+        "sendgrid": true,
+        "googleOAuth": true,
+        "googleMaps": true,
+        "appleIAP": true,
+        "appleIAPLegacyReceipt": true,
+        "sentry": true,
+        "redis": true,
+        "dataExportStorage": false
+      }
+    }
+  },
+  "sentry": {
+    "checkedAt": "2026-09-06T00:00:57.417Z",
+    "recent": [
+      {
+        "id": "7655376217",
+        "shortId": "VARSITYHUB-3T",
+        "title": "NSInvalidArgumentException: *** -[__NSArrayM insertObject:atIndex:]: object cannot be nil",
+        "lastSeen": "2026-09-05T23:12:15Z",
+        "firstSeen": "2026-08-06T01:29:11Z",
+        "count": "10",
+        "userCount": 2,
+        "stats14d": 6,
+        "permalink": "https://lime-productions.sentry.io/issues/7655376217/"
+      }
+    ],
+    "production14days": [
+      {
+        "id": "7655376217",
+        "shortId": "VARSITYHUB-3T",
+        "title": "NSInvalidArgumentException: *** -[__NSArrayM insertObject:atIndex:]: object cannot be nil",
+        "lastSeen": "2026-09-05T23:12:15Z",
+        "firstSeen": "2026-08-06T01:29:11Z",
+        "count": "10",
+        "userCount": 2,
+        "stats14d": 6,
+        "permalink": "https://lime-productions.sentry.io/issues/7655376217/"
+      },
+      {
+        "id": "7600827715",
+        "shortId": "VARSITYHUB-3A",
+        "title": "Error: routing_loop_detected",
+        "lastSeen": "2026-09-05T17:15:54.912000Z",
+        "firstSeen": "2026-07-08T20:54:10.944000Z",
+        "count": "90",
+        "userCount": 7,
+        "stats14d": 39,
+        "permalink": "https://lime-productions.sentry.io/issues/7600827715/"
+      },
+      {
+        "id": "7714008476",
+        "shortId": "VARSITYHUB-49",
+        "title": "EXC_BAD_ACCESS: .cxx_destruct > CXX: calling C++ destructors for class %s >",
+        "lastSeen": "2026-09-05T17:11:21Z",
+        "firstSeen": "2026-09-05T17:11:21Z",
+        "count": "1",
+        "userCount": 1,
+        "stats14d": 1,
+        "permalink": "https://lime-productions.sentry.io/issues/7714008476/"
+      },
+      {
+        "id": "7493245171",
+        "shortId": "VARSITYHUB-2D",
+        "title": "PrismaClientKnownRequestError: ",
+        "lastSeen": "2026-09-02T22:30:10.444000Z",
+        "firstSeen": "2026-05-19T23:00:00.695000Z",
+        "count": "14",
+        "userCount": 0,
+        "stats14d": 1,
+        "permalink": "https://lime-productions.sentry.io/issues/7493245171/"
+      },
+      {
+        "id": "7493245278",
+        "shortId": "VARSITYHUB-2E",
+        "title": "PrismaClientKnownRequestError: ",
+        "lastSeen": "2026-09-02T22:30:05.286000Z",
+        "firstSeen": "2026-05-19T23:00:00.402000Z",
+        "count": "8",
+        "userCount": 0,
+        "stats14d": 1,
+        "permalink": "https://lime-productions.sentry.io/issues/7493245278/"
+      },
+      {
+        "id": "7597174534",
+        "shortId": "VARSITYHUB-33",
+        "title": "Error: Invalid credentials",
+        "lastSeen": "2026-09-01T07:22:00.398000Z",
+        "firstSeen": "2026-07-07T00:29:31.739000Z",
+        "count": "24",
+        "userCount": 0,
+        "stats14d": 20,
+        "permalink": "https://lime-productions.sentry.io/issues/7597174534/"
+      },
+      {
+        "id": "7601506876",
+        "shortId": "VARSITYHUB-3D",
+        "title": "Error: fresh_install_token_cleanup_failed",
+        "lastSeen": "2026-09-01T07:03:15.056000Z",
+        "firstSeen": "2026-07-09T07:27:19.112000Z",
+        "count": "14",
+        "userCount": 0,
+        "stats14d": 4,
+        "permalink": "https://lime-productions.sentry.io/issues/7601506876/"
+      },
+      {
+        "id": "7703997392",
+        "shortId": "VARSITYHUB-45",
+        "title": "Error: [eventCard] dropped 74 invalid item(s)",
+        "lastSeen": "2026-09-01T06:31:25.967000Z",
+        "firstSeen": "2026-09-01T06:31:25.967000Z",
+        "count": "1",
+        "userCount": 0,
+        "stats14d": 1,
+        "permalink": "https://lime-productions.sentry.io/issues/7703997392/"
+      },
+      {
+        "id": "7650826727",
+        "shortId": "VARSITYHUB-3S",
+        "title": "Error: apple-s2s: dedup write failed",
+        "lastSeen": "2026-08-22T06:50:04.545000Z",
+        "firstSeen": "2026-08-04T01:23:34.261000Z",
+        "count": "7",
+        "userCount": 0,
+        "stats14d": 0,
+        "permalink": "https://lime-productions.sentry.io/issues/7650826727/"
+      },
+      {
+        "id": "7675597846",
+        "shortId": "VARSITYHUB-3X",
+        "title": "Error: [canary] decoy path probed: GET /.env",
+        "lastSeen": "2026-08-17T01:30:23.078000Z",
+        "firstSeen": "2026-08-17T01:30:22.791000Z",
+        "count": "2",
+        "userCount": 0,
+        "stats14d": 0,
+        "permalink": "https://lime-productions.sentry.io/issues/7675597846/"
+      },
+      {
+        "id": "7613495803",
+        "shortId": "VARSITYHUB-3Q",
+        "title": "Error: [program-screen-summary] team list truncated at 25 for program cmrfdw2040007czyck7gcg224",
+        "lastSeen": "2026-08-15T18:21:46.185000Z",
+        "firstSeen": "2026-07-15T19:48:03.250000Z",
+        "count": "5",
+        "userCount": 1,
+        "stats14d": 0,
+        "permalink": "https://lime-productions.sentry.io/issues/7613495803/"
+      },
+      {
+        "id": "7673789760",
+        "shortId": "VARSITYHUB-3W",
+        "title": "PrismaClientValidationError: ",
+        "lastSeen": "2026-08-15T16:08:47.358000Z",
+        "firstSeen": "2026-08-15T16:08:39.013000Z",
+        "count": "2",
+        "userCount": 0,
+        "stats14d": 0,
+        "permalink": "https://lime-productions.sentry.io/issues/7673789760/"
+      }
+    ]
+  },
+  "sentrySelectedEvents": [
+    {
+      "shortId": "VARSITYHUB-3A",
+      "eventID": "9260364bc9d84404a0a53d19d8dadac7",
+      "dateCreated": "2026-09-05T17:15:54.912000Z",
+      "release": "com.varsithub.varsityhub-ios@1.0.5+56",
+      "dist": "56",
+      "tags": [
+        {
+          "key": "app_version",
+          "value": "1.0.5"
+        },
+        {
+          "key": "device",
+          "value": "iPhone13,1"
+        },
+        {
+          "key": "environment",
+          "value": "production"
+        },
+        {
+          "key": "os",
+          "value": "iOS 26.6.1"
+        },
+        {
+          "key": "service",
+          "value": "mobile"
+        }
+      ],
+      "exceptions": [
+        {
+          "type": "Error",
+          "value": "routing_loop_detected",
+          "mechanism": {
+            "type": "generic",
+            "handled": true
+          },
+          "frames": [
+            {
+              "filename": "app:///main.jsbundle",
+              "function": "anonymous",
+              "module": "main",
+              "lineNo": 1,
+              "inApp": true
+            },
+            {
+              "filename": "app:///main.jsbundle",
+              "function": "tryCallOne",
+              "module": "main",
+              "lineNo": 1,
+              "inApp": true
+            },
+            {
+              "filename": "/node_modules/@ungap/structured-clone/cjs/serialize.js",
+              "function": "typeOf",
+              "module": "@ungap/structured-clone/cjs/serialize",
+              "lineNo": 17,
+              "inApp": false
+            },
+            {
+              "filename": "/node_modules/@ungap/structured-clone/cjs/serialize.js",
+              "function": "<global>",
+              "module": "@ungap/structured-clone/cjs/serialize",
+              "lineNo": 3,
+              "inApp": false
+            },
+            {
+              "filename": "native",
+              "function": "next",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": "/node_modules/react-native-svg/src/lib/extract/transformToRn.js",
+              "function": "peg$f8",
+              "module": "react-native-svg/src/lib/extract/transformToRn",
+              "lineNo": 299,
+              "inApp": false
+            },
+            {
+              "filename": "/node_modules/react-native-svg/src/lib/extract/transformToRn.js",
+              "function": "peg$f0",
+              "module": "react-native-svg/src/lib/extract/transformToRn",
+              "lineNo": 258,
+              "inApp": false
+            }
+          ]
+        }
+      ],
+      "missingOtaIdentity": true
+    },
+    {
+      "shortId": "VARSITYHUB-3T",
+      "eventID": "a05876dc212d4a65b2a7634a04f436a1",
+      "dateCreated": "2026-09-05T23:12:15Z",
+      "release": "com.varsithub.varsityhub-ios@1.0.5+56",
+      "dist": "56",
+      "tags": [
+        {
+          "key": "app_version",
+          "value": "1.0.5"
+        },
+        {
+          "key": "device",
+          "value": "iPhone15,2"
+        },
+        {
+          "key": "environment",
+          "value": "production"
+        },
+        {
+          "key": "os",
+          "value": "iOS 26.3.1"
+        },
+        {
+          "key": "service",
+          "value": "mobile"
+        }
+      ],
+      "exceptions": [
+        {
+          "type": "NSInvalidArgumentException",
+          "value": "*** -[__NSArrayM insertObject:atIndex:]: object cannot be nil",
+          "mechanism": {
+            "type": "nsexception",
+            "handled": false,
+            "meta": {
+              "signal": {
+                "number": 6,
+                "code": 0,
+                "name": "SIGABRT"
+              },
+              "mach_exception": {
+                "exception": 10,
+                "code": 0,
+                "subcode": 0,
+                "name": "EXC_CRASH"
+              }
+            }
+          },
+          "frames": [
+            {
+              "filename": null,
+              "function": "GSEventRunModal",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_CFRunLoopRunSpecificWithOptions",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "__CFRunLoopRun",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "__CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_dispatch_main_queue_callback_4CF",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_dispatch_main_queue_drain",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_dispatch_main_queue_drain.cold.5",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_dispatch_client_callout",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_dispatch_call_block_and_release",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "-[RCTMountingManager initiateTransaction:]",
+              "module": null,
+              "lineNo": null,
+              "inApp": true
+            },
+            {
+              "filename": null,
+              "function": "-[RCTMountingManager performTransaction:]",
+              "module": null,
+              "lineNo": null,
+              "inApp": true
+            },
+            {
+              "filename": null,
+              "function": "facebook::react::TelemetryController::pullTransaction",
+              "module": null,
+              "lineNo": null,
+              "inApp": true
+            },
+            {
+              "filename": null,
+              "function": "_ZNSt3__110__function6__funcIZ41-[RCTMountingManager performTransaction:]E3$_1NS_9allocatorIS2_EEFvRKN8facebook5react19MountingTransactionERKNS6_16SurfaceTelemetryEEEclES9_SC_",
+              "module": null,
+              "lineNo": null,
+              "inApp": true
+            },
+            {
+              "filename": null,
+              "function": "-[RCTLegacyViewManagerInteropComponentView finalizeUpdates:]",
+              "module": null,
+              "lineNo": null,
+              "inApp": true
+            },
+            {
+              "filename": "AIRMap.m",
+              "function": "-[AIRMap insertReactSubview:atIndex:]",
+              "module": null,
+              "lineNo": 138,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "-[__NSArrayM insertObject:atIndex:]",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "objc_exception_throw",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "__exceptionPreprocess",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            }
+          ]
+        }
+      ],
+      "missingOtaIdentity": true
+    },
+    {
+      "shortId": "VARSITYHUB-49",
+      "eventID": "6916e5a68dc54a13be3c20bc16202ac1",
+      "dateCreated": "2026-09-05T17:11:21Z",
+      "release": "com.varsithub.varsityhub-ios@1.0.5+56",
+      "dist": "56",
+      "tags": [
+        {
+          "key": "app_version",
+          "value": "1.0.5"
+        },
+        {
+          "key": "device",
+          "value": "iPhone13,1"
+        },
+        {
+          "key": "environment",
+          "value": "production"
+        },
+        {
+          "key": "os",
+          "value": "iOS 26.6.1"
+        },
+        {
+          "key": "service",
+          "value": "mobile"
+        }
+      ],
+      "exceptions": [
+        {
+          "type": "EXC_BAD_ACCESS",
+          "value": ".cxx_destruct > CXX: calling C++ destructors for class %s >\nAttempted to dereference null pointer.",
+          "mechanism": {
+            "type": "mach",
+            "handled": false,
+            "meta": {
+              "signal": {
+                "number": 11,
+                "code": 0,
+                "name": "SIGSEGV",
+                "code_name": "SEGV_NOOP"
+              },
+              "mach_exception": {
+                "exception": 1,
+                "code": 1,
+                "subcode": 0,
+                "name": "EXC_BAD_ACCESS"
+              }
+            }
+          },
+          "frames": [
+            {
+              "filename": "<compiler-generated>",
+              "function": "closure in SharedObjectRegistry.clear",
+              "module": null,
+              "lineNo": null,
+              "inApp": true
+            },
+            {
+              "filename": null,
+              "function": "swift::RefCounts<T>::doDecrementSlow<T>",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_swift_release_dealloc",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_DictionaryStorage.__deallocating_deinit",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_DictionaryStorage.deinit",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "tuple_destroy<T>",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "_objc_rootDealloc",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "objc_destructInstance_nonnull_realized",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": null,
+              "function": "object_cxxDestructFromClass",
+              "module": null,
+              "lineNo": null,
+              "inApp": false
+            },
+            {
+              "filename": "EXJavaScriptWeakObject.mm",
+              "function": "-[EXJavaScriptWeakObject .cxx_destruct]",
+              "module": null,
+              "lineNo": 6,
+              "inApp": false
+            },
+            {
+              "filename": "shared_ptr.h",
+              "function": "std::__1::shared_ptr<T>::~shared_ptr[abi:ne200100]",
+              "module": null,
+              "lineNo": 556,
+              "inApp": false
+            },
+            {
+              "filename": "shared_ptr.h",
+              "function": "std::__1::__shared_ptr_emplace<T>::__on_zero_shared",
+              "module": null,
+              "lineNo": 183,
+              "inApp": false
+            },
+            {
+              "filename": "shared_ptr.h",
+              "function": "std::__1::__shared_ptr_emplace<T>::__on_zero_shared_impl[abi:ne200100]<T>",
+              "module": null,
+              "lineNo": 180,
+              "inApp": false
+            },
+            {
+              "filename": "allocator_traits.h",
+              "function": "std::__1::allocator_traits<T>::destroy[abi:ne200100]<T>",
+              "module": null,
+              "lineNo": 329,
+              "inApp": false
+            },
+            {
+              "filename": "construct_at.h",
+              "function": "std::__1::__destroy_at[abi:ne200100]<T>",
+              "module": null,
+              "lineNo": 66,
+              "inApp": false
+            },
+            {
+              "filename": "jsi.h",
+              "function": "facebook::jsi::WeakObject::~WeakObject",
+              "module": null,
+              "lineNo": 1135,
+              "inApp": true
+            },
+            {
+              "filename": "jsi.h",
+              "function": "facebook::jsi::WeakObject::~WeakObject",
+              "module": null,
+              "lineNo": 1135,
+              "inApp": true
+            },
+            {
+              "filename": "jsi.h",
+              "function": "facebook::jsi::Pointer::~Pointer",
+              "module": null,
+              "lineNo": 591,
+              "inApp": true
+            }
+          ]
+        }
+      ],
+      "missingOtaIdentity": true
+    }
+  ],
+  "limits": {
+    "nativeFan": {
+      "passed": 0,
+      "required": 6
+    },
+    "ownerEmailNative": {
+      "passed": 0,
+      "required": 1
+    },
+    "providerAdRolePlatform": {
+      "passed": 0,
+      "required": 9
+    },
+    "exportActivationDevice": {
+      "passed": 0,
+      "required": 2
+    },
+    "productionAuthenticatedPersonaJourneys": "not run",
+    "performance": "no representative production workload or declared latency budget",
+    "tests": "fixture provider transports; real local PostgreSQL/HTTP; dedicated Redis only in cross-process script"
+  },
+  "gates": {
+    "clientTypecheck": {
+      "exitCode": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "serverTypecheck": {
+      "exitCode": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "serverTypecheckWithRepros": {
+      "exitCode": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "lint": {
+      "exitCode": 0,
+      "logSha256": "7c85df4242943f319a22d32014dda3a6c67f25d117c764dec89df9cf6e485672"
+    },
+    "navigation": {
+      "exitCode": 0,
+      "logSha256": "d1f0224b03c255fdf682757f0ab23816d9bff454725feadcd242ce6ebd6106fa"
+    },
+    "conflicts": {
+      "exitCode": 0,
+      "logSha256": "f287ef8db9b05c34d4d30b957f57874f38fbf235069580b32214e00345879867"
+    },
+    "errorEnvelopeSinceOriginalAudit": {
+      "exitCode": 0,
+      "logSha256": "6adea1e7fd035a8872bb51f0274ac12e7de2ebd8b777fb7f2b180712d2c0a176"
+    },
+    "secretsNarrowScan": {
+      "exitCode": 0,
+      "logSha256": "edeb13c1268052372699d099f3d57b4eac5af3498a5335f740c4acfa7725ea3f"
+    },
+    "clientFinalTypecheck": {
+      "exitCode": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "serverFinalTypecheck": {
+      "exitCode": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "format": {
+      "exitCode": 0,
+      "logSha256": "d0725c94a30ccec65b3cf84eba77d374777ad6ecc3fb7852b0fd34be294090bb"
+    }
+  },
+  "postFormatAdFirst": {
+    "passed": 16,
+    "failed": 3,
+    "extraFailure": "Organizer draft/approval test timed out at 10 seconds; process retained an open handle"
+  },
+  "adConfirmation": {
+    "passed": 17,
+    "failed": 2,
+    "forceExitForHarnessShutdown": true,
+    "testTimeoutRaised": false
+  },
+  "hostRequestAdditionalRepro": {
+    "error": "React 418",
+    "pageRendered": true,
+    "screenshot": "current-host-request.png"
+  }
+}

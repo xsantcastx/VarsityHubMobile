@@ -1,5 +1,4 @@
-import { Event, Message } from '@/api/entities';
-import { getConfig } from '@/config/env';
+import { Event } from '@/api/entities';
 import EventPreviewImageField from '@/components/EventPreviewImageField';
 import { EventFormHeader, LocationSuggestionList } from '@/components/EventFormShared';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
@@ -12,7 +11,7 @@ import { toUserMessage } from '@/utils/toUserMessage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -32,6 +31,10 @@ function RequestHostEventScreen() {
   const { user } = useAuth();
   const displayName = user?.display_name || '';
   const profileEmail = user?.email || '';
+
+  // Static web export and hydration must render identical date labels.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -92,11 +95,8 @@ function RequestHostEventScreen() {
         cover_image_url: previewImageUrl || undefined,
       };
       await Event.create(eventData);
-      // Send notification to coach/admin
-      await Message.send({
-        content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail})`,
-        recipient_email: getConfig().adminEmails[0] || 'admin@varsityhub.app',
-      });
+      // POST /events owns reviewer notification. A separate client DM could fail
+      // after creation and incorrectly invite the user to submit the request again.
       Alert.alert(
         'Request Submitted!',
         'Your request to host an event has been submitted. You will be notified when it is reviewed.',
@@ -225,7 +225,7 @@ function RequestHostEventScreen() {
             >
               <MaterialIcons name="event" size={20} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
-                {date.toLocaleDateString()}
+                {mounted ? date.toLocaleDateString() : 'Select date'}
               </Text>
             </Pressable>
             <Pressable
@@ -240,7 +240,9 @@ function RequestHostEventScreen() {
             >
               <MaterialIcons name="access-time" size={20} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
-                {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {mounted
+                  ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : 'Select time'}
               </Text>
             </Pressable>
           </View>

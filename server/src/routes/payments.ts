@@ -172,6 +172,7 @@ async function activateApprovedAdPaymentIntent(
     paymentStatus: 'paid',
     status: 'active',
     purchaseReference,
+    stripePaymentIntentId: purchaseReference,
   });
 }
 
@@ -494,7 +495,17 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         // Find the original transaction by payment intent
         const tx = piId
           ? await prisma.transactionLog.findFirst({
-              where: { stripe_payment_intent_id: piId },
+              where: {
+                OR: [
+                  { stripe_payment_intent_id: piId },
+                  // Historical PaymentSheet writers stored the verified PI in the session field.
+                  {
+                    transaction_type: 'AD_PURCHASE',
+                    stripe_payment_intent_id: null,
+                    stripe_session_id: piId,
+                  },
+                ],
+              },
               orderBy: { created_at: 'desc' },
             })
           : null;
@@ -535,6 +546,9 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
                 where: { id: tx.id },
                 data: {
                   status: 'REFUNDED' as any,
+                  ...(piId && !fresh.stripe_payment_intent_id
+                    ? { stripe_payment_intent_id: piId }
+                    : {}),
                   metadata: {
                     ...((tx.metadata as any) || {}),
                     refund_source:
@@ -1798,7 +1812,14 @@ paymentsRouter.post(
       );
       if ((holdErr as any)?.slotFull || (holdErr as any)?.code === 'P2034') {
         return res.status(409).json({
-          error: 'One or more selected dates are fully booked',
+          error:
+            (holdErr as any)?.code === 'AD_DATES_ALREADY_BOOKED'
+              ? 'Selected dates are already paid or booked for this ad.'
+              : 'One or more selected dates are fully booked',
+          code:
+            (holdErr as any)?.code === 'AD_DATES_ALREADY_BOOKED'
+              ? 'AD_DATES_ALREADY_BOOKED'
+              : 'SLOT_FULL',
           dates: (holdErr as any).dates,
         });
       }
@@ -2218,9 +2239,17 @@ paymentsRouter.post(
           '[payments] Failed to hold ad slots, cancelled payment:',
           (holdErr as any)?.message
         );
-        return res
-          .status(409)
-          .json({ error: 'Ad slots are no longer available. Please try different dates.' });
+        return sendError(
+          res,
+          409,
+          holdErr?.code === 'AD_DATES_ALREADY_BOOKED'
+            ? 'Selected dates are already paid or booked for this ad.'
+            : 'Ad slots are no longer available. Please try different dates.',
+          {
+            code:
+              holdErr?.code === 'AD_DATES_ALREADY_BOOKED' ? 'AD_DATES_ALREADY_BOOKED' : 'SLOT_FULL',
+          }
+        );
       }
 
       // Log transaction
@@ -2228,6 +2257,7 @@ paymentsRouter.post(
         transactionType: 'AD_PURCHASE',
         status: 'PENDING',
         stripeSessionId: paymentIntent.id,
+        stripePaymentIntentId: paymentIntent.id,
         userId,
         userEmail: user?.email || 'unknown',
         orderId: String(ad_id),

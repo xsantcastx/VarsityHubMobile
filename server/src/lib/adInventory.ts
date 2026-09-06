@@ -108,6 +108,47 @@ export async function reserveAdSlots(
   if (purchases.some(row => row.status === 'COMPLETED')) return;
   // Read targeting in the same transaction: the quote may predate a ZIP edit.
   const ad = await tx.ad.findUniqueOrThrow({ where: { id: params.adId } });
+  // A campaign occupies one slot per day, but every purchase needs exclusive
+  // ownership of those dates. Otherwise skipDuplicates loses payment provenance.
+  const requestedDates = params.isoDates.map(date => new Date(`${date}T00:00:00.000Z`));
+  const overlaps = await tx.adReservation.findMany({
+    where: {
+      ad_id: params.adId,
+      date: { in: requestedDates },
+      OR: [
+        { purchase_reference: null },
+        { purchase_reference: { not: params.purchaseReference || '' } },
+      ],
+    },
+    select: { date: true },
+    take: 57,
+  });
+  const competingHolds =
+    params.paymentStatus === 'hold'
+      ? await tx.adSlotHold.findMany({
+          where: {
+            ad_id: params.adId,
+            date: { in: requestedDates },
+            purchase_reference: { not: params.purchaseReference || '' },
+            expires_at: { gt: new Date() },
+          },
+          select: { date: true },
+          take: 57,
+        })
+      : [];
+  if (overlaps.length || competingHolds.length) {
+    throw Object.assign(
+      slotFullError([
+        ...new Set(
+          [...overlaps, ...competingHolds].map(row => row.date.toISOString().slice(0, 10))
+        ),
+      ]),
+      {
+        code: 'AD_DATES_ALREADY_BOOKED',
+        message: 'Selected dates are already paid or booked for this ad.',
+      }
+    );
+  }
   const fullDates = await getFullAdSlotDates(tx, { ...params, targetZipCode: ad.target_zip_code });
   if (fullDates.length) throw slotFullError(fullDates);
   if (params.paymentStatus === 'hold') {

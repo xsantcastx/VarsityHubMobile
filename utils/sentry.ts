@@ -1,6 +1,7 @@
 import { getConfig } from '@/config/env';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
 import { captureAnalyticsException } from '@/utils/analytics';
 import {
@@ -233,6 +234,12 @@ export function initSentry() {
     Sentry.setTag('platform', Platform.OS);
     Sentry.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
     Sentry.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
+    Sentry.setTag('ota_update_id', Updates.updateId || 'embedded');
+    Sentry.setTag('ota_channel', Updates.channel || 'unknown');
+    Sentry.setTag(
+      'app_runtime',
+      Updates.runtimeVersion || String(Constants.expoConfig?.runtimeVersion || 'unknown')
+    );
   } catch (error) {
     // Silently fail in development - Sentry initialization errors are non-critical
     if (__DEV__) {

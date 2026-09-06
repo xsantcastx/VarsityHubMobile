@@ -103,7 +103,7 @@ New code composes with these single patterns; never stack a parallel mechanism:
 - Do not rely on hardcoded template-count summaries in docs; check `TEMPLATE_IDS`, `REQUIRED_TEMPLATE_KEYS`, and `RECOMMENDED_TEMPLATE_KEYS` in `server/src/lib/email.ts`
 - All other templates degrade silently — always add a plain-text fallback
 - Email functions are in `server/src/lib/email.ts`
-- BullMQ queue with concurrency 5, max 20/sec
+- Email delivery uses `EmailService` → `SendGridProvider` with existing retries/breaker. The legacy BullMQ email queue has no consumer; do not enqueue email jobs into it (`server/src/jobs/queues.ts`).
 
 ### Touching release/readiness flow
 

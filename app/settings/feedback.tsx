@@ -1,6 +1,6 @@
 import Textarea from '@/components/ui/textarea';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,8 @@ import { toUserMessage } from '@/utils/toUserMessage';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function FeedbackScreen() {
+  const submissionId = useRef<string | null>(null);
+  const submittingRef = useRef(false);
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
@@ -109,10 +111,15 @@ export default function FeedbackScreen() {
   };
 
   const onSubmit = async () => {
+    if (submittingRef.current) return;
     if (!message.trim()) {
       Alert.alert('Please enter a message');
       return;
     }
+    submittingRef.current = true;
+    // Retry correlation only; authorization always comes from the server session.
+    const requestId =
+      (submissionId.current ??= `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
     setSending(true);
     try {
       await Support.feedback({
@@ -120,12 +127,14 @@ export default function FeedbackScreen() {
         category,
         message: message.trim(),
         screenshot_url: screenshotUrl || undefined,
+        submission_id: requestId,
       });
-      Alert.alert('Thanks!', 'Your feedback was sent.');
+      Alert.alert('Thanks!', 'Your feedback was received.');
       safeGoBack(router);
     } catch (e: any) {
       Alert.alert('Failed', toUserMessage(e, 'Try again later'));
     } finally {
+      submittingRef.current = false;
       setSending(false);
     }
   };

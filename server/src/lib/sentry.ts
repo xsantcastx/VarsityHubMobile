@@ -182,6 +182,11 @@ export function initSentry(app: Express) {
 
   Sentry.configureScope(scope => {
     scope.setTag('service', SERVER_SERVICE_TAG);
+    scope.setTag(
+      'server_commit',
+      process.env.RAILWAY_GIT_COMMIT_SHA || process.env.SOURCE_VERSION || 'unknown'
+    );
+    scope.setTag('deployment_id', process.env.RAILWAY_DEPLOYMENT_ID || 'unknown');
   });
 
   debugLog(`✅ Sentry initialized for ${environment} environment`);

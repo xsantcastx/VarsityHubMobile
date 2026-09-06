@@ -10,6 +10,7 @@
 import PostHog from 'posthog-react-native';
 import * as env from '@/config/env';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
 
 const readAnalyticsEnv = (
@@ -135,6 +136,8 @@ export function initAnalytics() {
     platform: Platform.OS,
     app_version: APP_VERSION,
     app_runtime: APP_RUNTIME,
+    ota_update_id: Updates.updateId || 'embedded',
+    ota_channel: Updates.channel || 'unknown',
   });
   analyticsInitialized = true;
 }

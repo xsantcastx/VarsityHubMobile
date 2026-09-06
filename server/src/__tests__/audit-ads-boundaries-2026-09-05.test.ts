@@ -160,6 +160,8 @@ describe('audit: ad owner boundaries through live HTTP router', () => {
 
   it('new checkout holds never overwrite paid campaign state or paid dates', async () => {
     db.$queryRaw.mockResolvedValueOnce([]);
+    // Existing paid date is Sep 10; the new date-filtered overlap query asks for Sep 12.
+    db.adReservation.findMany.mockResolvedValueOnce([]);
     await reserveAdSlots(db, {
       adId,
       targetZipCode: '10001',
