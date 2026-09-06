@@ -127,7 +127,7 @@ describe('MyTeamScreen (react-query render smoke)', () => {
     );
     await waitFor(() => expect(mockManaged).toHaveBeenCalled());
     await waitFor(() => expect(mockMembers).toHaveBeenCalledWith('t1'));
-    expect(await screen.findByText('Jane Player')).toBeTruthy();
+    expect(await screen.findByText('janep')).toBeTruthy();
   });
 
   it('groups the team picker by program with level labels', async () => {

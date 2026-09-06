@@ -15,6 +15,8 @@ let modernOwnerId = '';
 let strangerId = '';
 let legacyOrgId = '';
 let modernOrgId = '';
+let stalePointerOrgId = '';
+let canonicalOwner: typeof import('../lib/organizationAuthorization.js').isOrganizationOwner;
 
 async function mkUser(email: string) {
   const u = await prisma.user.create({
@@ -52,6 +54,7 @@ describe('isOrgOwner honors legacy league_owner_id (team-admin tier)', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ isOrgOwner } = await import('../lib/teamAuthorization.js'));
+    ({ isOrganizationOwner: canonicalOwner } = await import('../lib/organizationAuthorization.js'));
     legacyOwnerId = await mkUser(`legacy-${ts}@t.co`);
     modernOwnerId = await mkUser(`modern-${ts}@t.co`);
     strangerId = await mkUser(`stranger-${ts}@t.co`);
@@ -59,14 +62,25 @@ describe('isOrgOwner honors legacy league_owner_id (team-admin tier)', () => {
     legacyOrgId = await mkOrg(legacyOwnerId, `Legacy Org ${ts}`, false);
     // Modern org: owner membership row present.
     modernOrgId = await mkOrg(modernOwnerId, `Modern Org ${ts}`, true);
+    stalePointerOrgId = await mkOrg(legacyOwnerId, `Stale Pointer Org ${ts}`, false);
+    await prisma.organizationMembership.create({
+      data: {
+        organization_id: stalePointerOrgId,
+        user_id: modernOwnerId,
+        role: 'owner',
+        status: 'active',
+      },
+    });
   });
 
   afterAll(async () => {
     await prisma.organizationMembership
-      .deleteMany({ where: { organization_id: { in: [legacyOrgId, modernOrgId] } } })
+      .deleteMany({
+        where: { organization_id: { in: [legacyOrgId, modernOrgId, stalePointerOrgId] } },
+      })
       .catch(() => {});
     await prisma.organization
-      .deleteMany({ where: { id: { in: [legacyOrgId, modernOrgId] } } })
+      .deleteMany({ where: { id: { in: [legacyOrgId, modernOrgId, stalePointerOrgId] } } })
       .catch(() => {});
     await prisma.user
       .deleteMany({ where: { id: { in: [legacyOwnerId, modernOwnerId, strangerId] } } })
@@ -88,5 +102,14 @@ describe('isOrgOwner honors legacy league_owner_id (team-admin tier)', () => {
 
   it('a legacy owner is NOT owner of a different org', async () => {
     expect(await isOrgOwner(legacyOwnerId, modernOrgId)).toBe(false);
+  });
+  it('an active owner membership revokes a different stale league_owner_id on both team and organization paths', async () => {
+    expect(await canonicalOwner(legacyOwnerId, stalePointerOrgId)).toBe(false);
+    expect(await isOrgOwner(legacyOwnerId, stalePointerOrgId)).toBe(false);
+  });
+
+  it('the canonical membership owner retains team and organization ownership despite the stale pointer', async () => {
+    expect(await canonicalOwner(modernOwnerId, stalePointerOrgId)).toBe(true);
+    expect(await isOrgOwner(modernOwnerId, stalePointerOrgId)).toBe(true);
   });
 });

@@ -1,18 +1,17 @@
-import { Event, Message } from '@/api/entities';
-import { getConfig } from '@/config/env';
-import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
+import { Event } from '@/api/entities';
 import EventPreviewImageField from '@/components/EventPreviewImageField';
 import { EventFormHeader, LocationSuggestionList } from '@/components/EventFormShared';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useLocationAutocomplete } from '@/hooks/useLocationAutocomplete';
 import { safeGoBack } from '@/utils/navigation';
 import { toUserMessage } from '@/utils/toUserMessage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -33,77 +32,28 @@ function RequestHostEventScreen() {
   const displayName = user?.display_name || '';
   const profileEmail = user?.email || '';
 
+  // Static web export and hydration must render identical date labels.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [location, setLocation] = useState('');
-  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [locationQuerying, setLocationQuerying] = useState(false);
-  const [locationTouched, setLocationTouched] = useState(false);
-  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
-  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
-  // Google Maps location autocomplete
-  const requestLocationSuggestions = useCallback((text: string) => {
-    if (locationTimerRef.current) {
-      clearTimeout(locationTimerRef.current);
-      locationTimerRef.current = null;
-    }
-    if (text.length < 3) {
-      setLocationSuggestions([]);
-      setLocationQuerying(false);
-      return;
-    }
-    setLocationQuerying(true);
-    locationTimerRef.current = setTimeout(async () => {
-      try {
-        const suggestions = await autocompleteLocations(text, 6);
-        setLocationSuggestions(suggestions);
-      } catch {
-        setLocationSuggestions([]);
-      } finally {
-        setLocationQuerying(false);
-      }
-    }, 300);
-  }, []);
-
-  const handleLocationChange = useCallback(
-    (text: string) => {
-      setLocation(text);
-      setLocationTouched(true);
-      setSelectedPlace(null);
-      setErrors(prev => ({ ...prev, location: '' }));
-      if (text.length >= 3) {
-        requestLocationSuggestions(text);
-      } else {
-        setLocationSuggestions([]);
-      }
-    },
-    [requestLocationSuggestions]
-  );
-
-  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
-    setLocation(suggestion.description);
-    setSelectedPlace(suggestion);
-    setLocationSuggestions([]);
-    setLocationQuerying(false);
-    setLocationTouched(true);
-    setErrors(prev => ({ ...prev, location: '' }));
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (locationTimerRef.current) {
-        clearTimeout(locationTimerRef.current);
-      }
-    };
-  }, []);
+  const {
+    location,
+    locationSuggestions,
+    locationQuerying,
+    locationTouched,
+    selectedPlace,
+    handleLocationChange,
+    handleSelectLocation,
+  } = useLocationAutocomplete({ onClearLocationError: setErrors });
 
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
@@ -145,11 +95,8 @@ function RequestHostEventScreen() {
         cover_image_url: previewImageUrl || undefined,
       };
       await Event.create(eventData);
-      // Send notification to coach/admin
-      await Message.send({
-        content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail})`,
-        recipient_email: getConfig().adminEmails[0] || 'admin@varsityhub.app',
-      });
+      // POST /events owns reviewer notification. A separate client DM could fail
+      // after creation and incorrectly invite the user to submit the request again.
       Alert.alert(
         'Request Submitted!',
         'Your request to host an event has been submitted. You will be notified when it is reviewed.',
@@ -278,7 +225,7 @@ function RequestHostEventScreen() {
             >
               <MaterialIcons name="event" size={20} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
-                {date.toLocaleDateString()}
+                {mounted ? date.toLocaleDateString() : 'Select date'}
               </Text>
             </Pressable>
             <Pressable
@@ -293,7 +240,9 @@ function RequestHostEventScreen() {
             >
               <MaterialIcons name="access-time" size={20} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
-                {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {mounted
+                  ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : 'Select time'}
               </Text>
             </Pressable>
           </View>

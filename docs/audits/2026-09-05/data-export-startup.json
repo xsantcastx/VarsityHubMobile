@@ -1,0 +1,11 @@
+{
+  "deployment": "1afb5524-95d5-4242-8f8d-a8b1f92072e4",
+  "sourceCommit": "e7f38857fd5964dcc897d4807d90a0b6ad48c6a9",
+  "messages": [
+    "[Scheduler] Added job: data-export-cleanup (*/15 * * * *)",
+    "[Scheduler] Running data-export-cleanup: Expire private export archives, retry deletion and reap abandoned builds",
+    "[data-export-cleanup] { expiredCleaned: 0, stuckReaped: 0, storageDeleteFailed: 0 }",
+    "[Scheduler] Job data-export-cleanup completed"
+  ],
+  "readExit": 0
+}

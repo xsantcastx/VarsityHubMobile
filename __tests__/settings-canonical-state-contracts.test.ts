@@ -15,9 +15,19 @@ describe('settings canonical state contracts', () => {
   });
 
   it('settings bootstraps from the auth snapshot before falling back to checkAuth', () => {
-    expect(settingsScreen).toContain(
-      'const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();'
-    );
+    const authFields = Array.from(settingsScreen.matchAll(/const\s*\{([^}]+)\}\s*=\s*useAuth\(\)/g))
+      .map(match => match[1])
+      .join(',');
+    for (const field of [
+      'user',
+      'checkAuth',
+      'markOnboardingIncompleteLocally',
+      'signOut',
+      'isAdmin',
+      'savePreferences',
+    ]) {
+      expect(authFields.split(',').map(value => value.trim())).toContain(field);
+    }
     expect(settingsScreen).toContain('import {');
     expect(settingsScreen).toContain('getAuthSnapshot,');
     expect(settingsScreen).toContain('getFreshAuthSnapshot,');

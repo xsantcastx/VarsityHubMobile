@@ -665,7 +665,7 @@ function MessageThreadScreen() {
                   value={text}
                   onChangeText={setText}
                   multiline
-                  maxLength={1000}
+                  maxLength={5000}
                 />
               </View>
               <Pressable

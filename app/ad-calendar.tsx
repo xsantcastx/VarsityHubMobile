@@ -1,3 +1,10 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthProvider';
+import {
+  listAdIntents,
+  reviseAdIntentDates,
+  type AdPurchaseIntent,
+} from '@/lib/adPurchaseRecovery';
 import { Colors } from '@/constants/Colors';
 import { useAdIAP } from '@/hooks/useAdIAP';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -31,7 +38,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { Advertisement, Payments } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import { captureBreadcrumb } from '@/utils/sentry';
-import { usePaymentSheet } from '@/utils/stripe';
+import { initStripe, usePaymentSheet } from '@/utils/stripe';
 
 const weekdayRate = 4.99; // Per week (Mon-Thu slot)
 const weekendRate = 7.99; // Per week (Fri-Sun slot)
@@ -207,6 +214,83 @@ function AdCalendarScreen() {
   const freeSuccessOpacity = useRef(new Animated.Value(0)).current;
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const { purchaseAd } = useAdIAP();
+  const { user } = useAuth();
+  const pendingPurchases = useQuery({
+    queryKey: ['ad-purchase-intents', user?.id],
+    queryFn: listAdIntents,
+    enabled: Platform.OS === 'ios' && !!user?.id,
+  });
+  const savedPurchase = pendingPurchases.data?.find(intent => intent.ad_id === adId);
+  const queryClient = useQueryClient();
+  const currentAccount = useRef(user?.id);
+  currentAccount.current = user?.id;
+  const dateRevision = useMutation({
+    mutationFn: ({ intent, dates }: { intent: AdPurchaseIntent; dates: string[] }) =>
+      reviseAdIntentDates(intent, dates),
+  });
+  const reviseSavedDates = () => {
+    if (!savedPurchase || !user?.id || !selected.size || submitting || dateRevision.isPending)
+      return;
+    const accountId = user.id;
+    const intent = savedPurchase;
+    const dates = [...selected].sort();
+    Alert.alert(
+      'Use these dates for your saved purchase?',
+      'Keep the same number of weekday and weekend blocks. Accepted payments carry over; changing dates does not charge you. Availability will be checked before saving.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Use selected dates',
+          onPress: () => {
+            if (currentAccount.current !== accountId) return;
+            dateRevision.mutate(
+              { intent, dates },
+              {
+                onSuccess: updated => {
+                  if (currentAccount.current !== accountId) return;
+                  queryClient.setQueryData<AdPurchaseIntent[]>(
+                    ['ad-purchase-intents', accountId],
+                    previous =>
+                      previous?.flatMap(row =>
+                        row.id !== updated.id
+                          ? [row]
+                          : updated.status === 'completed'
+                            ? []
+                            : [updated]
+                      )
+                  );
+                  if (updated.status === 'completed') {
+                    setSelected(new Set());
+                    setDirty(false);
+                    Alert.alert(
+                      'Booking confirmed',
+                      'Your saved payment covered the replacement dates. No additional charge was made.'
+                    );
+                  } else {
+                    Alert.alert(
+                      'Dates saved',
+                      'Continue checkout when ready. Only the remaining unpaid products will be requested.'
+                    );
+                  }
+                },
+                onError: error => {
+                  if (currentAccount.current !== accountId) return;
+                  void pendingPurchases.refetch();
+                  Alert.alert(
+                    'Could not confirm replacement dates',
+                    toUserMessage(
+                      error,
+                      'Your accepted payments are saved. Refresh your purchase and try again.'
+                    )
+                  );
+                },
+              }
+            );
+          },
+        },
+      ]
+    );
+  };
 
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates
@@ -600,6 +684,7 @@ function AdCalendarScreen() {
   };
 
   const handlePayment = async () => {
+    if (dateRevision.isPending) return;
     if (paymentsTemporarilyDisabled) {
       Alert.alert(
         'Payments Unavailable',
@@ -661,6 +746,21 @@ function AdCalendarScreen() {
           promo_code: promo || undefined,
           checkout_mode: 'web',
         });
+        if (data?.free) {
+          setSubmitting(false);
+          router.replace({
+            // nav-safe: sequential purchase flow — promo checkout → confirmation
+            pathname: '/ad-confirmation',
+            params: {
+              ad_id: String(adId),
+              selectedDates: dates.join(', '),
+              totalAmount: '$0.00 (promo)',
+              purchasedHours: String(purchasedHours),
+              purchasedDays: String(dates.length),
+            },
+          });
+          return;
+        }
         if (!data?.url || typeof data.url !== 'string') {
           throw new Error('Unable to start web checkout');
         }
@@ -684,24 +784,6 @@ function AdCalendarScreen() {
         setSubmitting(false);
         return;
       }
-    }
-
-    // Stripe must be configured — try build-time config first, then fetch from server
-    let stripeKey = getConfig().stripePublishableKey;
-    if (!stripeKey || !stripeKey.startsWith('pk_')) {
-      try {
-        const serverCfg = await Payments.getConfig();
-        stripeKey = serverCfg?.stripe_publishable_key || '';
-      } catch {
-        /* server config fetch failed — fall through to error */
-      }
-    }
-    if (!stripeKey || !stripeKey.startsWith('pk_')) {
-      Alert.alert(
-        'Payments Not Ready',
-        'Payment configuration is missing. Please update the app or try again later.'
-      );
-      return;
     }
 
     // Disable unsaved changes guard during payment flow
@@ -729,6 +811,7 @@ function AdCalendarScreen() {
           weekendBlocks,
         });
         setSubmitting(false);
+        void pendingPurchases.refetch();
         captureBreadcrumb(
           'Native ad purchase returned',
           'payments.ad',
@@ -756,6 +839,33 @@ function AdCalendarScreen() {
           },
         });
         return;
+      }
+
+      // Stripe must be configured — try build-time config first, then fetch from server
+      let stripeKey = getConfig().stripePublishableKey;
+      const needsRuntimeStripeConfiguration = !stripeKey || !stripeKey.startsWith('pk_');
+      if (needsRuntimeStripeConfiguration) {
+        try {
+          const serverCfg = await Payments.getConfig();
+          stripeKey = serverCfg?.stripe_publishable_key || '';
+        } catch {
+          /* server config fetch failed — fall through to error */
+        }
+      }
+      if (!stripeKey || !stripeKey.startsWith('pk_')) {
+        Alert.alert(
+          'Payments Not Ready',
+          'Payment configuration is missing. Please update the app or try again later.'
+        );
+        setSubmitting(false);
+        setDirty(selected.size > 0);
+        return;
+      }
+
+      if (needsRuntimeStripeConfiguration) {
+        // A fetched key must reach the SDK; the mounted provider still has the
+        // missing bundled key. Dispatch configuration before creating an intent.
+        await initStripe({ publishableKey: stripeKey });
       }
 
       // Android / non-iOS: use Stripe PaymentSheet
@@ -1005,6 +1115,65 @@ function AdCalendarScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {Platform.OS === 'ios' && pendingPurchases.isPending && user && (
+            <Text style={{ color: Colors[colorScheme].text }}>Checking saved purchases…</Text>
+          )}
+          {Platform.OS === 'ios' && pendingPurchases.isError && (
+            <Pressable accessibilityRole="button" onPress={() => void pendingPurchases.refetch()}>
+              <Text style={{ color: Colors[colorScheme].text }}>
+                Could not check saved purchases. Tap to retry before checkout.
+              </Text>
+            </Pressable>
+          )}
+          {savedPurchase && (
+            <View style={{ paddingVertical: 12 }}>
+              <Text style={{ color: Colors[colorScheme].text }}>
+                {savedPurchase.status === 'needs_action'
+                  ? 'Your accepted payments are saved. If the original dates are unavailable, select replacement dates with the same number of weekday and weekend blocks.'
+                  : 'You have an unfinished purchase. Restore its dates to continue; accepted payments will not be charged again.'}
+              </Text>
+              <Text style={{ color: Colors[colorScheme].text }}>
+                Saved purchase:{' '}
+                {savedPurchase.items.find(item => item.sku === 'MOND_THURS')?.quantity || 0} weekday
+                block(s), {savedPurchase.items.find(item => item.sku === 'FRI_SUN')?.quantity || 0}{' '}
+                weekend block(s).
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setSelected(new Set(savedPurchase.dates));
+                  setDirty(true);
+                }}
+              >
+                <Text
+                  style={{
+                    color: Colors[colorScheme].text,
+                    fontWeight: '700',
+                    paddingVertical: 12,
+                  }}
+                >
+                  Restore saved purchase dates
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={submitting || dateRevision.isPending || !selected.size}
+                onPress={reviseSavedDates}
+              >
+                <Text
+                  style={{
+                    color: Colors[colorScheme].text,
+                    fontWeight: '700',
+                    paddingVertical: 12,
+                  }}
+                >
+                  {dateRevision.isPending
+                    ? 'Checking replacement dates…'
+                    : 'Use selected dates for saved purchase'}
+                </Text>
+              </Pressable>
+            </View>
+          )}
           <View style={[styles.contentInner, isLargeScreen ? styles.contentInnerLarge : null]}>
             {showPaymentsWarning && (
               <View
@@ -1838,8 +2007,7 @@ function AdCalendarScreen() {
       {/* Free promo success overlay */}
       {showFreeSuccess && (
         <Animated.View
-          style={[styles.successOverlay, { opacity: freeSuccessOpacity }]}
-          pointerEvents="none"
+          style={[styles.successOverlay, { opacity: freeSuccessOpacity, pointerEvents: 'none' }]}
         >
           <View style={styles.successBadge}>
             <Text style={[styles.successCheck, { color: Colors[colorScheme].text }]}>✓</Text>

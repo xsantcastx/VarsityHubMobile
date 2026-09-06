@@ -1,0 +1,52 @@
+{
+  "client": {
+    "suites": 203,
+    "passedSuites": 201,
+    "failedSuites": 2,
+    "passedTests": 1422,
+    "failedTests": 2,
+    "skippedTests": 0,
+    "failures": [
+      {
+        "file": "app/game-details/__tests__/GameVerticalFeedScreen.memory.test.ts",
+        "tests": [
+          "profile grid thumbnails requests downsized Cloudinary transforms, not original uploads"
+        ]
+      },
+      {
+        "file": "app/game-details/__tests__/GameDetailsScreen.banner-contract.test.ts",
+        "tests": [
+          "GameDetailsScreen banner fallback contract never promotes attendee media into the event hero banner fallback"
+        ]
+      }
+    ]
+  },
+  "server": {
+    "suites": 312,
+    "passedSuites": 309,
+    "failedSuites": 3,
+    "passedTests": 2907,
+    "failedTests": 3,
+    "skippedTests": 0,
+    "failures": [
+      {
+        "file": "server/src/__tests__/ad-state-invariants.test.ts",
+        "tests": [
+          "ad lifecycle structural invariants checkout entrypoints create holds, and successful finalization always lands on active + paid"
+        ]
+      },
+      {
+        "file": "server/src/__tests__/coach-flow-invariants.test.ts",
+        "tests": [
+          "coach flow structural invariants organization creation notification flow organization writes flow through an explicit create-data sanitizer"
+        ]
+      },
+      {
+        "file": "server/src/__tests__/validation-parity.test.ts",
+        "tests": [
+          "validation parity (frontend ↔ backend) password server Zod enforces min length + letter & number"
+        ]
+      }
+    ]
+  }
+}

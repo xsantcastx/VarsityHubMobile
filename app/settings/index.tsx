@@ -5,6 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCustomColorScheme, useThemePreference } from '@/hooks/useCustomColorScheme';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -20,6 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { httpGet } from '@/api/http';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
@@ -76,10 +78,27 @@ interface Preferences {
   comment_permission: CommentPermission;
 }
 
+interface PushDiagnostics {
+  push_token?: {
+    present?: boolean;
+    valid_format?: boolean;
+    preview?: string | null;
+  };
+  preferences?: {
+    notifications_enabled?: boolean;
+  };
+  delivery_ready?: boolean;
+}
+
 type LinkedProviders = {
   password: boolean;
   google: boolean;
   apple: boolean;
+};
+
+const STATUS_COLORS = {
+  success: '#16A34A',
+  warning: '#D97706',
 };
 
 // Inline components for settings
@@ -199,10 +218,24 @@ function SwitchRow({
 }
 
 export default function SettingsScreen() {
+  const { user } = useAuth();
+  // Each account gets its own confirmed/optimistic state and pending callbacks.
+  return <SettingsContent key={user?.id ?? 'guest'} />;
+}
+
+function SettingsContent() {
   const router = useRouter();
   const colorScheme = useCustomColorScheme();
   const { themePreference, setThemePreference } = useThemePreference();
-  const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
+  const {
+    user,
+    checkAuth,
+    savePreferences,
+    preferenceSaveState,
+    markOnboardingIncompleteLocally,
+    signOut,
+    isAdmin,
+  } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
   const initialLinkedProviders = getLinkedProvidersSnapshot(user);
@@ -213,8 +246,8 @@ export default function SettingsScreen() {
     []
   );
 
-  const [_loading, setLoading] = useState(true);
-  const [_error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [_email, setEmail] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Preferences>({
     notifications: {
@@ -245,7 +278,13 @@ export default function SettingsScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [upgradingToCoach, setUpgradingToCoach] = useState(false);
   const [downgradingToFan, setDowngradingToFan] = useState(false);
-  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [pushDiagnostics, setPushDiagnostics] = useState<PushDiagnostics | null>(null);
+  const [pushDiagnosticsError, setPushDiagnosticsError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const confirmedPrefs = useRef(prefs);
+  const pendingChanges = useRef<Array<{ patch: PrefsPatch }>>([]);
+  const activeUserId = useRef(user?.id);
+  activeUserId.current = user?.id;
 
   const getSettingsSnapshot = useCallback(
     async (options?: { forceRefresh?: boolean; fallback?: UserMeResponse | null }) => {
@@ -259,11 +298,22 @@ export default function SettingsScreen() {
     [checkAuth, user]
   );
 
-  // Clear all debounce timers on unmount to prevent memory leaks
+  const loadPushDiagnostics = useCallback(async () => {
+    try {
+      const diagnostics = (await httpGet('/notifications/push-diagnostics')) as PushDiagnostics;
+      setPushDiagnostics(diagnostics);
+      setPushDiagnosticsError(null);
+    } catch (e: any) {
+      if (__DEV__) console.warn('[settings] Failed to load push diagnostics:', e);
+      setPushDiagnostics(null);
+      setPushDiagnosticsError(toUserMessage(e, 'Push status unavailable'));
+    }
+  }, []);
+
   useEffect(() => {
-    const activeTimers = timers.current;
+    mountedRef.current = true;
     return () => {
-      Object.values(activeTimers).forEach(clearTimeout);
+      mountedRef.current = false;
     };
   }, []);
 
@@ -274,58 +324,45 @@ export default function SettingsScreen() {
     setLinkedProviders(snapshot);
   }, [computeDeleteRequiresPassword, user]);
 
-  // Debounced PATCH updater for preferences
-  // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
   type PrefsPatch = Omit<Partial<Preferences>, 'notifications'> & {
     notifications?: Partial<Preferences['notifications']>;
   };
-  // Single debounce timer to batch all preference changes together
-  const pendingPatch = useRef<PrefsPatch>({});
+  const mergePrefs = (current: Preferences, patch: PrefsPatch): Preferences => ({
+    ...current,
+    ...patch,
+    notifications: { ...current.notifications, ...patch.notifications },
+  });
   const patchPrefs = (patch: PrefsPatch) => {
-    // Clear any existing timer — we'll send one merged patch
-    if (timers.current['__prefs__']) clearTimeout(timers.current['__prefs__']);
-
-    // Accumulate patches
-    pendingPatch.current = {
-      ...pendingPatch.current,
-      ...patch,
-      notifications: {
-        ...(pendingPatch.current.notifications || {}),
-        ...(patch.notifications || {}),
-      },
-    };
-
-    // Use functional update to get the latest state
-    setPrefs(cur => {
-      const prevPrefs = cur; // capture snapshot for revert on server error
-      const newPrefs = {
-        ...cur,
-        ...patch,
-        notifications: {
-          ...cur.notifications,
-          ...(patch.notifications || {}),
+    const change = { patch };
+    const userId = user?.id;
+    pendingChanges.current.push(change);
+    setPrefs(current => mergePrefs(current, patch));
+    // AuthProvider owns the write queue, so leaving this screen cannot cancel
+    // a save. Only still-pending changes are layered over the confirmed state.
+    void savePreferences(patch)
+      .then(
+        saved => {
+          if (activeUserId.current === userId) {
+            confirmedPrefs.current = mergePrefs(confirmedPrefs.current, saved as PrefsPatch);
+          }
         },
-      };
-
-      // Debounce: send the accumulated patch after 300ms of inactivity
-      const merged = pendingPatch.current;
-      timers.current['__prefs__'] = setTimeout(async () => {
-        const patchToSend = merged.notifications
-          ? { ...merged, notifications: { ...newPrefs.notifications } }
-          : { ...merged };
-        // Clear accumulated patch
-        pendingPatch.current = {};
-        try {
-          await User.updatePreferences(patchToSend);
-        } catch (e: any) {
-          if (__DEV__) console.error('[settings] Failed to update preferences:', e);
-          Alert.alert('Update failed', 'Could not save your preference. Please try again.');
-          setPrefs(prevPrefs); // revert optimistic update
+        () => {
+          if (mountedRef.current && activeUserId.current === userId) {
+            Alert.alert('Update failed', 'Could not save your preference. Please try again.');
+          }
         }
-      }, 300);
-
-      return newPrefs;
-    });
+      )
+      .finally(() => {
+        pendingChanges.current = pendingChanges.current.filter(item => item !== change);
+        if (mountedRef.current && activeUserId.current === userId) {
+          setPrefs(
+            pendingChanges.current.reduce(
+              (current, item) => mergePrefs(current, item.patch),
+              confirmedPrefs.current
+            )
+          );
+        }
+      });
   };
 
   const applyMeSnapshot = useCallback(
@@ -333,7 +370,7 @@ export default function SettingsScreen() {
       if (!mounted) return;
       setEmail(me?.email || null);
       const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
-      setPrefs({
+      const snapshotPrefs: Preferences = {
         notifications: {
           game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
           team_updates: !!serverPrefs?.notifications?.team_updates,
@@ -349,7 +386,11 @@ export default function SettingsScreen() {
           serverPrefs?.comment_permission === 'none'
             ? serverPrefs.comment_permission
             : 'everyone',
-      });
+      };
+      if (pendingChanges.current.length === 0) {
+        confirmedPrefs.current = snapshotPrefs;
+        setPrefs(snapshotPrefs);
+      }
       const billingState = getCanonicalBillingState(me as any);
       setPlan(billingState.selected_plan);
       const effectiveRole = getCanonicalCoachRole(me as any);
@@ -496,6 +537,7 @@ export default function SettingsScreen() {
         }
         if (!mounted) return;
         applyMeSnapshot(me, mounted);
+        void loadPushDiagnostics();
       } catch (e: any) {
         if (!mounted) return;
         // Handle authentication errors gracefully - don't show "Unauthorized" to user
@@ -528,7 +570,49 @@ export default function SettingsScreen() {
     return () => {
       mounted = false;
     };
-  }, [applyMeSnapshot, checkAuth, getSettingsSnapshot]);
+  }, [applyMeSnapshot, checkAuth, getSettingsSnapshot, loadPushDiagnostics]);
+
+  const pushStatus = pushDiagnostics?.delivery_ready
+    ? {
+        icon: 'checkmark-circle' as const,
+        title: 'Notifications enabled',
+        subtitle: 'This device is registered to receive notifications.',
+        color: STATUS_COLORS.success,
+      }
+    : pushDiagnostics?.preferences?.notifications_enabled === false
+      ? {
+          icon: 'notifications-off-circle' as const,
+          title: 'Push Delivery Off',
+          subtitle: 'Notifications are disabled for this account',
+          color: STATUS_COLORS.warning,
+        }
+      : pushDiagnostics?.push_token?.present === false
+        ? {
+            icon: 'alert-circle' as const,
+            title: 'Device Token Missing',
+            subtitle: 'This device has not registered for push delivery',
+            color: STATUS_COLORS.warning,
+          }
+        : pushDiagnostics?.push_token?.valid_format === false
+          ? {
+              icon: 'alert-circle' as const,
+              title: 'Device Token Invalid',
+              subtitle: 'The stored push token cannot be used',
+              color: Colors[colorScheme ?? 'light'].destructive,
+            }
+          : pushDiagnosticsError
+            ? {
+                icon: 'alert-circle' as const,
+                title: 'Push Status Unavailable',
+                subtitle: pushDiagnosticsError,
+                color: Colors[colorScheme ?? 'light'].mutedText,
+              }
+            : {
+                icon: 'ellipse' as const,
+                title: 'Checking Push Delivery',
+                subtitle: 'Checking registration status',
+                color: Colors[colorScheme ?? 'light'].mutedText,
+              };
 
   return (
     <>
@@ -554,6 +638,60 @@ export default function SettingsScreen() {
         style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
         edges={['bottom']}
       >
+        {loading && (
+          <View style={styles.statusRow} accessibilityRole="progressbar">
+            <ActivityIndicator size="small" color={Colors[colorScheme ?? 'light'].tint} />
+            <Text style={[styles.statusText, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              Loading settings...
+            </Text>
+          </View>
+        )}
+
+        {!!error && (
+          <View
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: Colors[colorScheme ?? 'light'].surface,
+                borderColor: Colors[colorScheme ?? 'light'].destructive,
+              },
+            ]}
+          >
+            <Ionicons
+              name="alert-circle"
+              size={18}
+              color={Colors[colorScheme ?? 'light'].destructive}
+            />
+            <Text style={[styles.errorBannerText, { color: Colors[colorScheme ?? 'light'].text }]}>
+              {error}
+            </Text>
+          </View>
+        )}
+
+        {preferenceSaveState?.pending ||
+        preferenceSaveState?.error ||
+        preferenceSaveState?.saved ? (
+          <View style={styles.statusRow}>
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[
+                styles.statusText,
+                {
+                  color: preferenceSaveState.error
+                    ? Colors[colorScheme ?? 'light'].destructive
+                    : Colors[colorScheme ?? 'light'].mutedText,
+                },
+              ]}
+            >
+              {preferenceSaveState.pending
+                ? 'Saving preferences…'
+                : preferenceSaveState.error
+                  ? 'Some changes were not saved. Please try again.'
+                  : 'Preferences saved'}
+            </Text>
+          </View>
+        ) : null}
+
         <ScrollView>
           {/* Account */}
           <SectionCard title="Account" initiallyOpen>
@@ -663,6 +801,35 @@ export default function SettingsScreen() {
 
           {/* Notifications */}
           <SectionCard title="Notifications" initiallyOpen>
+            <View
+              style={[
+                styles.notificationStatusRow,
+                { borderBottomWidth: 1, borderBottomColor: Colors[colorScheme ?? 'light'].border },
+              ]}
+            >
+              <Ionicons name={pushStatus.icon} size={20} color={pushStatus.color} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>
+                  {pushStatus.title}
+                </Text>
+                <Text
+                  style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}
+                >
+                  {pushStatus.subtitle}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  void loadPushDiagnostics();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh push delivery status"
+                hitSlop={10}
+                style={styles.iconButton}
+              >
+                <Ionicons name="refresh" size={18} color={Colors[colorScheme ?? 'light'].tint} />
+              </Pressable>
+            </View>
             <SwitchRow
               title="Game/Event Reminders"
               value={!!prefs.notifications.game_event_reminders}
@@ -728,31 +895,19 @@ export default function SettingsScreen() {
                     {
                       text: 'Everyone',
                       onPress: () => {
-                        setPrefs(p => ({ ...p, comment_permission: 'everyone' }));
-                        User.updatePreferences({ comment_permission: 'everyone' }).catch(() => {
-                          setPrefs(p => ({ ...p, comment_permission: prefs.comment_permission }));
-                          Alert.alert('Error', 'Failed to save preference. Please try again.');
-                        });
+                        patchPrefs({ comment_permission: 'everyone' });
                       },
                     },
                     {
                       text: 'People I Follow',
                       onPress: () => {
-                        setPrefs(p => ({ ...p, comment_permission: 'following' }));
-                        User.updatePreferences({ comment_permission: 'following' }).catch(() => {
-                          setPrefs(p => ({ ...p, comment_permission: prefs.comment_permission }));
-                          Alert.alert('Error', 'Failed to save preference. Please try again.');
-                        });
+                        patchPrefs({ comment_permission: 'following' });
                       },
                     },
                     {
                       text: 'Nobody',
                       onPress: () => {
-                        setPrefs(p => ({ ...p, comment_permission: 'none' }));
-                        User.updatePreferences({ comment_permission: 'none' }).catch(() => {
-                          setPrefs(p => ({ ...p, comment_permission: prefs.comment_permission }));
-                          Alert.alert('Error', 'Failed to save preference. Please try again.');
-                        });
+                        patchPrefs({ comment_permission: 'none' });
                       },
                     },
                     { text: 'Cancel', style: 'cancel' },
@@ -1363,6 +1518,33 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
   error: { marginHorizontal: 16, marginBottom: 8 },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   card: { marginHorizontal: 16, marginBottom: 6, borderRadius: 12, borderWidth: 1 },
   cardHeader: {
     flexDirection: 'row',
@@ -1381,6 +1563,18 @@ const styles = StyleSheet.create({
   },
   rowTitle: { fontWeight: '600' },
   mutedSmall: { fontSize: 12 },
+  notificationStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },
   chevOpen: { transform: [{ rotate: '90deg' }] },
   commentPermRow: { padding: 8 },

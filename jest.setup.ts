@@ -1,5 +1,23 @@
 import '@testing-library/jest-native/extend-expect';
 
+const realFetch = global.fetch?.bind(global);
+if (realFetch) {
+  global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : typeof input?.url === 'string'
+            ? input.url
+            : '';
+    if (url.startsWith('https://api-production-8ac3.up.railway.app')) {
+      throw new Error(`[jest] production API fetch blocked: ${url}`);
+    }
+    return realFetch(input, init);
+  }) as typeof global.fetch;
+}
+
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
@@ -92,3 +110,36 @@ jest.mock('@sentry/react-native', () => {
     }
   );
 });
+
+jest.mock('posthog-react-native', () => {
+  const instance = {
+    capture: jest.fn(),
+    captureException: jest.fn(),
+    identify: jest.fn(),
+    createPersonProfile: jest.fn(),
+    setPersonProperties: jest.fn(),
+    reset: jest.fn(),
+    screen: jest.fn(),
+    register: jest.fn(),
+  };
+  return {
+    __esModule: true,
+    default: jest.fn(() => instance),
+  };
+});
+
+afterEach(() => {
+  try {
+    const cachedModules = Object.entries(require.cache || {});
+    for (const [path, cached] of cachedModules) {
+      if (!path.endsWith('/apiclient/http.ts') && !path.endsWith('/apiclient/http.js')) continue;
+      const http = cached?.exports;
+      http?.abortAllInflight?.('jest_teardown');
+      http?.clearAuthToken?.();
+    }
+  } catch {
+    // Some tests intentionally mock or never load the HTTP layer.
+  }
+});
+// Native OTA metadata has no module in Jest; tests can override these values.
+jest.mock('expo-updates', () => ({ updateId: null, channel: null, runtimeVersion: null }));

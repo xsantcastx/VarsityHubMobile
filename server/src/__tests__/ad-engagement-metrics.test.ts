@@ -1,14 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 
 let prisma: any;
 let signJwt: any;
 let app: import('express').Express;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
 const PASSWORD = 'TestPassword123!';
 const ts = Date.now();

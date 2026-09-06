@@ -1,7 +1,9 @@
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const path = require('path');
 
-const config = getDefaultConfig(__dirname);
+// Inject runtime Debug IDs as well as source-map IDs so each OTA resolves to
+// its own source, even when several updates share a native release/build.
+const config = getSentryExpoConfig(__dirname);
 
 // Fast Refresh - REAL-TIME UPDATES CONFIGURATION
 config.transformer = {
@@ -18,6 +20,7 @@ config.transformer = {
 config.resolver = {
   ...config.resolver,
   sourceExts: [...(config.resolver.sourceExts || []), 'jsx', 'js', 'ts', 'tsx'],
+  unstable_enablePackageExports: false,
   // Add resolver alias for shims
   alias: {
     ...config.resolver.alias,
@@ -38,6 +41,23 @@ config.resolver.extraNodeModules = {
 // Shim native-only modules on web so Metro doesn't try to bundle them
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (
+    platform === 'web' &&
+    moduleName.startsWith('./exports/') &&
+    context.originModulePath.endsWith(
+      path.join('node_modules', 'react-native-web', 'dist', 'index.js')
+    )
+  ) {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(
+        __dirname,
+        'node_modules/react-native-web/dist',
+        moduleName,
+        'index.js'
+      ),
+    };
+  }
   if (moduleName === 'split-on-first') {
     return {
       type: 'sourceFile',
@@ -59,8 +79,15 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === 'web' && moduleName === 'react-native-iap') {
     return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/react-native-iap.js') };
   }
+  if (platform === 'web' && moduleName === '@react-native-community/datetimepicker') {
+    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/datetimepicker.js') };
+  }
   if (originalResolveRequest) {
-    return originalResolveRequest(context, moduleName, platform);
+    try {
+      return originalResolveRequest(context, moduleName, platform);
+    } catch (error) {
+      return context.resolveRequest(context, moduleName, platform);
+    }
   }
   return context.resolveRequest(context, moduleName, platform);
 };

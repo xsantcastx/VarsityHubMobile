@@ -5,6 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { safeGoBack } from '@/utils/navigation';
+import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useEventListener } from 'expo';
@@ -158,7 +159,7 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
     author: item?.author
       ? {
           id: String(item.author.id ?? item.author.user_id ?? id),
-          username: item.author.username ?? item.author.display_name ?? null,
+          username: item.author.username ?? null,
           avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
         }
       : null,
@@ -212,7 +213,6 @@ const FeedCard = memo(
     registerVideo,
     insets,
     size,
-    colorScheme,
     meInfo,
   }: {
     post: FeedPost;
@@ -232,11 +232,25 @@ const FeedCard = memo(
     registerVideo: (id: string, player: any | null) => void;
     insets: { top: number; bottom: number };
     size: { width: number; height: number };
-    colorScheme: 'light' | 'dark';
     meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
   }) => {
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
+    // An option that opens a system sheet (native Share) must fire only after
+    // the options modal has fully dismissed — on iOS, presenting the share sheet
+    // while the modal is still animating out silently no-ops (the "Share Post
+    // does nothing" bug). We stash the action and run it from the modal's
+    // onDismiss. Android has no such restriction, so it runs immediately.
+    const pendingMenuActionRef = useRef<(() => void) | null>(null);
+    const runAfterMenuClose = useCallback((action: () => void) => {
+      if (Platform.OS === 'ios') {
+        pendingMenuActionRef.current = action;
+        setShowOptionsMenu(false);
+      } else {
+        setShowOptionsMenu(false);
+        action();
+      }
+    }, []);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -524,8 +538,10 @@ const FeedCard = memo(
         </Pressable>
 
         <View
-          pointerEvents="box-none"
-          style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
+          style={[
+            styles.captionOverlay,
+            { paddingBottom: Math.max(insets.bottom + 12, 36), pointerEvents: 'box-none' },
+          ]}
         >
           <Pressable
             onPress={post.author?.id ? onOpenAuthorProfile : undefined}
@@ -554,8 +570,10 @@ const FeedCard = memo(
             onOpenAuthorProfile handler). Icons/labels were shrunk and the rail
             was dropped toward the bottom edge for the same reason. */}
         <View
-          pointerEvents="box-none"
-          style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}
+          style={[
+            styles.rail,
+            { paddingBottom: Math.max(insets.bottom + 12, 36), pointerEvents: 'box-none' },
+          ]}
         >
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
             <Ionicons
@@ -586,65 +604,49 @@ const FeedCard = memo(
           </Pressable>
         </View>
 
-        {/* Options Menu Modal */}
-        <Modal visible={showOptionsMenu} transparent animationType="fade">
+        {/* Options Menu Modal. The menu is a fixed dark surface (it floats over
+            the always-dark immersive feed), so its text/icons use fixed light
+            colors — never the device-theme text color, which rendered dark-on-
+            dark and invisible in light mode. */}
+        <Modal
+          visible={showOptionsMenu}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowOptionsMenu(false)}
+          onDismiss={() => {
+            const action = pendingMenuActionRef.current;
+            pendingMenuActionRef.current = null;
+            action?.();
+          }}
+        >
           <Pressable style={styles.modalOverlay} onPress={() => setShowOptionsMenu(false)}>
             <View style={styles.optionsMenu}>
-              <Pressable
-                onPress={() => {
-                  setShowOptionsMenu(false);
-                  onSharePost();
-                }}
-                style={styles.optionButton}
-              >
-                <Ionicons name="share-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
-                  Share Post
-                </Text>
+              <Pressable onPress={() => runAfterMenuClose(onSharePost)} style={styles.optionButton}>
+                <Ionicons name="share-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Share Post</Text>
+              </Pressable>
+              <Pressable onPress={() => runAfterMenuClose(onCopyLink)} style={styles.optionButton}>
+                <Ionicons name="link-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Copy Link</Text>
               </Pressable>
               <Pressable
-                onPress={() => {
-                  setShowOptionsMenu(false);
-                  onCopyLink();
-                }}
+                onPress={() => runAfterMenuClose(onReportPost)}
                 style={styles.optionButton}
               >
-                <Ionicons name="link-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
-                  Copy Link
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setShowOptionsMenu(false);
-                  onReportPost();
-                }}
-                style={styles.optionButton}
-              >
-                <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
-                  Report Post
-                </Text>
+                <Ionicons name="flag-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Report Post</Text>
               </Pressable>
               {isAuthor && (
                 <>
                   <Pressable
-                    onPress={() => {
-                      setShowOptionsMenu(false);
-                      handleEditPost();
-                    }}
+                    onPress={() => runAfterMenuClose(handleEditPost)}
                     style={styles.optionButton}
                   >
-                    <Ionicons name="pencil-outline" size={20} color={Colors[colorScheme].text} />
-                    <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
-                      Edit Post
-                    </Text>
+                    <Ionicons name="pencil-outline" size={20} color="#fff" />
+                    <Text style={styles.optionText}>Edit Post</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => {
-                      setShowOptionsMenu(false);
-                      handleDeletePost();
-                    }}
+                    onPress={() => runAfterMenuClose(handleDeletePost)}
                     style={styles.optionButton}
                   >
                     <Ionicons name="trash-outline" size={20} color="#dc2626" />
@@ -1299,12 +1301,20 @@ function GameVerticalFeedScreen({
   );
 
   const handleShare = useCallback(async (post: FeedPost) => {
+    const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
+
     if (post.media_type === 'video' && post.media_url) {
       try {
         const localUri = await getCachedShareableVideoUri(post);
-        await Share.share({ url: localUri });
+        const result = await Share.share({ url: localUri });
+        if (result.action === Share.sharedAction) {
+          void Post.share(post.id).catch(error =>
+            captureException(error, { tags: { context: 'share_tracking', kind: 'post' } })
+          );
+        }
         return;
       } catch (error) {
+        captureException(error, { tags: { context: 'share_video', kind: 'post' } });
         if (__DEV__) {
           console.warn(
             '[GameVerticalFeed] Video file share failed, falling back to link share:',
@@ -1313,17 +1323,42 @@ function GameVerticalFeedScreen({
         }
       }
     }
-    const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
-    Share.share(buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl)).catch(() => {});
+
+    try {
+      const result = await Share.share(
+        buildNativeSharePayload(shareLink.shareMessage, shareLink.webUrl)
+      );
+      if (result.action === Share.sharedAction) {
+        void Post.share(post.id).catch(error =>
+          captureException(error, { tags: { context: 'share_tracking', kind: 'post' } })
+        );
+      }
+    } catch (error) {
+      captureException(error, { tags: { context: 'share_sheet', kind: 'post' } });
+      if (__DEV__) {
+        console.warn('[GameVerticalFeed] Link share failed, copying link instead:', error);
+      }
+      try {
+        const Clipboard = await import('expo-clipboard');
+        const copied = await Clipboard.setStringAsync(shareLink.webUrl);
+        if (copied === false) throw new Error('Clipboard write failed');
+        Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');
+      } catch (error) {
+        captureException(error, { tags: { context: 'share_copy', kind: 'post' } });
+        Alert.alert('Share unavailable', 'Unable to open the share sheet or copy the link.');
+      }
+    }
   }, []);
 
   const handleCopyLink = useCallback(async (post: FeedPost) => {
     try {
       const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
       const Clipboard = await import('expo-clipboard');
-      await Clipboard.setStringAsync(shareLink.webUrl);
+      const copied = await Clipboard.setStringAsync(shareLink.webUrl);
+      if (copied === false) throw new Error('Clipboard write failed');
       Alert.alert('Copied', 'Link copied to clipboard.');
-    } catch {
+    } catch (error) {
+      captureException(error, { tags: { context: 'share_copy', kind: 'post' } });
       Alert.alert('Error', 'Failed to copy link.');
     }
   }, []);
@@ -1496,7 +1531,6 @@ function GameVerticalFeedScreen({
         registerVideo={registerVideo}
         insets={{ top: insets.top, bottom: insets.bottom }}
         size={viewport}
-        colorScheme={colorScheme}
         meInfo={meInfo}
       />
     ),
@@ -1518,7 +1552,6 @@ function GameVerticalFeedScreen({
       insets.top,
       openComments,
       registerVideo,
-      colorScheme,
       meInfo,
     ]
   );
@@ -1550,8 +1583,10 @@ function GameVerticalFeedScreen({
 
   return (
     <View
-      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
-      pointerEvents="box-none"
+      style={[
+        styles.container,
+        { backgroundColor: Colors[colorScheme].background, pointerEvents: 'box-none' },
+      ]}
       onLayout={onViewportLayout}
     >
       <LinearGradient
@@ -1560,8 +1595,7 @@ function GameVerticalFeedScreen({
             ? ['#0b1120', '#020617']
             : [Colors[colorScheme].surface, Colors[colorScheme].background]
         }
-        style={styles.backdrop}
-        pointerEvents="none"
+        style={[styles.backdrop, { pointerEvents: 'none' }]}
       />
       <FlatList
         ref={flatListRef as any}
@@ -1615,7 +1649,7 @@ function GameVerticalFeedScreen({
                 style={[styles.emptyStateCaption, { color: Colors[colorScheme].tabIconDefault }]}
               >
                 {gameId
-                  ? 'Be the first to share a highlight for this game.'
+                  ? 'Be the first to post about this game.'
                   : 'Be the first to create a post for this game.'}
               </Text>
             </View>
@@ -1625,8 +1659,7 @@ function GameVerticalFeedScreen({
 
       {showHeader && !usingInitial ? (
         <View
-          pointerEvents="box-none"
-          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12, pointerEvents: 'box-none' }]}
         >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -1640,8 +1673,7 @@ function GameVerticalFeedScreen({
         </View>
       ) : usingInitial ? (
         <View
-          pointerEvents="box-none"
-          style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}
+          style={[styles.titleOverlay, { paddingTop: insets.top + 12, pointerEvents: 'box-none' }]}
         >
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
@@ -1669,9 +1701,9 @@ function GameVerticalFeedScreen({
               {
                 maxHeight: viewport.height * 0.75,
                 backgroundColor: Colors[colorScheme].background,
+                pointerEvents: 'box-none',
               },
             ]}
-            pointerEvents="box-none"
           >
             <View style={[styles.commentHeader, { backgroundColor: Colors[colorScheme].surface }]}>
               <Text style={[styles.commentTitle, { color: Colors[colorScheme].text }]}>

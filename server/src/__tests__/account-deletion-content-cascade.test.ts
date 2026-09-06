@@ -8,15 +8,12 @@
  * path removes them too.
  */
 import { beforeAll, describe, expect, it } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import bcrypt from 'bcrypt';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const src = readFileSync(join(process.cwd(), 'src', 'lib', 'accountDeletion.ts'), 'utf8');
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
 
 describe('softDeleteUserAccount content cascade', () => {
   it('deletes the user comments (SetNull would orphan them)', () => {

@@ -1,21 +1,19 @@
 import {
   EVENT_POST_PREVIEW_CAP,
-  buildEventScrapbookPlan,
+  buildEventMasonryPlan,
   eventScrapbookSeed,
-  isLandscapePost,
-  type ScrapbookInput,
+  type MasonryInput,
 } from '@/utils/eventPostGrid';
 
-const post = (id: string, w?: number, h?: number): ScrapbookInput => ({
-  id,
-  media_width: w ?? null,
-  media_height: h ?? null,
-});
+const post = (id: string): MasonryInput => ({ id });
 
 const makePosts = (n: number) => Array.from({ length: n }, (_, i) => post(`p${i}`));
 
-const flatIds = (plan: ReturnType<typeof buildEventScrapbookPlan>) =>
-  plan.rows.flatMap(row => row.cells.map(cell => cell.post.id));
+const flatIds = (plan: ReturnType<typeof buildEventMasonryPlan>) =>
+  plan.columns.flatMap(column => column.map(cell => cell.post.id));
+
+const columnTotals = (plan: ReturnType<typeof buildEventMasonryPlan>) =>
+  plan.columns.map(column => column.reduce((sum, cell) => sum + cell.height, 0));
 
 describe('eventScrapbookSeed', () => {
   it('is stable within a day and changes across days', () => {
@@ -33,28 +31,9 @@ describe('eventScrapbookSeed', () => {
   });
 });
 
-describe('isLandscapePost', () => {
-  it('treats a clearly wide post as landscape', () => {
-    expect(isLandscapePost(post('a', 1920, 1080))).toBe(true);
-  });
-
-  it('treats portrait and near-square posts as not landscape', () => {
-    expect(isLandscapePost(post('a', 1080, 1920))).toBe(false);
-    expect(isLandscapePost(post('a', 1000, 1000))).toBe(false);
-    expect(isLandscapePost(post('a', 1100, 1000))).toBe(false); // 1.1 < 1.2 threshold
-  });
-
-  it('treats unknown or zero dimensions as not landscape', () => {
-    // Most production rows have null media_width/media_height; phone clips are
-    // portrait by default, so unknown must never guess wide.
-    expect(isLandscapePost(post('a'))).toBe(false);
-    expect(isLandscapePost(post('a', 0, 0))).toBe(false);
-  });
-});
-
-describe('buildEventScrapbookPlan — cap', () => {
+describe('buildEventMasonryPlan — cap', () => {
   it('caps the preview at exactly 12 posts', () => {
-    const plan = buildEventScrapbookPlan(makePosts(40), 'seed');
+    const plan = buildEventMasonryPlan(makePosts(40), 'seed');
     expect(plan.shownCount).toBe(12);
     expect(EVENT_POST_PREVIEW_CAP).toBe(12);
     expect(flatIds(plan)).toHaveLength(12);
@@ -62,132 +41,94 @@ describe('buildEventScrapbookPlan — cap', () => {
   });
 
   it('shows everything and reports no more when under the cap', () => {
-    const plan = buildEventScrapbookPlan(makePosts(5), 'seed');
+    const plan = buildEventMasonryPlan(makePosts(5), 'seed');
     expect(plan.shownCount).toBe(5);
     expect(plan.hasMore).toBe(false);
   });
 
   it('never duplicates or drops a post within the plan', () => {
-    const plan = buildEventScrapbookPlan(makePosts(40), 'seed');
+    const plan = buildEventMasonryPlan(makePosts(40), 'seed');
     expect(new Set(flatIds(plan)).size).toBe(12);
   });
 
   it('handles an empty list', () => {
-    const plan = buildEventScrapbookPlan([], 'seed');
-    expect(plan.rows).toEqual([]);
+    const plan = buildEventMasonryPlan([], 'seed');
+    expect(plan.columns.every(column => column.length === 0)).toBe(true);
     expect(plan.shownCount).toBe(0);
     expect(plan.hasMore).toBe(false);
   });
 });
 
-describe('buildEventScrapbookPlan — row mix', () => {
-  it('mixes 2-across and 3-across rows rather than a uniform grid', () => {
-    const plan = buildEventScrapbookPlan(makePosts(12), 'seed');
-    const sizes = plan.rows.map(row => row.cells.length);
-    expect(sizes).toContain(2);
-    expect(sizes).toContain(3);
-    // The whole point: not the uniform 2-up grid this replaced.
-    expect(sizes.every(s => s === 2)).toBe(false);
+describe('buildEventMasonryPlan — collage layout', () => {
+  it('defaults to two columns', () => {
+    const plan = buildEventMasonryPlan(makePosts(12), 'seed');
+    expect(plan.columns).toHaveLength(2);
   });
 
-  it('never puts more than 3 across a row', () => {
-    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
-      const plan = buildEventScrapbookPlan(makePosts(12), seed);
-      expect(plan.rows.every(row => row.cells.length <= 3)).toBe(true);
-      expect(plan.rows.every(row => row.cells.length >= 1)).toBe(true);
-    }
+  it('honours a custom column count', () => {
+    const plan = buildEventMasonryPlan(makePosts(12), 'seed', { columns: 3 });
+    expect(plan.columns).toHaveLength(3);
   });
 
-  it('gives every row cell widths that sum to the full row', () => {
-    const posts = [post('a', 1920, 1080), post('b', 1080, 1920), post('c'), post('d', 1920, 1080)];
-    const plan = buildEventScrapbookPlan([...posts, ...makePosts(8)], 'seed');
-    for (const row of plan.rows) {
-      const sum = row.cells.reduce((acc, cell) => acc + cell.widthRatio, 0);
-      expect(sum).toBeCloseTo(1, 10);
-    }
-  });
-
-  it('gives shorter rows taller cells', () => {
-    const plan = buildEventScrapbookPlan(makePosts(12), 'seed');
-    const twoUp = plan.rows.find(r => r.cells.length === 2);
-    const threeUp = plan.rows.find(r => r.cells.length === 3);
-    expect(twoUp!.height).toBeGreaterThan(threeUp!.height);
-  });
-
-  it('varies the row rhythm across seeds', () => {
-    const shapes = new Set(
-      ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8'].map(seed =>
-        buildEventScrapbookPlan(makePosts(12), seed)
-          .rows.map(r => r.cells.length)
-          .join('-')
-      )
+  it('gives tiles varied heights rather than one uniform size', () => {
+    // The whole point of the change: a collage, not a uniform grid of squares.
+    const heights = buildEventMasonryPlan(makePosts(12), 'seed').columns.flatMap(column =>
+      column.map(cell => cell.height)
     );
-    expect(shapes.size).toBeGreaterThan(1);
+    expect(new Set(heights).size).toBeGreaterThan(1);
+  });
+
+  it('keeps the columns balanced (shortest-column-first packing)', () => {
+    // Shortest-first packing guarantees the tallest and shortest columns differ
+    // by no more than a single tile's height, so no column runs away long.
+    const totals = columnTotals(buildEventMasonryPlan(makePosts(12), 'seed'));
+    const spread = Math.max(...totals) - Math.min(...totals);
+    expect(spread).toBeLessThanOrEqual(340);
+  });
+
+  it('places every capped post exactly once across the columns', () => {
+    const plan = buildEventMasonryPlan(makePosts(20), 'seed');
+    expect(new Set(flatIds(plan)).size).toBe(12);
   });
 });
 
-describe('buildEventScrapbookPlan — landscape posts', () => {
-  it('gives a landscape post a wider cell than its portrait row-mate', () => {
-    const plan = buildEventScrapbookPlan([post('wide', 1920, 1080), post('tall', 1080, 1920)], 'x');
-    const cells = plan.rows[0].cells;
-    const wide = cells.find(c => c.post.id === 'wide')!;
-    const tall = cells.find(c => c.post.id === 'tall')!;
-    expect(wide.isLandscape).toBe(true);
-    expect(tall.isLandscape).toBe(false);
-    expect(wide.widthRatio).toBeGreaterThan(tall.widthRatio);
-    expect(wide.widthRatio).toBeCloseTo(0.6, 10); // 1.5 / (1.5 + 1)
-  });
-
-  it('splits a row evenly when no post is landscape', () => {
-    const plan = buildEventScrapbookPlan([post('a'), post('b')], 'x');
-    for (const cell of plan.rows[0].cells) {
-      expect(cell.widthRatio).toBeCloseTo(0.5, 10);
-    }
-  });
-});
-
-describe('buildEventScrapbookPlan — shuffle stability', () => {
+describe('buildEventMasonryPlan — shuffle stability', () => {
   const posts = makePosts(12);
 
   it('is deterministic: same posts + same seed => identical plan', () => {
-    const a = buildEventScrapbookPlan(posts, 'seed-1');
-    const b = buildEventScrapbookPlan(posts, 'seed-1');
+    const a = buildEventMasonryPlan(posts, 'seed-1');
+    const b = buildEventMasonryPlan(posts, 'seed-1');
     expect(flatIds(a)).toEqual(flatIds(b));
-    expect(a.rows.map(r => r.cells.length)).toEqual(b.rows.map(r => r.cells.length));
+    expect(a.columns.map(column => column.length)).toEqual(b.columns.map(column => column.length));
+    expect(columnTotals(a)).toEqual(columnTotals(b));
   });
 
   it('does not depend on the incoming array order', () => {
     // A refetch that returns the same posts in a different order must not
     // rearrange the grid.
     const reversed = [...posts].reverse();
-    expect(flatIds(buildEventScrapbookPlan(reversed, 'seed-1'))).toEqual(
-      flatIds(buildEventScrapbookPlan(posts, 'seed-1'))
+    expect(flatIds(buildEventMasonryPlan(reversed, 'seed-1'))).toEqual(
+      flatIds(buildEventMasonryPlan(posts, 'seed-1'))
     );
   });
 
   it('reshuffles across seeds so a later visit feels fresh', () => {
     const day1 = flatIds(
-      buildEventScrapbookPlan(posts, eventScrapbookSeed('e', new Date(2026, 6, 16)))
+      buildEventMasonryPlan(posts, eventScrapbookSeed('e', new Date(2026, 6, 16)))
     );
     const day2 = flatIds(
-      buildEventScrapbookPlan(posts, eventScrapbookSeed('e', new Date(2026, 6, 17)))
+      buildEventMasonryPlan(posts, eventScrapbookSeed('e', new Date(2026, 6, 17)))
     );
     expect(day1).not.toEqual(day2);
   });
 
-  it('slots a new post in without reordering the existing ones', () => {
-    // The reason we hash per-post-id instead of shuffling the array: a post
-    // arriving must not rearrange everything the user was just looking at.
-    const before = flatIds(buildEventScrapbookPlan(posts, 'seed-1'));
-    const after = flatIds(buildEventScrapbookPlan([...posts, post('brand-new')], 'seed-1'));
-    const afterWithoutNew = after.filter(id => id !== 'brand-new');
-    // 13 posts against a cap of 12 means exactly one falls off the end.
-    expect(afterWithoutNew).toEqual(before.filter(id => afterWithoutNew.includes(id)));
-  });
-
-  it('keeps surviving posts in order when one is deleted', () => {
-    const before = flatIds(buildEventScrapbookPlan(posts, 'seed-1'));
-    const after = flatIds(buildEventScrapbookPlan(posts.slice(1), 'seed-1'));
-    expect(after).toEqual(before.filter(id => id !== posts[0].id));
+  it('gives a post the same height regardless of the other posts present', () => {
+    // Height is a pure function of (seed, post id), so a post never resizes when
+    // its neighbours change — only its column placement can shift.
+    const heightOf = (plan: ReturnType<typeof buildEventMasonryPlan>, id: string) =>
+      plan.columns.flatMap(c => c).find(cell => cell.post.id === id)?.height;
+    const withFew = buildEventMasonryPlan([post('p0'), post('p1')], 'seed-1');
+    const withMany = buildEventMasonryPlan(makePosts(12), 'seed-1');
+    expect(heightOf(withFew, 'p0')).toBe(heightOf(withMany, 'p0'));
   });
 });

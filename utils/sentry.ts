@@ -1,6 +1,7 @@
 import { getConfig } from '@/config/env';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
 import { captureAnalyticsException } from '@/utils/analytics';
 import {
@@ -34,6 +35,7 @@ const EXPECTED_AUTH_CONTEXTS = new Set([
   'verify-email-resend',
   'verify-email-verify',
   'password_reset_code_request',
+  'password_reset_submit',
   'reset_password_screen_submit',
 ]);
 
@@ -111,9 +113,10 @@ function isExpectedAuthUxError(
   const code = getErrorCode(error);
   const message = getErrorMessage(error).toLowerCase();
 
-  if (status !== null && [400, 401, 403, 404, 409, 429].includes(status)) return true;
+  if (status !== null && [400, 401, 403, 404, 409, 422, 429].includes(status)) return true;
   if (
     code === 'EMAIL_ALREADY_REGISTERED' ||
+    code === 'TOKEN_ALREADY_USED' ||
     code === 'VERIFY_CODE_EXPIRED' ||
     code === 'VERIFY_CODE_INVALID' ||
     code === 'VERIFY_NO_CODE' ||
@@ -128,6 +131,7 @@ function isExpectedAuthUxError(
   return (
     message.includes('invalid email or password') ||
     message.includes('too many login attempts') ||
+    message.includes('token already used') ||
     message.includes('email already registered') ||
     message.includes('verification code has expired') ||
     message.includes('invalid verification code') ||
@@ -206,7 +210,10 @@ export function initSentry() {
         }
         // Client transport failures are noisy and usually user/network/transient
         // conditions rather than actionable product bugs.
-        if (isTransientClientTransportError(originalException)) {
+        if (
+          isTransientClientTransportError(originalException) &&
+          event.tags?.terminal_transport !== 'true'
+        ) {
           return null;
         }
         // Expected auth UX states (invalid credentials, expired/invalid codes,
@@ -230,6 +237,12 @@ export function initSentry() {
     Sentry.setTag('platform', Platform.OS);
     Sentry.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
     Sentry.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
+    Sentry.setTag('ota_update_id', Updates.updateId || 'embedded');
+    Sentry.setTag('ota_channel', Updates.channel || 'unknown');
+    Sentry.setTag(
+      'app_runtime',
+      Updates.runtimeVersion || String(Constants.expoConfig?.runtimeVersion || 'unknown')
+    );
   } catch (error) {
     // Silently fail in development - Sentry initialization errors are non-critical
     if (__DEV__) {
@@ -267,6 +280,17 @@ export function setUserContext(user: { id: string; email?: string; username?: st
 }
 
 export function captureException(error: Error | unknown, context?: Record<string, any>) {
+  if (
+    (isTransientClientTransportError(error) && context?.tags?.terminal_transport !== 'true') ||
+    isExpectedAuthUxError(error, context as { tags?: Record<string, unknown> } | undefined) ||
+    isExpectedGeofenceBusinessError(
+      error,
+      context as { tags?: Record<string, unknown> } | undefined
+    )
+  ) {
+    return;
+  }
+
   if (!__DEV__) {
     captureAnalyticsException(error, context);
   }
@@ -284,7 +308,17 @@ export function captureException(error: Error | unknown, context?: Record<string
   Sentry.withScope(scope => {
     scope.setTag('service', MOBILE_SERVICE_TAG);
     if (context) {
-      const { tags, ...rest } = context;
+      const { tags, fingerprint, ...rest } = context;
+      if (
+        Array.isArray(fingerprint) &&
+        fingerprint.length > 0 &&
+        fingerprint.length <= 5 &&
+        fingerprint.every(
+          value => typeof value === 'string' && value.length > 0 && value.length <= 100
+        )
+      ) {
+        scope.setFingerprint(fingerprint.map(redactSensitiveString));
+      }
       if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
         Object.entries(tags).forEach(([key, value]) => {
           if (value !== undefined && value !== null && !SENSITIVE_BREADCRUMB_KEY_RE.test(key)) {

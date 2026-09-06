@@ -27,7 +27,7 @@
 | 2    | Wait for `/me` response  | Feed loads (not "Step 1/9")         | [ ]  | [ ]  |
 | 3    | Verify tabs visible      | Home, Updates, Settings tabs appear | [ ]  | [ ]  |
 
-**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
+**Notes**: \***\*\*\*\*\***\*\*\***\*\*\*\*\***\_\_\_\***\*\*\*\*\***\*\*\***\*\*\*\*\***
 
 ---
 
@@ -43,7 +43,7 @@
 | 3    | Final step → complete  | Redirects to feed                    | [ ]  | [ ]  |
 | 4    | Verify feed displayed  | Home, Updates, Settings tabs visible | [ ]  | [ ]  |
 
-**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
+**Notes**: \***\*\*\*\*\***\*\*\***\*\*\*\*\***\_\_\_\***\*\*\*\*\***\*\*\***\*\*\*\*\***
 
 ---
 
@@ -59,7 +59,7 @@
 | 3    | Verify no onboarding | "Step 1/9" never appears          | [ ]  | [ ]  |
 | 4    | Tabs functional      | Home, Updates, Settings clickable | [ ]  | [ ]  |
 
-**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
+**Notes**: \***\*\*\*\*\***\*\*\***\*\*\*\*\***\_\_\_\***\*\*\*\*\***\*\*\***\*\*\*\*\***
 
 ---
 
@@ -75,7 +75,7 @@
 | 3    | Sign out again                     | Auth screen appears           | [ ]  | [ ]  |
 | 4    | Sign in as new user                | "Step 1/9" onboarding appears | [ ]  | [ ]  |
 
-**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
+**Notes**: \***\*\*\*\*\***\*\*\***\*\*\*\*\***\_\_\_\***\*\*\*\*\***\*\*\***\*\*\*\*\***
 
 ---
 
@@ -96,7 +96,7 @@
 curl -s https://api-production-8ac3.up.railway.app/health | jq '.'
 ```
 
-**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
+**Notes**: \***\*\*\*\*\***\*\*\***\*\*\*\*\***\_\_\_\***\*\*\*\*\***\*\*\***\*\*\*\*\***
 
 ---
 
@@ -107,7 +107,7 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.'
 - [ ] Multiple rapid sign-out/sign-in cycles → state remains consistent
 - [ ] App backgrounded during onboarding → resume → state preserved
 
-**Notes**: ****\*\*****\*\*****\*\*****\_\_\_****\*\*****\*\*****\*\*****
+**Notes**: \***\*\*\*\*\***\*\*\***\*\*\*\*\***\_\_\_\***\*\*\*\*\***\*\*\***\*\*\*\*\***
 
 ---
 

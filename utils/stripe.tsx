@@ -1,1 +1,1 @@
-export { StripeProvider, usePaymentSheet } from './stripe.native-shared';
+export { StripeProvider, usePaymentSheet, initStripe } from './stripe.native-shared';

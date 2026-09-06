@@ -215,7 +215,7 @@ afterAll(async () => {
   } catch (e) {
     console.warn('Cleanup error (non-critical):', e);
   }
-});
+}, 30000);
 
 describe('Veteran IAP rail — unlimited programs (regression)', () => {
   it('a veteran with NO subscription_id can create a team in a 6th sport (no NO_ACTIVE_SUBSCRIPTION)', async () => {

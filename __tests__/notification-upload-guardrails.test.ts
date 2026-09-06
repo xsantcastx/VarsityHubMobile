@@ -33,6 +33,16 @@ describe('upload guardrails', () => {
 });
 
 describe('notification badge guardrails', () => {
+  it('root layout configures foreground push presentation for native builds', () => {
+    const source = readRepoFile('app/_layout.tsx');
+
+    expect(source).toContain('Notifications.setNotificationHandler({');
+    expect(source).toContain('shouldShowBanner: true');
+    expect(source).toContain('shouldShowList: true');
+    expect(source).toContain('shouldPlaySound: true');
+    expect(source).toContain('shouldSetBadge: true');
+  });
+
   it('push notification handler keeps badge updates enabled', () => {
     const source = readRepoFile('utils/pushNotifications.ts');
 

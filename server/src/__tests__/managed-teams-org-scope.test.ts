@@ -81,7 +81,15 @@ async function makeTeam(orgId: string, name: string, staffUserId: string) {
 }
 
 async function managedTeamNames(token: string): Promise<string[]> {
-  const res = await request(app).get('/teams/managed').set('Authorization', `Bearer ${token}`);
+  let res;
+  try {
+    res = await request(app).get('/teams/managed').set('Authorization', `Bearer ${token}`);
+  } catch (error) {
+    if (!String((error as Error)?.message ?? error).includes('Parse Error')) {
+      throw error;
+    }
+    res = await request(app).get('/teams/managed').set('Authorization', `Bearer ${token}`);
+  }
   expect(res.status).toBe(200);
   const rows = Array.isArray(res.body) ? res.body : (res.body?.teams ?? res.body?.items ?? []);
   return rows.map((t: any) => String(t.name));

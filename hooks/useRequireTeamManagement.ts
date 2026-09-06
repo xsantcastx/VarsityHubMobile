@@ -25,7 +25,17 @@ import {
 import { replaceAsRedirect } from '@/utils/navigation';
 import { captureException } from '@/utils/sentry';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const MANAGEMENT_PROBE_CACHE_TTL_MS = 30_000;
+
+type ManagementProbeResult = {
+  managedTeamCount: number;
+  orgAdminCount: number;
+};
+
+const managementProbeCache = new Map<string, { value: ManagementProbeResult; expiresAt: number }>();
+const managementProbeInFlight = new Map<string, Promise<ManagementProbeResult>>();
 
 function countItems(value: unknown): number {
   if (Array.isArray(value)) return value.length;
@@ -45,6 +55,51 @@ function reportProbeFailure(source: string, error: unknown) {
   );
 }
 
+function getCachedManagementProbe(userId: string): ManagementProbeResult | null {
+  const cached = managementProbeCache.get(userId);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    if (cached) managementProbeCache.delete(userId);
+    return null;
+  }
+  return cached.value;
+}
+
+function loadManagementProbe(userId: string): Promise<ManagementProbeResult> {
+  const cached = getCachedManagementProbe(userId);
+  if (cached) return Promise.resolve(cached);
+
+  const existing = managementProbeInFlight.get(userId);
+  if (existing) return existing;
+
+  const promise = Promise.all([
+    Team.managed().catch(e => {
+      reportProbeFailure('managed_teams', e);
+      return [];
+    }),
+    Organization.reviewSummaries().catch(e => {
+      reportProbeFailure('org_admin', e);
+      return [];
+    }),
+  ])
+    .then(([teams, orgs]) => {
+      const value = {
+        managedTeamCount: countItems(teams),
+        orgAdminCount: countItems(orgs),
+      };
+      managementProbeCache.set(userId, {
+        value,
+        expiresAt: Date.now() + MANAGEMENT_PROBE_CACHE_TTL_MS,
+      });
+      return value;
+    })
+    .finally(() => {
+      managementProbeInFlight.delete(userId);
+    });
+
+  managementProbeInFlight.set(userId, promise);
+  return promise;
+}
+
 export function useRequireTeamManagement() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -60,6 +115,7 @@ export function useRequireTeamManagement() {
   // effect below; probing for them just fires two guaranteed-401 calls + Sentry
   // noise, so skip it.
   const needsMembershipProbe = !!user && !coachAccess.isCoach && coachRedirect !== null;
+  const probeUserId = typeof user?.id === 'string' && user.id.trim() ? user.id : null;
 
   const [probe, setProbe] = useState<{
     done: boolean;
@@ -67,34 +123,32 @@ export function useRequireTeamManagement() {
     orgAdminCount: number;
   }>({ done: false, managedTeamCount: 0, orgAdminCount: 0 });
 
-  const probeStartedRef = useRef(false);
-
   useEffect(() => {
-    if (loading || !needsMembershipProbe || probeStartedRef.current) return undefined;
-    probeStartedRef.current = true;
+    if (loading || !needsMembershipProbe || !probeUserId) {
+      setProbe({ done: false, managedTeamCount: 0, orgAdminCount: 0 });
+      return undefined;
+    }
+
+    const cached = getCachedManagementProbe(probeUserId);
+    if (cached) {
+      setProbe({ done: true, ...cached });
+      return undefined;
+    }
+
+    setProbe({ done: false, managedTeamCount: 0, orgAdminCount: 0 });
     let cancelled = false;
-    void (async () => {
-      const [teams, orgs] = await Promise.all([
-        Team.managed().catch(e => {
-          reportProbeFailure('managed_teams', e);
-          return [];
-        }),
-        Organization.reviewSummaries().catch(e => {
-          reportProbeFailure('org_admin', e);
-          return [];
-        }),
-      ]);
-      if (cancelled) return;
-      setProbe({
-        done: true,
-        managedTeamCount: countItems(teams),
-        orgAdminCount: countItems(orgs),
-      });
-    })();
+    void loadManagementProbe(probeUserId).then(value => {
+      if (!cancelled) {
+        setProbe({
+          done: true,
+          ...value,
+        });
+      }
+    });
     return () => {
       cancelled = true;
     };
-  }, [loading, needsMembershipProbe]);
+  }, [loading, needsMembershipProbe, probeUserId]);
 
   // Probing only blocks/decides for the non-coach path. Coaches resolve
   // immediately with no fetch.

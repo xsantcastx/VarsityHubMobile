@@ -6,16 +6,30 @@
  * to the verified helpers.
  */
 
-import { describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+// Load the shared dependency before its consumers to avoid Jest's ESM linking race.
+const { prisma } = await import('../lib/prisma.js');
+await import('../lib/userAuthState.js');
+await import('../lib/userBillingState.js');
+await import('../lib/planDefinitions.js');
+await import('../lib/appReviewFixture.js');
+const { PLATFORM_ADMIN_EMAILS } = await import('../lib/adminEmails.js');
+const { isVerifiedAdminUser } = await import('../middleware/requireAdmin.js');
 
 const requireAdminSrc = readFileSync(
   join(process.cwd(), 'src', 'middleware', 'requireAdmin.ts'),
   'utf8'
 );
 const gamesSrc = readFileSync(join(process.cwd(), 'src', 'routes', 'games.ts'), 'utf8');
+const eventsSrc = readFileSync(join(process.cwd(), 'src', 'routes', 'events.ts'), 'utf8');
+const visibilitySrc = readFileSync(
+  join(process.cwd(), 'src', 'lib', 'entityVisibility.ts'),
+  'utf8'
+);
 const orgsSrc = readFileSync(join(process.cwd(), 'src', 'routes', 'organizations.ts'), 'utf8');
+afterEach(() => jest.restoreAllMocks());
 
 describe('verified-admin helper', () => {
   it('exists and checks email_verified', () => {
@@ -30,11 +44,38 @@ describe('games.ts admin checks require verification', () => {
     expect(gamesSrc).not.toMatch(/\bisEmailAdmin\(/);
     expect(gamesSrc).not.toMatch(/\bisAdminEmail\(/);
   });
-  it('canViewGameRecord uses isVerifiedAdminUser', () => {
-    const start = gamesSrc.indexOf('async function canViewGameRecord');
-    const fn = gamesSrc.slice(start, start + 3000);
-    expect(fn).toMatch(/isVerifiedAdminUser\(/);
+  it('game and event routes use the shared verified-admin visibility policy', () => {
+    for (const [source, helper] of [
+      [gamesSrc, 'canViewGameRecord'],
+      [eventsSrc, 'canViewEventRecord'],
+    ]) {
+      expect(source).toMatch(
+        new RegExp(`import\\s*\\{[^}]*${helper}[^}]*\\}\\s*from '../lib/entityVisibility\\.js'`)
+      );
+      expect(source).toMatch(new RegExp(`await ${helper}\\(`));
+      expect(source).not.toMatch(new RegExp(`(?:async )?function ${helper}\\(`));
+    }
+    expect(visibilitySrc).toMatch(/await isVerifiedAdminUser\(viewerId\)/);
+    expect(visibilitySrc).not.toMatch(/\b(?:isEmailAdmin|isAdminEmail)\(/);
   });
+});
+
+describe('canonical helper used by shared entity visibility', () => {
+  it.each([false, true])(
+    'requires email_verified=%s for an otherwise unrelated admin',
+    async verified => {
+      const userRead = jest.spyOn(prisma.user, 'findUnique').mockResolvedValue({
+        id: 'admin-visibility-fixture',
+        email: PLATFORM_ADMIN_EMAILS[0],
+        email_verified: verified,
+      } as any);
+      expect(await isVerifiedAdminUser('admin-visibility-fixture')).toBe(verified);
+      expect(userRead).toHaveBeenCalledWith({
+        where: { id: 'admin-visibility-fixture' },
+        select: { email: true, email_verified: true },
+      });
+    }
+  );
 });
 
 describe('organizations.ts members endpoint requires verification', () => {

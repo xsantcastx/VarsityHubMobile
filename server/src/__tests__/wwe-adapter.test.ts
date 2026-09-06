@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseWweEvents, wweAdapter } from '../lib/proSchedule/wweAdapter.js';
-import { espnAdapter } from '../lib/proSchedule/espnAdapter.js';
+import { ESPN_LEAGUES, espnAdapter } from '../lib/proSchedule/espnAdapter.js';
 import { compositeAdapter } from '../lib/proSchedule/compositeAdapter.js';
 
 const sample = JSON.parse(
@@ -51,8 +51,8 @@ describe('wweAdapter geocoding (injected)', () => {
 });
 
 describe('compositeAdapter', () => {
-  it('routes each league to the sub-adapter that serves it, covering all five', () => {
+  it('routes each league to the sub-adapter that serves it', () => {
     const c = compositeAdapter([espnAdapter(), wweAdapter()]);
-    expect([...c.leagues].sort()).toEqual(['mlb', 'nba', 'nfl', 'wnba', 'wwe']);
+    expect([...c.leagues].sort()).toEqual([...ESPN_LEAGUES, 'wwe'].sort());
   });
 });

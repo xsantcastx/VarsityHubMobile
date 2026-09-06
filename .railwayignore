@@ -59,3 +59,47 @@ tsconfig.json
 expo-env.d.ts
 *.md
 !server/
+
+# Direct `railway up` deployments use this ignore file to build the upload
+# archive. Keep the files required by server/Dockerfile's web-builder stage.
+!package.json
+!package-lock.json
+!app/
+!assets/
+!components/
+!constants/
+!context/
+!data/
+!hooks/
+!lib/
+!locales/
+!public/
+!scripts/
+!shims/
+!tools/
+!utils/
+!App.tsx
+!app.config.js
+!app.json
+!babel.config.js
+!eslint.config.js
+!jest.config.js
+!jest.env.ts
+!jest.setup.ts
+!metro.config.js
+!react-native.config.js
+!tsconfig.json
+!types/
+
+# Local credentials and agent state never belong in an uploaded build context.
+.env
+.env.*
+**/.env
+**/.env.*
+/.codex
+/server/.keys
+service-account-key.json
+**/*.p8
+**/*.p12
+**/*.key
+**/*.keystore

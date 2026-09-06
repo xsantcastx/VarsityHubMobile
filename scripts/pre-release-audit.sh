@@ -104,17 +104,43 @@ check_enum_drift() {
     return
   fi
 
-  local missing=0
-  while IFS=$'\t' read -r enum_name enum_value; do
-    [ -z "$enum_name" ] && continue
-    # Match either a CREATE TYPE with the value literal, or an ALTER TYPE ...
-    # ADD VALUE ... 'VALUE' in any migration file. Escape regex metachars in
-    # value (none of our values have them today, but be safe).
-    if ! grep -rlE "(CREATE TYPE \"${enum_name}\"|ALTER TYPE \"${enum_name}\".*'${enum_value}')" \
-         "$migrations_dir" >/dev/null 2>&1; then
-      fail "enum value missing migration: ${enum_name}.${enum_value}"
-      missing=$((missing + 1))
-    fi
+	  local missing=0
+	  enum_value_has_migration() {
+	    local enum_name="$1"
+	    local enum_value="$2"
+
+	    if grep -rlE "(CREATE TYPE \"${enum_name}\"|ALTER TYPE \"${enum_name}\".*'${enum_value}')" \
+	         "$migrations_dir" >/dev/null 2>&1; then
+	      return 0
+	    fi
+
+	    # Enum values can be introduced under an earlier enum name and then the
+	    # Postgres type can be renamed later. Example: ProgramGender was created
+	    # with boys/girls/coed, then renamed to TeamGender when gender moved from
+	    # SportProgram to Team. Treat those values as covered.
+	    local previous_names
+	    previous_names="$(grep -rhoE "ALTER TYPE \"[^\"]+\" RENAME TO \"${enum_name}\"" \
+	      "$migrations_dir" 2>/dev/null | sed -E 's/^ALTER TYPE "([^"]+)".*/\1/' || true)"
+	    while IFS= read -r previous_name; do
+	      [ -z "$previous_name" ] && continue
+	      if grep -rlE "(CREATE TYPE \"${previous_name}\"|ALTER TYPE \"${previous_name}\".*'${enum_value}')" \
+	           "$migrations_dir" >/dev/null 2>&1; then
+	        return 0
+	      fi
+	    done <<< "$previous_names"
+
+	    return 1
+	  }
+
+	  while IFS=$'\t' read -r enum_name enum_value; do
+	    [ -z "$enum_name" ] && continue
+	    # Match either a CREATE TYPE with the value literal, or an ALTER TYPE ...
+	    # ADD VALUE ... 'VALUE' in any migration file. Escape regex metachars in
+	    # value (none of our values have them today, but be safe).
+	    if ! enum_value_has_migration "$enum_name" "$enum_value"; then
+	      fail "enum value missing migration: ${enum_name}.${enum_value}"
+	      missing=$((missing + 1))
+	    fi
   done <<< "$enum_pairs"
 
   if [ "$missing" -eq 0 ]; then

@@ -2,186 +2,124 @@ import EventMap, { EventMapData } from '@/components/EventMap';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Location from 'expo-location';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
-import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
 import SportFilterBar from '@/components/SportFilterBar';
-import { normalizeSportSlug } from '@/constants/sports';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthProvider';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 // SafeAreaView removed — native header handles safe area
-// @ts-ignore
-import { Game } from '@/api/entities';
-import { httpGet } from '@/api/http';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { fetchDiscoveryItems } from '@/api/eventDiscovery';
+import { SPORT_OPTIONS } from '@/constants/sports';
+import { matchesDiscoveryLevel } from '@/shared/runtime/discoveryPolicy.js';
+import { buildRecentDateButtons, toMapEvents } from '@/utils/mapDiscovery';
+
+const USA_WIDE_REGION = {
+  latitude: 39.8,
+  longitude: -98.5,
+  latitudeDelta: 50,
+  longitudeDelta: 50,
+};
+
+function toLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 function GameMapScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ lat?: string; lng?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
 
-  const [loading, setLoading] = useState(true);
-  const [events, setEvents] = useState<EventMapData[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerDate, setPickerDate] = useState<Date>(() => new Date());
 
-  const loadGames = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Get user location from params or current location
-      let lat = params.lat ? parseFloat(params.lat) : null;
-      let lng = params.lng ? parseFloat(params.lng) : null;
-
-      if (!lat || !lng) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          // GPS can hang indefinitely indoors or in a crowd — race it against
-          // a hard timeout so this fetch (and the "Loading nearby games..."
-          // overlay it drives) never gets stuck. On timeout we just fetch
-          // without a location filter instead of blocking the whole screen.
-          const location = await Promise.race([
-            Location.getCurrentPositionAsync({}),
-            new Promise<null>(resolve => setTimeout(() => resolve(null), 6000)),
-          ]);
-          if (location) {
-            lat = location.coords.latitude;
-            lng = location.coords.longitude;
-          }
-        }
-      }
-
-      // Fetch games and events; when user has location, filter to nearby (radius 50mi)
-      const eventsQuery = new URLSearchParams();
-      eventsQuery.set('approval_status', 'approved');
-      if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
-        eventsQuery.set('lat', String(lat));
-        eventsQuery.set('lng', String(lng));
-        eventsQuery.set('radius', '50');
-      }
-      const [gamesResponse, eventsResponse] = await Promise.all([
-        // v1.0.2: mapView restricts to games this week — past games drop off the map in real time.
-        Game.list(
-          'date',
-          lat != null && lng != null
-            ? { lat, lng, limit: 50, mapView: true }
-            : { limit: 50, mapView: true }
-        ).catch((error: any) => {
-          if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
-          return { items: [] };
-        }),
-        httpGet('/events?' + eventsQuery.toString()).catch(error => {
-          if (__DEV__) console.error('[game-map] Failed to fetch events:', error);
-          return [];
-        }),
-      ]);
-
-      const gamesList = Array.isArray(gamesResponse)
-        ? gamesResponse
-        : gamesResponse?.games || gamesResponse?.items || [];
-      const eventsList = Array.isArray(eventsResponse)
-        ? eventsResponse
-        : eventsResponse?.items || [];
-
-      // Helper: resolve the best available lat/lng for a game or event.
-      // Games can store coordinates in multiple fields depending on how
-      // they were created, so we fall back in order of preference.
-      const resolveCoords = (item: any): { latitude: number; longitude: number } | null => {
-        // Prefer explicit game-level coordinates, then venue coordinates
-        const lat = item.latitude ?? item.venue_lat ?? item.watch_location_lat ?? null;
-        const lng = item.longitude ?? item.venue_lng ?? item.watch_location_lng ?? null;
-        if (
-          lat != null &&
-          lng != null &&
-          typeof lat === 'number' &&
-          typeof lng === 'number' &&
-          !isNaN(lat) &&
-          !isNaN(lng) &&
-          lat >= -90 &&
-          lat <= 90 &&
-          lng >= -180 &&
-          lng <= 180
-        ) {
-          return { latitude: lat, longitude: lng };
-        }
-        return null;
-      };
-
-      const hasValidCoords = (item: any): boolean => resolveCoords(item) !== null;
-
-      // Transform games to EventMapData format.
-      // v1.0.3: past games must drop off the map immediately, same as events.
-      // Previously only events were date-filtered, so a past game remained as
-      // a tappable pin that routed to the dead-end "This event has ended" page.
-      const gameMarkers: EventMapData[] = gamesList
-        .filter(hasValidCoords)
-        .filter((g: any) => shouldShowEventOnMap(g.date))
-        .map((game: any) => {
-          const coords = resolveCoords(game)!;
-          return {
-            id: game.id,
-            title: game.title || 'Game',
-            date: game.date || new Date().toISOString(),
-            location: game.location || game.venue_address,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            type: 'game' as const,
-            sport: normalizeSportSlug(game.sport),
-          };
-        });
-
-      // Transform events to EventMapData format (never show cancelled events on map)
-      const gameMarkerIds = new Set(gameMarkers.map(g => String(g.id)));
-      const eventMarkers: EventMapData[] = eventsList
-        .filter((e: any) => e.status !== 'cancelled')
-        // A game-linked event duplicates its game's pin — show the fixture once.
-        .filter((e: any) => !e.game_id || !gameMarkerIds.has(String(e.game_id)))
-        // Feed/list views intentionally keep recent past events visible for recap.
-        // The map should not: past events should drop off immediately.
-        .filter((e: any) => shouldShowEventOnMap(e.date))
-        .filter(hasValidCoords)
-        .map((event: any) => {
-          const coords = resolveCoords(event)!;
-          return {
-            id: event.id,
-            title: event.title || 'Event',
-            date: event.date || new Date().toISOString(),
-            location: event.location,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            type: 'event' as const,
-            sport: normalizeSportSlug(event.sport),
-          };
-        });
-
-      // Combine games and events
-      const allMarkers = [...gameMarkers, ...eventMarkers];
-      setEvents(allMarkers);
-
-      // Log for debugging
-      const totalItems = gamesList.length + eventsList.length;
-      if (allMarkers.length === 0 && totalItems > 0) {
-        if (__DEV__)
-          console.warn(
-            `[game-map] Loaded ${gamesList.length} games and ${eventsList.length} events, but none have valid coordinates`
-          );
-      } else {
-        if (__DEV__)
-          console.warn(
-            `[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`
-          );
-      }
-    } catch (err) {
-      if (__DEV__) console.error('Error loading games:', err);
-      setError('Unable to load nearby games. Please check your connection.');
-    } finally {
-      setLoading(false);
-    }
-  }, [params.lat, params.lng]);
-
-  useEffect(() => {
-    void loadGames();
-  }, [loadGames]);
+  const defaultQuery = useQuery({
+    queryKey: ['game-map', user?.id ?? null, 'default', selectedSport, selectedLevel],
+    enabled: !selectedDate,
+    queryFn: ({ signal }) =>
+      fetchDiscoveryItems({ surface: 'map', sport: selectedSport, level: selectedLevel }, signal),
+  });
+  const selectedDayQuery = useQuery({
+    queryKey: ['game-map', user?.id ?? null, 'date', selectedDate, selectedSport, selectedLevel],
+    enabled: Boolean(selectedDate),
+    queryFn: async ({ signal }) => {
+      const [year, month, day] = selectedDate.split('-').map(Number);
+      const start = new Date(year, month - 1, day);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+      const items = await fetchDiscoveryItems(
+        {
+          surface: 'map',
+          from: start.toISOString(),
+          to: end.toISOString(),
+          sport: selectedSport,
+          level: selectedLevel,
+        },
+        signal
+      );
+      return toMapEvents(items, new Date(), { includePast: true });
+    },
+  });
+  // Each request writes only its own query key. Late responses cannot change
+  // the selected day. Calendar counts use their own historical query below.
+  const activeQuery = selectedDate ? selectedDayQuery : defaultQuery;
+  const loading = activeQuery.isPending;
+  const error = activeQuery.isError ? 'Unable to load events. Please check your connection.' : null;
+  const events = useMemo(
+    () => toMapEvents(defaultQuery.data, new Date(), { includePast: true }),
+    [defaultQuery.data]
+  );
+  const historyWindow = useMemo(() => {
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    from.setDate(from.getDate() - 6);
+    const to = new Date();
+    to.setHours(23, 59, 59, 999);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }, []);
+  const historyQuery = useQuery({
+    queryKey: ['game-map', user?.id ?? null, 'history', historyWindow],
+    enabled: calendarOpen,
+    queryFn: ({ signal }) => fetchDiscoveryItems({ surface: 'map', ...historyWindow }, signal),
+  });
+  const calendarEvents = useMemo(
+    () =>
+      toMapEvents(historyQuery.data, new Date(), { includePast: true }).filter(
+        event =>
+          matchesDiscoveryLevel(event.league_level, selectedLevel) &&
+          (!selectedSport || event.sport === selectedSport)
+      ),
+    [historyQuery.data, selectedLevel, selectedSport]
+  );
+  const levelMarkers = useMemo(() => {
+    const dateMarkers = selectedDate ? (selectedDayQuery.data ?? []) : events;
+    return selectedLevel
+      ? dateMarkers.filter(event => matchesDiscoveryLevel(event.league_level, selectedLevel))
+      : dateMarkers;
+  }, [selectedDate, selectedDayQuery.data, events, selectedLevel]);
+  const loadGames = () => {
+    void activeQuery.refetch();
+  };
 
   const handleEventPress = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
     if (eventType === 'event') {
@@ -192,25 +130,53 @@ function GameMapScreen() {
     }
   };
 
-  // Sports actually present on the map right now — the filter only offers what
-  // exists (no 🏒 chip when there's no hockey nearby).
-  const presentSports = useMemo(
-    () => Array.from(new Set(events.map(e => e.sport).filter((s): s is string => !!s))),
-    [events]
+  const handleCreatePostPress = useCallback(
+    (event: EventMapData) => {
+      const gameId = event.game_id || (event.type === 'game' ? event.id : null);
+      const eventId = event.event_id || (event.type === 'event' ? event.id : null);
+      if (!gameId && !eventId) return;
+
+      router.push({
+        pathname: '/create-post',
+        params: {
+          ...(gameId ? { gameId } : {}),
+          ...(eventId ? { eventId } : {}),
+          type: 'post',
+        },
+      });
+    },
+    [router]
   );
 
-  // Client-side filter — no refetch. A stale selection (sport no longer present)
-  // simply yields an empty map until cleared, which is self-explanatory.
-  const visibleEvents = useMemo(
-    () => (selectedSport ? events.filter(e => e.sport === selectedSport) : events),
-    [events, selectedSport]
+  const presentSports = SPORT_OPTIONS.map(sport => sport.slug);
+  const clearDate = useCallback(() => {
+    setSelectedDate('');
+    setSelectedSport(null);
+  }, []);
+  const selectMapDate = useCallback((picked: Date) => {
+    const start = new Date(picked);
+    start.setHours(0, 0, 0, 0);
+    setSelectedDate(toLocalDateKey(start));
+    setSelectedSport(null);
+  }, []);
+
+  // Last 7 days as quick chips. Logic lives in utils/mapDiscovery.
+  const recentDateButtons = useMemo(
+    () => buildRecentDateButtons(calendarEvents, new Date(), 7),
+    [calendarEvents]
+  );
+
+  const mapMarkers = useMemo(
+    () =>
+      selectedSport ? levelMarkers.filter(event => event.sport === selectedSport) : levelMarkers,
+    [levelMarkers, selectedSport]
   );
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen
         options={{
-          title: 'Nearby Games',
+          title: 'Events Map',
           headerShown: true,
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
@@ -234,16 +200,23 @@ function GameMapScreen() {
       */}
       <View style={styles.container}>
         <EventMap
-          events={visibleEvents}
+          events={mapMarkers}
           onEventPress={handleEventPress}
+          initialRegion={USA_WIDE_REGION}
           showUserLocation={true}
           dataLoaded={!loading}
-          onRefresh={!loading && !error ? loadGames : undefined}
+          preventAutoCenterOnUser
+          hideCenterOnUser
+          autoFitPins={Boolean(selectedDate)}
+          onCreatePostPress={handleCreatePostPress}
+          onCalendarPress={() => setCalendarOpen(open => !open)}
+          calendarActive={calendarOpen || Boolean(selectedDate)}
+          onRefresh={!loading ? loadGames : undefined}
         />
 
         {/* Discreet sport filter — sits on the count-badge row, right of it. */}
         {!loading && !error && presentSports.length > 1 && (
-          <View style={styles.sportFilter} pointerEvents="box-none">
+          <View style={[styles.sportFilter, { pointerEvents: 'box-none' }]}>
             <SportFilterBar
               sports={presentSports}
               selected={selectedSport}
@@ -252,17 +225,219 @@ function GameMapScreen() {
           </View>
         )}
 
+        {!loading && !error && (
+          <View style={styles.levelStripPanel}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateStripContent}
+            >
+              {[
+                { label: 'All', value: null },
+                { label: 'Major', value: 'major' },
+                { label: 'Minor', value: 'minor' },
+                { label: 'NCAA', value: 'college' },
+                { label: 'Other', value: 'other' },
+              ].map(level => (
+                <Pressable
+                  key={level.label}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${level.label} leagues`}
+                  accessibilityState={{ selected: selectedLevel === level.value }}
+                  onPress={() => {
+                    setSelectedLevel(level.value);
+                    setSelectedSport(null);
+                  }}
+                  style={[
+                    styles.dateChip,
+                    {
+                      backgroundColor:
+                        selectedLevel === level.value
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].background,
+                      borderColor: Colors[colorScheme].border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dateChipText,
+                      {
+                        color: selectedLevel === level.value ? '#FFFFFF' : Colors[colorScheme].text,
+                      },
+                    ]}
+                  >
+                    {level.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {calendarOpen && (
+          <View style={styles.dateStripPanel} pointerEvents="box-none">
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateStripContent}
+            >
+              {recentDateButtons.map(day => {
+                const selected = selectedDate === day.dateString;
+                return (
+                  <Pressable
+                    key={day.dateString}
+                    onPress={() => {
+                      if (selected) {
+                        clearDate();
+                        return;
+                      }
+                      const [year, month, dayOfMonth] = day.dateString.split('-').map(Number);
+                      void selectMapDate(new Date(year, month - 1, dayOfMonth));
+                    }}
+                    style={[
+                      styles.dateChip,
+                      {
+                        backgroundColor: selected
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].background,
+                        borderColor: selected
+                          ? Colors[colorScheme].tint
+                          : Colors[colorScheme].border,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${day.day} ${day.label}${historyQuery.isSuccess ? `, ${day.count} events` : ', count unavailable'}`}
+                  >
+                    <Text
+                      style={[
+                        styles.dateChipText,
+                        { color: selected ? '#FFFFFF' : Colors[colorScheme].text },
+                      ]}
+                    >
+                      {day.day} {day.label}
+                    </Text>
+                    {historyQuery.isSuccess && day.count > 0 ? (
+                      <View
+                        style={[
+                          styles.dateChipDot,
+                          { backgroundColor: selected ? '#FFFFFF' : Colors[colorScheme].tint },
+                        ]}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+
+              {/* Trailing calendar button — pick any earlier day. Sits at the end
+                  of the same row. */}
+              <Pressable
+                onPress={() => setShowPicker(true)}
+                style={[
+                  styles.dateChip,
+                  styles.calendarChip,
+                  {
+                    backgroundColor: Colors[colorScheme].background,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Pick an earlier date"
+              >
+                <MaterialIcons name="event" size={18} color={Colors[colorScheme].tint} />
+              </Pressable>
+
+              {selectedDate ? (
+                <Pressable
+                  onPress={clearDate}
+                  style={[
+                    styles.dateChip,
+                    {
+                      backgroundColor: Colors[colorScheme].tint,
+                      borderColor: Colors[colorScheme].tint,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Showing ${selectedDate}, tap to clear`}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={[styles.dateChipText, { color: '#FFFFFF' }]}>
+                        {selectedDate}
+                      </Text>
+                      <MaterialIcons name="close" size={14} color="#FFFFFF" />
+                    </>
+                  )}
+                </Pressable>
+              ) : null}
+            </ScrollView>
+          </View>
+        )}
+
+        {showPicker &&
+          (Platform.OS === 'ios' ? (
+            <Modal visible transparent animationType="slide">
+              <View style={styles.pickerOverlay}>
+                <View
+                  style={[styles.pickerSheet, { backgroundColor: Colors[colorScheme].background }]}
+                >
+                  <View style={styles.pickerHeader}>
+                    <Pressable onPress={() => setShowPicker(false)}>
+                      <Text style={[styles.pickerCancel, { color: Colors[colorScheme].mutedText }]}>
+                        Cancel
+                      </Text>
+                    </Pressable>
+                    <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>
+                      Pick a date
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        setShowPicker(false);
+                        void selectMapDate(pickerDate);
+                      }}
+                    >
+                      <Text style={[styles.pickerDone, { color: Colors[colorScheme].tint }]}>
+                        Done
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={pickerDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={(_, d) => d && setPickerDate(d)}
+                    maximumDate={new Date()}
+                    textColor={Colors[colorScheme].text}
+                  />
+                </View>
+              </View>
+            </Modal>
+          ) : (
+            <DateTimePicker
+              value={pickerDate}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              onChange={(_, d) => {
+                setShowPicker(false);
+                if (d) void selectMapDate(d);
+              }}
+            />
+          ))}
+
         {loading && (
-          <View style={styles.loadingOverlay}>
+          <View style={styles.loadingOverlay} pointerEvents="box-none">
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>
-              Loading nearby games...
+              Loading events...
             </Text>
           </View>
         )}
 
         {!loading && error && (
-          <View style={styles.loadingOverlay}>
+          <View style={styles.loadingOverlay} pointerEvents="box-none">
             <MaterialIcons name="cloud-off" size={40} color={Colors[colorScheme].mutedText} />
             <Text
               style={[
@@ -274,8 +449,7 @@ function GameMapScreen() {
             </Text>
             <Pressable
               onPress={() => {
-                setError(null);
-                void loadGames();
+                loadGames();
               }}
               style={{
                 marginTop: 12,
@@ -310,6 +484,76 @@ const styles = StyleSheet.create({
     right: 12,
     height: 34,
     justifyContent: 'center',
+  },
+  // Transparent container — the date chips float directly on the map, no card behind them.
+  levelStripPanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 116,
+  },
+  dateStripPanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 160,
+  },
+  dateStripContent: {
+    paddingHorizontal: 12,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  // Compact rounded chip (the earlier "dates tracker" look), single line "Tue 9/1".
+  dateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  dateChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dateChipDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  // Trailing calendar button — square-ish chip holding just the icon.
+  calendarChip: {
+    paddingHorizontal: 12,
+  },
+  pickerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  pickerSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 24,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pickerCancel: {
+    fontSize: 16,
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pickerDone: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   loadingOverlay: {
     position: 'absolute',

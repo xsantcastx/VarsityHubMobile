@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import React from 'react';
-import { TextInput, TextInputProps, useColorScheme } from 'react-native';
+import { TextInput, TextInputProps } from 'react-native';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 const Input = React.forwardRef<TextInput, TextInputProps>((props, ref) => {
   const colorScheme = useColorScheme() ?? 'light';

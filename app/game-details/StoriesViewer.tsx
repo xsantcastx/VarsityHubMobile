@@ -287,6 +287,7 @@ export default function StoriesViewer({
                   key={item.id}
                   uri={item.url}
                   poster={item.thumbnail_url}
+                  contentFit="cover"
                   autoPlay={!paused}
                   nativeControls={false}
                   paused={paused}
@@ -349,7 +350,7 @@ export default function StoriesViewer({
           );
         })()}
 
-        <View style={styles.storyTouchLayer} pointerEvents="box-none">
+        <View style={[styles.storyTouchLayer, { pointerEvents: 'box-none' }]}>
           <Pressable
             style={styles.storyTouchHalf}
             onPress={onNavLeft}

@@ -26,6 +26,7 @@
  */
 
 import { prisma } from './prisma.js';
+import { isOrganizationOwner } from './organizationAuthorization.js';
 
 export const TEAM_STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 export const ORG_ADMIN_ROLES = ['owner', 'manager'] as const;
@@ -130,28 +131,9 @@ export async function isOrgOwner(
   userId: string | null | undefined,
   orgId: string | null | undefined
 ): Promise<boolean> {
-  if (!userId || !orgId) return false;
-  const membership = await prisma.organizationMembership.findFirst({
-    where: {
-      organization_id: orgId,
-      user_id: userId,
-      role: 'owner',
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  if (membership) return true;
-  // Legacy orgs created before owner membership rows existed record ownership
-  // only on Organization.league_owner_id (no membership row). Honor that pointer
-  // so a legacy owner isn't 403'd on team-admin-tier actions (settings, invites,
-  // program attach/detach, transfer) — mirrors isOrganizationOwner() in
-  // organizationAuthorization.ts (PR #142). transfer-ownership moves
-  // league_owner_id atomically, so a demoted ex-owner never matches here.
-  const org = await prisma.organization.findUnique({
-    where: { id: orgId },
-    select: { league_owner_id: true },
-  });
-  return !!org && org.league_owner_id === userId;
+  // Share ownership precedence with organization writes, email recipients and
+  // review audit attribution. A stale legacy pointer cannot add a second owner.
+  return isOrganizationOwner(userId, orgId);
 }
 
 /**

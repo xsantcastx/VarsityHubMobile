@@ -7,7 +7,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/api/*": ["api/*"],
+      "@/api/*": ["apiclient/*"],
       "@/components/*": ["components/*"],
       "@/constants/*": ["constants/*"],
       "@/hooks/*": ["hooks/*"],
@@ -32,6 +32,8 @@
     "api/**/*.tsx",
     "components/**/*.ts",
     "components/**/*.tsx",
+    "context/**/*.ts",
+    "context/**/*.tsx",
     "constants/**/*.ts",
     "constants/**/*.tsx",
     "hooks/**/*.ts",

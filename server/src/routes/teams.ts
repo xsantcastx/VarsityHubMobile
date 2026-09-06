@@ -15,7 +15,11 @@ import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { SERVER_ROOKIE_PROGRAM_LIMIT } from '../lib/planDefinitions.js';
 import { getAuthorizedUsersPerTeam, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
-import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
+import {
+  getExcludedPrivateTeamIds,
+  invalidatePrivateTeamIdsCache,
+  isTeamHiddenFromViewer,
+} from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
@@ -23,6 +27,7 @@ import { customSportSlug, normalizeSportToSlug } from '../lib/sportsTaxonomy.js'
 import { getTeamScheduleFeed } from '../lib/teamScheduleFeed.js';
 import {
   canAdministerTeam as canAdministerTeamScoped,
+  isOrgOwner as isOrgOwnerScoped,
   canAssignTeamRole as canAssignTeamRoleScoped,
   canArchiveTeam as canArchiveTeamScoped,
   ORG_ADMIN_ROLES,
@@ -246,8 +251,8 @@ async function loadTeamViewerAccess(teamId: string, viewerId: string | null) {
         : Promise.resolve(null),
     ]);
     membership = resolvedMembership;
-    isOrgAdmin = !!orgMembership;
-    isOrgOwner = orgMembership?.role === 'owner';
+    isOrgOwner = await isOrgOwnerScoped(viewerId, team.organization_id);
+    isOrgAdmin = isOrgOwner || orgMembership?.role === 'manager';
   }
 
   return {
@@ -2071,6 +2076,7 @@ teamsRouter.post(
     if ('status' in result) {
       return res.status(result.status).json(result.body);
     }
+    invalidatePrivateTeamIdsCache();
 
     return res.status(201).json(result.team);
   })
@@ -2170,6 +2176,17 @@ teamsRouter.put(
     }
     if (parsed.data.organization_id !== undefined) {
       const targetOrganizationId = parsed.data.organization_id;
+      // Owner rule (note 6): once a team belongs to an organization it is LOCKED
+      // to that org and cannot be moved to a different one. Only a first-time
+      // assignment (team currently has no org) or a same-org no-op is allowed.
+      // This deliberately disables cross-org team transfer per the owner's rule.
+      if (team.organization_id != null && targetOrganizationId !== team.organization_id) {
+        return res.status(403).json({
+          error: 'TEAM_ORG_LOCKED',
+          message: 'This team is locked to its organization and cannot be moved to another one.',
+          code: 'TEAM_ORG_LOCKED',
+        });
+      }
       const targetOrg = await prisma.organization.findUnique({
         where: { id: targetOrganizationId },
         select: { id: true },
@@ -2321,6 +2338,13 @@ teamsRouter.put(
           },
         },
       });
+      if (
+        parsed.data.is_private !== undefined ||
+        parsed.data.organization_id !== undefined ||
+        parsed.data.program_id !== undefined
+      ) {
+        invalidatePrivateTeamIdsCache();
+      }
       debugLog('[Teams PUT] Update successful');
       // The team just gained (or switched to) a program_id. Fan out that
       // program's existing followers to this team so its posts reach them.
@@ -2411,6 +2435,7 @@ teamsRouter.delete(
           select: { id: true },
         }),
       ]);
+      invalidatePrivateTeamIdsCache();
 
       return res.json({ ok: true, archived: true, message: 'Team archived successfully' });
     } catch (err: any) {

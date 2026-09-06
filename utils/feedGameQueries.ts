@@ -1,3 +1,7 @@
+import {
+  DISCOVERY_UPCOMING_MS,
+  DISCOVERY_LIVE_LOOKBACK_HOURS,
+} from '@/shared/runtime/discoveryPolicy.js';
 /**
  * Feed game query planning.
  *
@@ -38,8 +42,16 @@ export const FEED_PAST_WINDOW_MS = 4 * 24 * 60 * 60 * 1000;
  * server-computed live_until (utils/liveWindow.ts), so a normal 3h game still
  * drops into the past recap on time — it is not held open for 18h.
  */
-export const MAX_LIVE_WINDOW_HOURS = 18;
+export const MAX_LIVE_WINDOW_HOURS = DISCOVERY_LIVE_LOOKBACK_HOURS;
 export const FEED_LIVE_LOOKBACK_MS = MAX_LIVE_WINDOW_HOURS * 60 * 60 * 1000;
+
+/**
+ * How far FORWARD the feed's upcoming rail looks. The map restricts to the same
+ * rolling window through /event-discovery. Change shared/runtime/discoveryPolicy.js
+ * to update the common policy. The current feed consumes that endpoint; the
+ * query builders below remain compatibility helpers for older callers.
+ */
+export const FEED_UPCOMING_WINDOW_MS = DISCOVERY_UPCOMING_MS;
 
 type GameListOptions = {
   limit: number;
@@ -48,6 +60,7 @@ type GameListOptions = {
   teamless?: boolean;
   lat?: number;
   lng?: number;
+  showAll?: boolean;
 };
 
 export type FeedViewerCoords = { lat: number; lng: number };
@@ -66,23 +79,30 @@ export function buildFeedGameQueries(
   coords?: FeedViewerCoords | null
 ): FeedGameQueryPlan {
   const liveFrom = new Date(nowMs - FEED_LIVE_LOOKBACK_MS).toISOString();
+  const upcomingTo = new Date(nowMs + FEED_UPCOMING_WINDOW_MS).toISOString();
   const nowIso = new Date(nowMs).toISOString();
-  // Viewer coords make the server select nearest-first instead of the N
-  // soonest games nationwide. When absent, the server falls back to the
-  // signed-in viewer's zip preference — so omitting lat/lng is still correct.
-  const near = coords ? { lat: coords.lat, lng: coords.lng } : {};
+  // Feed is a VarsityHub-wide surface. Map/Discover handle local browsing; Feed
+  // bypasses device/profile-zip proximity so every team's public games can
+  // compete in the same timeline.
+  const scope = coords ? { lat: coords.lat, lng: coords.lng } : { showAll: true };
   return {
-    upcoming: { sort: 'date', options: { limit: 30, dateFrom: liveFrom, ...near } },
+    upcoming: {
+      sort: 'date',
+      options: { limit: 30, dateFrom: liveFrom, dateTo: upcomingTo, ...scope },
+    },
     past: {
       sort: '-date',
       options: {
         limit: 30,
         dateFrom: new Date(nowMs - FEED_PAST_WINDOW_MS).toISOString(),
         dateTo: nowIso,
-        ...near,
+        ...scope,
       },
     },
-    marquee: { sort: 'date', options: { limit: 10, dateFrom: liveFrom, teamless: true, ...near } },
+    marquee: {
+      sort: 'date',
+      options: { limit: 10, dateFrom: liveFrom, dateTo: upcomingTo, teamless: true, ...scope },
+    },
   };
 }
 

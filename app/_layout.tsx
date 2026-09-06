@@ -13,13 +13,20 @@ import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
+import { createOtaReloadRequest } from '@/utils/otaReload';
 const { useUpdates } = Updates;
+// Shared across both update paths and root remounts within this JS runtime.
+const requestOtaReload = createOtaReloadRequest(
+  () => Updates.reloadAsync(),
+  error => captureException(error, { tags: { context: 'ota_reload' } })
+);
 import React, { useEffect } from 'react';
 import { ActivityIndicator, AppState, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
 
+import { AdPurchaseProvider } from '@/context/AdPurchaseProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
@@ -34,7 +41,12 @@ import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { AuthProvider, useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
-import { asyncStoragePersister, CACHE_BUSTER, queryClient } from '@/lib/queryClient';
+import {
+  asyncStoragePersister,
+  CACHE_BUSTER,
+  queryClient,
+  shouldPersistQuery,
+} from '@/lib/queryClient';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
@@ -82,28 +94,6 @@ if (Platform.OS === 'web' && __DEV__) {
       devLog('Web Testing Monitor Active - Tracking all errors');
     })
     .catch(error => devLog('Testing monitor failed to start', error));
-}
-
-if (Platform.OS === 'web' && __DEV__ && !(globalThis as any).__VH_WEB_WARNING_FILTER_INSTALLED__) {
-  (globalThis as any).__VH_WEB_WARNING_FILTER_INSTALLED__ = true;
-  const suppressedMessages = [
-    'props.pointerEvents is deprecated. Use style.pointerEvents',
-    'Animated: `useNativeDriver` is not supported because the native animated module is missing.',
-  ];
-  const filterConsole = (method: 'warn' | 'error') => {
-    // eslint-disable-next-line no-console -- intentional wrapper for targeted warning suppression
-    const original = console[method].bind(console);
-    // eslint-disable-next-line no-console -- intentional wrapper for targeted warning suppression
-    console[method] = (...args: unknown[]) => {
-      const firstArg = typeof args[0] === 'string' ? args[0] : '';
-      if (suppressedMessages.some(message => firstArg.includes(message))) {
-        return;
-      }
-      original(...args);
-    };
-  };
-  filterConsole('warn');
-  filterConsole('error');
 }
 
 function VerificationGateHost() {
@@ -205,7 +195,7 @@ function RootLayout() {
   useEffect(() => {
     if (__DEV__ || Platform.OS === 'web' || isExpoGo || !Updates.isEnabled) return;
     if (isUpdatePending) {
-      Updates.reloadAsync().catch(() => {});
+      void requestOtaReload();
     }
   }, [isUpdatePending]);
 
@@ -229,7 +219,7 @@ function RootLayout() {
       }
       await Updates.fetchUpdateAsync();
       // reloadAsync restarts the app with the new bundle immediately
-      await Updates.reloadAsync();
+      if (!(await requestOtaReload())) updateCheckInFlight.current = false;
     } catch (error) {
       devLog('[updates] OTA sync failed', error);
       captureException(error, { tags: { context: 'ota_sync' } });
@@ -262,7 +252,6 @@ function RootLayout() {
       LogBox.ignoreLogs([
         '"shadow*" style props are deprecated',
         '"textShadow*" style props are deprecated',
-        'props.pointerEvents is deprecated. Use style.pointerEvents',
       ]);
     }
   }, []);
@@ -278,6 +267,19 @@ function RootLayout() {
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       lightColor: '#2563EB',
     }).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    if (Platform.OS === 'web' || isExpoGo || !Notifications?.setNotificationHandler) return;
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
   }, []);
 
   // Handle deep links (shared post links, etc.)
@@ -337,18 +339,18 @@ function RootLayout() {
                 maxAge: 24 * 60 * 60 * 1000,
                 buster: CACHE_BUSTER,
                 dehydrateOptions: {
-                  // Only persist successful queries — never errors or
-                  // in-flight/pending states.
-                  shouldDehydrateQuery: query => query.state.status === 'success',
+                  shouldDehydrateQuery: shouldPersistQuery,
                 },
               }}
             >
               <PostCacheProvider>
                 <NavigationHistoryProvider>
                   <NavReadyAuthProvider>
-                    <ThemeProvider>
-                      <AppShell />
-                    </ThemeProvider>
+                    <AdPurchaseProvider>
+                      <ThemeProvider>
+                        <AppShell />
+                      </ThemeProvider>
+                    </AdPurchaseProvider>
                   </NavReadyAuthProvider>
                 </NavigationHistoryProvider>
               </PostCacheProvider>

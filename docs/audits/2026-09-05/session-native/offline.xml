@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="VarsityHub Session Audit 20260905 - iOS 26.2 - E8124F63-B5E4-49C0-ADB8-4E1850EC44D1" tests="1" failures="0" time="8.0">
+    <testcase id="offline" name="offline" classname="offline" time="8.0" status="SUCCESS"/>
+  </testsuite>
+</testsuites>

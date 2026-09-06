@@ -1,0 +1,415 @@
+{
+  "apiDeployment": "1afb5524-95d5-4242-8f8d-a8b1f92072e4",
+  "apiSourceCommit": "e7f38857fd5964dcc897d4807d90a0b6ad48c6a9",
+  "publicEntrySha256": "70e7ad5835d5236677b7fc3202698a602bbb35b9a673d846280fa0eab38d4258",
+  "entryBytesMatchLocalExport": true,
+  "observedAt": "2026-09-05T21:47:18.933Z",
+  "expectedSourceCommit": "cab5b1339feadf4db5c06466fb4022f53e23912d",
+  "deployment": "varsityhub-3k4xxy74r-emilmancero-devs-projects.vercel.app",
+  "newDeploymentEntryMatches": true,
+  "entryComparison": "Root-confirmed uploaded local export; direct deployment requires Vercel login",
+  "scriptAssets": ["/_expo/static/js/web/entry-b8803f9237ff9f192e05de1188373291.js"],
+  "mode": "Clean guest browser; non-read requests and external provider origins intercepted",
+  "results": [
+    {
+      "viewport": "desktop-light",
+      "requested": "/feed",
+      "landed": "/feed",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInFormVisible": false,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/games/votes-summary",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events/rsvp-summary",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "desktop-light",
+      "requested": "/settings",
+      "landed": "/feed",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInFormVisible": false,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games/votes-summary",
+          "status": 200
+        },
+        {
+          "path": "/events/rsvp-summary",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "desktop-light",
+      "requested": "/settings/data-export",
+      "landed": "/feed",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInFormVisible": false,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games/votes-summary",
+          "status": 200
+        },
+        {
+          "path": "/events/rsvp-summary",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "desktop-light",
+      "requested": "/create",
+      "landed": "/create",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": true,
+      "signInFormVisible": false,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "desktop-light",
+      "requested": "/sign-in",
+      "landed": "/sign-in",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInFormVisible": true,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "mobile-dark",
+      "requested": "/feed",
+      "landed": "/feed",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInFormVisible": false,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games/votes-summary",
+          "status": 200
+        },
+        {
+          "path": "/events/rsvp-summary",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "mobile-dark",
+      "requested": "/settings",
+      "landed": "/feed",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInFormVisible": false,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games/votes-summary",
+          "status": 200
+        },
+        {
+          "path": "/events/rsvp-summary",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "mobile-dark",
+      "requested": "/settings/data-export",
+      "landed": "/feed",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInFormVisible": false,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games",
+          "status": 200
+        },
+        {
+          "path": "/games/votes-summary",
+          "status": 200
+        },
+        {
+          "path": "/events/rsvp-summary",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        },
+        {
+          "path": "/events",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "mobile-dark",
+      "requested": "/create",
+      "landed": "/create",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": true,
+      "signInFormVisible": false,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "viewport": "mobile-dark",
+      "requested": "/sign-in",
+      "landed": "/sign-in",
+      "httpStatus": 200,
+      "hasContent": true,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInFormVisible": true,
+      "pageErrors": [],
+      "failedAssets": [],
+      "apiReads": [
+        {
+          "path": "/health",
+          "status": 200
+        }
+      ]
+    }
+  ],
+  "attemptedApiWrites": [],
+  "blockedExternalRequests": 42,
+  "apexEntryBytesMatch": true,
+  "apexEntryCheckedAt": "2026-09-05T21:52:20.870Z"
+}

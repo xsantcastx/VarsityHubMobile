@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,6 +30,7 @@ import { pickerMediaTypesProp } from '@/utils/picker';
 
 export default function ReportAbuseScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ target_type?: string; target_id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const { user, checkAuth } = useAuth();
@@ -41,6 +42,13 @@ export default function ReportAbuseScreen() {
   const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const targetType = typeof params.target_type === 'string' ? params.target_type.trim() : '';
+    const targetId = typeof params.target_id === 'string' ? params.target_id.trim() : '';
+    if (!targetId) return;
+    setAccused(prev => prev || (targetType ? `${targetType}:${targetId}` : targetId));
+  }, [params.target_id, params.target_type]);
 
   useEffect(() => {
     let canceled = false;

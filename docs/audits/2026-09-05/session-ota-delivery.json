@@ -1,0 +1,41 @@
+{
+  "observedAt": "2026-09-05T19:59:14.743Z",
+  "runtime": "1.0.5",
+  "channel": "production",
+  "expectedGroup": "1795b001-3f7e-4fbd-9084-220556f042fe",
+  "expectedSourceCommit": "8b8543e3",
+  "updates": [
+    {
+      "platform": "ios",
+      "id": "01a07325-7536-7442-aebd-5e60f6532065",
+      "group": "1795b001-3f7e-4fbd-9084-220556f042fe",
+      "runtimeVersion": "1.0.5",
+      "httpStatus": 200,
+      "expectedIdMatches": true,
+      "expectedGroupMatches": true,
+      "productionBranch": true,
+      "productionMode": true,
+      "remoteApi": true,
+      "localApiDisabled": true,
+      "stripeMatchesProductionApi": true,
+      "sentryMatchesProductionProfile": true,
+      "mapsConfigured": true
+    },
+    {
+      "platform": "android",
+      "id": "01a07325-7536-7b8f-9f14-65e61ead91d6",
+      "group": "1795b001-3f7e-4fbd-9084-220556f042fe",
+      "runtimeVersion": "1.0.5",
+      "httpStatus": 200,
+      "expectedIdMatches": true,
+      "expectedGroupMatches": true,
+      "productionBranch": true,
+      "productionMode": true,
+      "remoteApi": true,
+      "localApiDisabled": true,
+      "stripeMatchesProductionApi": true,
+      "sentryMatchesProductionProfile": true,
+      "mapsConfigured": true
+    }
+  ]
+}

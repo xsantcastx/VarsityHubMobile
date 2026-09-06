@@ -1,0 +1,853 @@
+{
+  "observedAt": "2026-09-05T16:18:53.802Z",
+  "mode": "unauthenticated production navigation; API writes intercepted and blocked",
+  "viewport": "desktop light",
+  "blockedWrites": [],
+  "results": [
+    {
+      "requested": "/feed",
+      "landed": "/feed",
+      "httpStatus": 200,
+      "bodyLength": 1255,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInVisible": false,
+      "fonts": [
+        {
+          "family": "SpaceMono",
+          "status": "unloaded"
+        },
+        {
+          "family": "material",
+          "status": "loaded"
+        },
+        {
+          "family": "ionicons",
+          "status": "loaded"
+        }
+      ],
+      "iconElements": [
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        }
+      ],
+      "pageErrors": [],
+      "failedAssets": [],
+      "fontResponses": [
+        {
+          "url": "https://www.varsityhub.app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.4e85bc9ebe07e0340c9c4fc2f6c38908.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf",
+          "status": 200
+        }
+      ],
+      "apiResponses": [
+        {
+          "url": "https://api-production-8ac3.up.railway.app/health",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games/votes-summary",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events/rsvp-summary",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "requested": "/highlights",
+      "landed": "/highlights",
+      "httpStatus": 200,
+      "bodyLength": 570,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInVisible": false,
+      "fonts": [
+        {
+          "family": "SpaceMono",
+          "status": "unloaded"
+        },
+        {
+          "family": "material",
+          "status": "loaded"
+        },
+        {
+          "family": "ionicons",
+          "status": "loaded"
+        }
+      ],
+      "iconElements": [
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        }
+      ],
+      "pageErrors": [],
+      "failedAssets": [],
+      "fontResponses": [
+        {
+          "url": "https://www.varsityhub.app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.4e85bc9ebe07e0340c9c4fc2f6c38908.ttf",
+          "status": 200
+        }
+      ],
+      "apiResponses": [
+        {
+          "url": "https://api-production-8ac3.up.railway.app/health",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/highlights",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "requested": "/create",
+      "landed": "/create",
+      "httpStatus": 200,
+      "bodyLength": 97,
+      "errorBoundary": false,
+      "createAuthGate": true,
+      "signInVisible": true,
+      "fonts": [
+        {
+          "family": "SpaceMono",
+          "status": "unloaded"
+        },
+        {
+          "family": "material",
+          "status": "loaded"
+        },
+        {
+          "family": "ionicons",
+          "status": "unloaded"
+        }
+      ],
+      "iconElements": [
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        }
+      ],
+      "pageErrors": [],
+      "failedAssets": [],
+      "fontResponses": [
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.4e85bc9ebe07e0340c9c4fc2f6c38908.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf",
+          "status": 200
+        }
+      ],
+      "apiResponses": [
+        {
+          "url": "https://api-production-8ac3.up.railway.app/health",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "requested": "/discover",
+      "landed": "/discover",
+      "httpStatus": 200,
+      "bodyLength": 2336,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInVisible": false,
+      "fonts": [
+        {
+          "family": "SpaceMono",
+          "status": "unloaded"
+        },
+        {
+          "family": "material",
+          "status": "loaded"
+        },
+        {
+          "family": "ionicons",
+          "status": "loaded"
+        }
+      ],
+      "iconElements": [
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        }
+      ],
+      "pageErrors": [],
+      "failedAssets": [],
+      "fontResponses": [
+        {
+          "url": "https://www.varsityhub.app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.4e85bc9ebe07e0340c9c4fc2f6c38908.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf",
+          "status": 200
+        }
+      ],
+      "apiResponses": [
+        {
+          "url": "https://api-production-8ac3.up.railway.app/teams/managed",
+          "status": 401
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/health",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/teams",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/posts/trending",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "requested": "/game-map",
+      "landed": "/game-map",
+      "httpStatus": 200,
+      "bodyLength": 292,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInVisible": false,
+      "fonts": [
+        {
+          "family": "SpaceMono",
+          "status": "unloaded"
+        },
+        {
+          "family": "material",
+          "status": "loaded"
+        },
+        {
+          "family": "ionicons",
+          "status": "loaded"
+        }
+      ],
+      "iconElements": [
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        }
+      ],
+      "pageErrors": [],
+      "failedAssets": [],
+      "fontResponses": [
+        {
+          "url": "https://www.varsityhub.app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.4e85bc9ebe07e0340c9c4fc2f6c38908.ttf",
+          "status": 200
+        }
+      ],
+      "apiResponses": [
+        {
+          "url": "https://api-production-8ac3.up.railway.app/health",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/event-discovery",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "requested": "/settings",
+      "landed": "/feed",
+      "httpStatus": 200,
+      "bodyLength": 1255,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInVisible": false,
+      "fonts": [
+        {
+          "family": "SpaceMono",
+          "status": "unloaded"
+        },
+        {
+          "family": "material",
+          "status": "loaded"
+        },
+        {
+          "family": "ionicons",
+          "status": "loaded"
+        }
+      ],
+      "iconElements": [
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        }
+      ],
+      "pageErrors": [],
+      "failedAssets": [],
+      "fontResponses": [
+        {
+          "url": "https://www.varsityhub.app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.4e85bc9ebe07e0340c9c4fc2f6c38908.ttf",
+          "status": 200
+        }
+      ],
+      "apiResponses": [
+        {
+          "url": "https://api-production-8ac3.up.railway.app/health",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/games/votes-summary",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events/rsvp-summary",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        },
+        {
+          "url": "https://api-production-8ac3.up.railway.app/events",
+          "status": 200
+        }
+      ]
+    },
+    {
+      "requested": "/sign-in",
+      "landed": "/sign-in",
+      "httpStatus": 200,
+      "bodyLength": 190,
+      "errorBoundary": false,
+      "createAuthGate": false,
+      "signInVisible": true,
+      "fonts": [
+        {
+          "family": "SpaceMono",
+          "status": "unloaded"
+        },
+        {
+          "family": "material",
+          "status": "loaded"
+        },
+        {
+          "family": "ionicons",
+          "status": "loaded"
+        }
+      ],
+      "iconElements": [
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "material",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        },
+        {
+          "fontFamily": "ionicons",
+          "visible": true
+        }
+      ],
+      "pageErrors": [],
+      "failedAssets": [],
+      "fontResponses": [
+        {
+          "url": "https://www.varsityhub.app/assets/assets/fonts/SpaceMono-Regular.49a79d66bdea2debf1832bf4d7aca127.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.4e85bc9ebe07e0340c9c4fc2f6c38908.ttf",
+          "status": 200
+        },
+        {
+          "url": "https://www.varsityhub.app/assets/vendor/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.b4eb097d35f44ed943676fd56f6bdc51.ttf",
+          "status": 200
+        }
+      ],
+      "apiResponses": [
+        {
+          "url": "https://api-production-8ac3.up.railway.app/health",
+          "status": 200
+        }
+      ]
+    }
+  ]
+}

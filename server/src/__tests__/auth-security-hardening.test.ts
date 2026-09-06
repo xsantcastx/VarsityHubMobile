@@ -114,7 +114,40 @@ describe('Auth & Upload Security Hardening', () => {
   });
 
   describe('POST /auth/logout clears push_token', () => {
+    it('immediately denies the presented access token when logging out', async () => {
+      const loginRes = await request(app)
+        .post('/auth/login')
+        .send({ email: pushUserEmail, password: PASSWORD });
+      expect(loginRes.status).toBe(200);
+      const access = loginRes.body?.access_token as string | undefined;
+      const refresh = loginRes.body?.refresh_token as string | undefined;
+      expect(typeof access).toBe('string');
+      expect(typeof refresh).toBe('string');
+
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${access}`).expect(200);
+
+      const logoutRes = await request(app)
+        .post('/auth/logout')
+        .set('Authorization', `Bearer ${access}`)
+        .send({ refresh_token: refresh });
+      expect(logoutRes.status).toBe(200);
+      expect(logoutRes.body?.ok).toBe(true);
+
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${access}`).expect(401);
+    });
+
     it('removes push_token from preferences when logging out with a valid refresh token', async () => {
+      await prisma.user.update({
+        where: { id: pushUserId },
+        data: {
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+            push_token: 'ExponentPushToken[TestTokenForLogoutClear]',
+          },
+        },
+      });
+
       // Sanity: push_token is set before logout.
       const before = await prisma.user.findUnique({
         where: { id: pushUserId },

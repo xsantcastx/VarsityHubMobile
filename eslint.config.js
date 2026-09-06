@@ -29,7 +29,7 @@ module.exports = [
       'components/**/*.{js,jsx,ts,tsx}',
       'hooks/**/*.{js,jsx,ts,tsx}',
       'context/**/*.{js,jsx,ts,tsx}',
-      'api/**/*.{js,jsx,ts,tsx}',
+      'apiclient/**/*.{js,jsx,ts,tsx}',
       'utils/**/*.{js,jsx,ts,tsx}',
       'constants/**/*.{js,jsx,ts,tsx}',
       'lib/**/*.{js,jsx,ts,tsx}',

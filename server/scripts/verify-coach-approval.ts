@@ -40,44 +40,71 @@ check(
   // Middleware now uses canonical role helpers rather than reading prefs.role
   // directly; the approval gate still blocks any coach whose status is not
   // explicitly APPROVED.
-  /role === 'coach' && u\?\.approval_status !== 'APPROVED'/.test(onboarded),
+  /role === 'coach' && u\?\.approval_status !== 'APPROVED'/.test(onboarded)
 );
 
 // 2. POST /organizations conditionally sets creator to PENDING when approval must be re-checked
 const orgRoutes = read('src/routes/organizations.ts');
-const conditionalPendingWrite = /\.\.\.\(shouldForcePendingApproval \? \{ approval_status: 'PENDING' \} : \{\}\)/;
+const approvalService = read('src/lib/approvalService.ts');
+const organizationJoinRequests = read('src/lib/organizationJoinRequests.ts');
+const conditionalPendingWrite =
+  /\.\.\.\(shouldForcePendingApproval \? \{ approval_status: 'PENDING' \} : \{\}\)/;
 check(
   'POST /organizations conditionally sets creator to PENDING',
   conditionalPendingWrite.test(orgRoutes)
 );
 
-// 3. POST /organizations/create routes through the shared create handler with
-// the force-pending decision computed for that route too.
-const createRouteHasConditionalPending =
-  /organizationsRouter\.post\(\s*['"]\/create['"][\s\S]*?shouldForcePendingApprovalOnOrganizationCreate[\s\S]*?handleOrganizationCreateRequest[\s\S]*?routeTag:\s*['"]\/create['"]/m
-    .test(orgRoutes);
+// 3. Both aliases use the shared route/preflight pipeline. The pending decision
+// moved into prepareOrganizationCreatePreflight; it must still reach the shared
+// transactional writer. coach-flow-invariants.test.ts also exercises both aliases
+// over HTTP with forged approval/owner fields against the local database.
+const sharedRouteStart = orgRoutes.indexOf('async function handleOrganizationCreateRoute(');
+const sharedRouteEnd = orgRoutes.indexOf('// Create organization', sharedRouteStart);
+const sharedRoute = orgRoutes.slice(sharedRouteStart, sharedRouteEnd);
+const preflightStart = orgRoutes.indexOf('async function prepareOrganizationCreatePreflight(');
+const preflightEnd = orgRoutes.indexOf(
+  'async function handleOrganizationCreateRequest(',
+  preflightStart
+);
+const preflight = orgRoutes.slice(preflightStart, preflightEnd);
 check(
-  'POST /organizations/create uses shared conditional pending approval flow',
-  createRouteHasConditionalPending
+  'Both organization create aliases use shared conditional pending approval flow',
+  ['/', '/create'].every(route =>
+    orgRoutes.includes(`return handleOrganizationCreateRoute(req, res, '${route}');`)
+  ) &&
+    sharedRoute.includes('createOrganizationSchema.safeParse(req.body)') &&
+    sharedRoute.includes('prepareOrganizationCreatePreflight({') &&
+    sharedRoute.includes('if (!preflight) return;') &&
+    sharedRoute.includes('handleOrganizationCreateRequest(req, res, data, {') &&
+    sharedRoute.includes('shouldForcePendingApproval: preflight.shouldForcePendingApproval') &&
+    preflight.includes('await shouldForcePendingApprovalOnOrganizationCreate({') &&
+    preflight.includes('return { authorizedInviteInputs, shouldForcePendingApproval };') &&
+    conditionalPendingWrite.test(orgRoutes)
 );
 
 // 4. League approval sets league owner to APPROVED
 check(
   'League approval sets league owner to APPROVED',
-  orgRoutes.includes('league_owner_id') && orgRoutes.includes("approval_status: 'APPROVED'") &&
-  orgRoutes.includes('approveLeagueHandler'),
+  orgRoutes.includes('/:id/approve') &&
+    orgRoutes.includes('approveLeagueHandler') &&
+    orgRoutes.includes('approveOrganization(orgId') &&
+    approvalService.includes('league_owner_id') &&
+    approvalService.includes("approval_status: 'APPROVED'")
 );
 
 // 5. Coach approval by league owner
 check(
   'League owner can approve coaches (POST /join-requests/:requestId/approve)',
   orgRoutes.includes('/join-requests/:requestId/approve') &&
-    orgRoutes.includes("Only the league owner can approve coach requests") &&
-    orgRoutes.includes("approval_status: 'APPROVED'"),
+    orgRoutes.includes('Only the organization owner can approve coach requests') &&
+    orgRoutes.includes('approveJoinRequest({') &&
+    organizationJoinRequests.includes("approval_status: 'APPROVED'") &&
+    organizationJoinRequests.includes('paid_by_owner: true')
 );
 
 // 6. Join request sets coach to PENDING
-const joinRequestBlock = orgRoutes.includes('join-requests') && 
+const joinRequestBlock =
+  orgRoutes.includes('join-requests') &&
   (orgRoutes.includes('isCoachRole') || orgRoutes.includes("approval_status: 'PENDING'"));
 check('Join request sets coach to PENDING when coach role', joinRequestBlock);
 
@@ -85,7 +112,7 @@ check('Join request sets coach to PENDING when coach role', joinRequestBlock);
 const teams = read('src/routes/teams.ts');
 check(
   'Team creation uses requireOnboarded',
-  teams.includes('requireOnboarded') && teams.includes('/create'),
+  teams.includes('requireOnboarded') && teams.includes('/create')
 );
 
 // 8. Event creation uses requireOnboarded

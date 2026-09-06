@@ -87,4 +87,69 @@ describe('API Notification Endpoints', () => {
 
     expect(response.body.error).toBe('INVALID_CURSOR');
   });
+
+  it('reports push diagnostics without exposing the full token', async () => {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { preferences: {} },
+    });
+
+    const empty = await request(app)
+      .get('/notifications/push-diagnostics')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(empty.body).toMatchObject({
+      push_token: { present: false, valid_format: false, preview: null },
+      preferences: {
+        notifications_enabled: true,
+        notifications: {
+          game_event_reminders: false,
+          team_updates: false,
+          comments_upvotes: false,
+          follows_notifications: true,
+          messages_notifications: true,
+        },
+      },
+      delivery_ready: false,
+    });
+
+    const pushToken = 'ExponentPushToken[diagnostic-user-token]';
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        preferences: {
+          push_token: pushToken,
+          notifications_enabled: true,
+          notifications: {
+            game_event_reminders: true,
+            team_updates: false,
+            comments_upvotes: true,
+            follows_notifications: false,
+            messages_notifications: true,
+          },
+        },
+      },
+    });
+
+    const ready = await request(app)
+      .get('/notifications/push-diagnostics')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(ready.body.push_token).toEqual({
+      present: true,
+      valid_format: true,
+      preview: 'ExponentPushTo...token]',
+    });
+    expect(ready.body.preferences.notifications).toMatchObject({
+      game_event_reminders: true,
+      team_updates: false,
+      comments_upvotes: true,
+      follows_notifications: false,
+      messages_notifications: true,
+    });
+    expect(ready.body.delivery_ready).toBe(true);
+    expect(JSON.stringify(ready.body)).not.toContain(pushToken);
+  });
 });

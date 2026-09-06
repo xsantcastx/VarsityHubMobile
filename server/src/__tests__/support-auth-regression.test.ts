@@ -62,6 +62,38 @@ describe('Support auth regression', () => {
       });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ ok: true });
+    expect(res.body).toEqual({ ok: true, reportId: expect.any(String) });
+    expect(await prisma.abuseReport.findUnique({ where: { id: res.body.reportId } })).toMatchObject(
+      {
+        reporter_id: userId,
+        message: 'Auth should be honored on support feedback.',
+        status: 'pending',
+      }
+    );
+  });
+
+  it('retries a submission without duplicating or replacing the durable message', async () => {
+    const submission_id = 'a5719ab2-2ee3-4b76-b185-732977942749';
+    const submit = (message: string) =>
+      request(app)
+        .post('/support/feedback')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ submission_id, category: 'bug', message });
+    const [first, retry] = await Promise.all([
+      submit('Original report'),
+      submit('Original report'),
+    ]);
+    expect(first.status).toBe(200);
+    expect(retry.status).toBe(200);
+    expect(retry.body.reportId).toBe(first.body.reportId);
+    await submit('Changed retry body');
+    expect(
+      await prisma.abuseReport.findUnique({ where: { id: first.body.reportId } })
+    ).toMatchObject({ message: 'Original report' });
+    expect(
+      await prisma.abuseReport.count({
+        where: { reporter_id: userId, target_id: submission_id, target_type: 'support_feedback' },
+      })
+    ).toBe(1);
   });
 });

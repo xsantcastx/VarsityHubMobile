@@ -1,3 +1,6 @@
+import ImageEditor from './ImageEditor';
+import { EVENT_BANNER_ASPECT_RATIO } from '@/constants/eventPresentation';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useState } from 'react';
@@ -6,6 +9,7 @@ import {
   Alert,
   Image,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -26,6 +30,7 @@ type Props = {
   label?: string;
   helperText?: string;
   disabled?: boolean;
+  onUploadingChange?: (uploading: boolean) => void;
 };
 
 async function requestPickerPermission(kind: 'library' | 'camera') {
@@ -41,36 +46,46 @@ export default function EventPreviewImageField({
   label = 'Preview Photo',
   helperText = 'Upload a photo so the event has a proper preview on cards and detail pages.',
   disabled = false,
+  onUploadingChange,
 }: Props) {
   const colorScheme = useColorScheme() ?? 'light';
+  const [pickerError, setPickerError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [editingUri, setEditingUri] = useState<string | null>(null);
 
   const uploadAsset = useCallback(
-    async (asset: ImagePicker.ImagePickerAsset) => {
+    async (uri: string) => {
       setUploading(true);
+      onUploadingChange?.(true);
       try {
         const uploadResult = await uploadFile(
           getApiBaseUrl(),
-          asset.uri,
-          asset.fileName || 'event-preview.jpg',
-          asset.mimeType || 'image/jpeg'
+          uri,
+          'event-preview.jpg',
+          'image/jpeg'
         );
         const nextUrl = uploadResult?.url || uploadResult?.path || null;
         if (!nextUrl) {
           throw new Error('Upload failed. No image URL was returned.');
         }
         onChange(nextUrl);
+        setEditingUri(null);
       } catch (error: any) {
-        Alert.alert('Upload Failed', toUserMessage(error, 'Failed to upload the preview image.'));
+        setPickerError(toUserMessage(error, 'Failed to upload the preview image.'));
+        throw error;
       } finally {
         setUploading(false);
+        onUploadingChange?.(false);
       }
     },
-    [onChange]
+    [onChange, onUploadingChange]
   );
 
   const pickFromLibrary = useCallback(async () => {
-    const permission = await requestPickerPermission('library');
+    setPickerError(null);
+    // Browsers open their native file dialog directly in the click gesture.
+    const permission =
+      Platform.OS === 'web' ? { status: 'granted' } : await requestPickerPermission('library');
     if (permission.status !== 'granted') {
       Alert.alert(
         'Permission Required',
@@ -85,18 +100,15 @@ export default function EventPreviewImageField({
 
     const result = await ImagePicker.launchImageLibraryAsync({
       ...pickerMediaTypesProp(),
-      allowsEditing: true,
-      // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
-      // crop at the displayed ratio so uploads aren't re-cropped at render time.
-      aspect: [4, 5],
+      allowsEditing: false,
       quality: 0.9,
       exif: false,
     });
 
     if (!result.canceled && result.assets[0]) {
-      await uploadAsset(result.assets[0]);
+      setEditingUri(await materializeICloudAssetIfNeeded(result.assets[0].uri));
     }
-  }, [uploadAsset]);
+  }, []);
 
   const takePhoto = useCallback(async () => {
     const permission = await requestPickerPermission('camera');
@@ -110,24 +122,27 @@ export default function EventPreviewImageField({
 
     const result = await ImagePicker.launchCameraAsync({
       ...pickerMediaTypesProp(),
-      allowsEditing: true,
-      // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
-      // crop at the displayed ratio so uploads aren't re-cropped at render time.
-      aspect: [4, 5],
+      allowsEditing: false,
       quality: 0.9,
       exif: false,
     });
 
     if (!result.canceled && result.assets[0]) {
-      await uploadAsset(result.assets[0]);
+      setEditingUri(await materializeICloudAssetIfNeeded(result.assets[0].uri));
     }
-  }, [uploadAsset]);
+  }, []);
 
   const openPickerOptions = useCallback(() => {
+    const reportError = (error: unknown) =>
+      setPickerError(toUserMessage(error, 'Unable to open the photo picker. Please try again.'));
+    if (Platform.OS === 'web') {
+      void pickFromLibrary().catch(reportError);
+      return;
+    }
     Alert.alert('Event Preview Photo', 'Choose how you want to add the preview image.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Photo Library', onPress: () => void pickFromLibrary() },
-      { text: 'Take Photo', onPress: () => void takePhoto() },
+      { text: 'Photo Library', onPress: () => void pickFromLibrary().catch(reportError) },
+      { text: 'Take Photo', onPress: () => void takePhoto().catch(reportError) },
     ]);
   }, [pickFromLibrary, takePhoto]);
 
@@ -138,6 +153,14 @@ export default function EventPreviewImageField({
         {helperText}
       </Text>
 
+      {pickerError ? (
+        <Text
+          accessibilityRole="alert"
+          style={{ color: Colors[colorScheme].destructive, marginBottom: 10 }}
+        >
+          {pickerError}
+        </Text>
+      ) : null}
       <View
         style={[
           styles.card,
@@ -191,6 +214,20 @@ export default function EventPreviewImageField({
 
           {value ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Edit banner crop"
+              style={[styles.secondaryButton, { borderColor: Colors[colorScheme].border }]}
+              disabled={disabled || uploading}
+              onPress={() => setEditingUri(value)}
+            >
+              <MaterialIcons name="crop" size={16} color={Colors[colorScheme].text} />
+              <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>
+                Fit Photo
+              </Text>
+            </Pressable>
+          ) : null}
+          {value ? (
+            <Pressable
               style={[
                 styles.secondaryButton,
                 { borderColor: Colors[colorScheme].border },
@@ -207,6 +244,15 @@ export default function EventPreviewImageField({
           ) : null}
         </View>
       </View>
+      <ImageEditor
+        visible={!!editingUri}
+        imageUri={editingUri}
+        cropAspectRatio={EVENT_BANNER_ASPECT_RATIO}
+        onSave={uploadAsset}
+        onClose={() => {
+          if (!uploading) setEditingUri(null);
+        }}
+      />
     </View>
   );
 }
@@ -231,12 +277,12 @@ const styles = StyleSheet.create({
   },
   previewImage: {
     width: '100%',
-    height: 180,
+    aspectRatio: EVENT_BANNER_ASPECT_RATIO,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 180,
+    aspectRatio: EVENT_BANNER_ASPECT_RATIO,
     paddingHorizontal: 16,
     gap: 10,
   },

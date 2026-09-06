@@ -1,0 +1,12 @@
+{
+  "method": "Aggregate of complete two-worker run, every failed file rerun in fresh Jest processes, then targeted reruns after fixes. Not a single green full-suite invocation.",
+  "generated_at": "2026-09-05T15:47:12.302708+00:00",
+  "numTotalTestSuites": 319,
+  "numPassedTestSuites": 319,
+  "numFailedTestSuites": 0,
+  "numTotalTests": 2982,
+  "numPassedTests": 2982,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0
+}

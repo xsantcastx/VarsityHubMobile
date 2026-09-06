@@ -6,8 +6,8 @@ name: Deploy Web to Vercel
 # functions and fails on the server's TypeScript build (see
 # scripts/deploy-web-static.sh, which builds a clean api/-free deploy dir
 # instead). Requires a VERCEL_TOKEN repo secret (Settings > Secrets and
-# variables > Actions); if it's missing, this workflow logs a warning and
-# skips cleanly instead of failing CI red every time.
+# variables > Actions). The deploy also verifies that the Vercel project does
+# not contain server-only Railway secrets before building the public web bundle.
 
 on:
   workflow_dispatch: {}
@@ -34,24 +34,31 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Check VERCEL_TOKEN is configured
-        id: token_check
+      - name: Check Vercel config is present
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         run: |
+          missing=0
           if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::warning::VERCEL_TOKEN repo secret is not set — skipping web deploy. Add it under Settings > Secrets and variables > Actions to enable auto-deploy."
-            echo "has_token=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_token=true" >> "$GITHUB_OUTPUT"
+            echo "::error::VERCEL_TOKEN repo secret is not set. Add it under Settings > Secrets and variables > Actions to enable web deploy."
+            missing=1
           fi
+          if [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::error::VERCEL_PROJECT_ID repo variable is not set."
+            missing=1
+          fi
+          if [ -z "$VERCEL_ORG_ID" ]; then
+            echo "::error::VERCEL_ORG_ID repo variable is not set."
+            missing=1
+          fi
+          exit "$missing"
 
       - name: Install dependencies
-        if: steps.token_check.outputs.has_token == 'true'
         run: npm ci
 
       - name: Link Vercel project
-        if: steps.token_check.outputs.has_token == 'true'
         # .vercel/project.json is gitignored (deploy-web-static.sh requires it
         # to exist), so it's synthesized here from repo vars instead of being
         # committed to a public repo.
@@ -59,20 +66,21 @@ jobs:
           mkdir -p .vercel
           echo '{"projectId":"${{ vars.VERCEL_PROJECT_ID }}","orgId":"${{ vars.VERCEL_ORG_ID }}","projectName":"varsityhub-web"}' > .vercel/project.json
 
-      - name: Deploy web to Vercel production
-        if: steps.token_check.outputs.has_token == 'true'
+      - name: Verify Vercel production env drift
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        # EXPO_PUBLIC_* values must be in the environment at `expo export`
-        # time to be baked into the web bundle. CI has no .env (gitignored),
-        # so without this the deployed site ships the Sentry SDK with no DSN
-        # and web errors silently go nowhere (verified live 2026-07-13).
-        # eas.json's production profile is the committed source of truth —
-        # a Sentry DSN is client-side-public by design.
-        run: |
-          EXPO_PUBLIC_SENTRY_DSN="$(node -p "require('./eas.json').build.production.env.EXPO_PUBLIC_SENTRY_DSN || ''")"
-          export EXPO_PUBLIC_SENTRY_DSN
-          if [ -z "$EXPO_PUBLIC_SENTRY_DSN" ]; then
-            echo "::warning::EXPO_PUBLIC_SENTRY_DSN missing from eas.json production env — web bundle will ship without Sentry"
-          fi
-          npm run web:deploy:prod
+        run: npm run verify:vercel-env-drift
+
+      - name: Pull Vercel production env for web export
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx vercel env pull .env.local --environment=production --yes
+
+      - name: Deploy web to Vercel production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        # EXPO_PUBLIC_* values must be present before `expo export`, because
+        # they are baked into the static web bundle. The previous workflow only
+        # injected Sentry; `.env.local` now comes from the cleaned Vercel
+        # production env after the drift guard passes.
+        run: npm run web:deploy:prod

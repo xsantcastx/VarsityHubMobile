@@ -17,6 +17,15 @@ import * as DocumentPicker from 'expo-document-picker';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import * as ImagePicker from 'expo-image-picker';
+import {
+  AudioModule,
+  createAudioPlayer,
+  requestRecordingPermissionsAsync,
+  RecordingPresets,
+  setAudioModeAsync,
+  type AudioPlayer,
+  type AudioStatus,
+} from 'expo-audio';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import * as MediaLibrary from 'expo-media-library';
@@ -53,31 +62,14 @@ const VOICE_WAVE_HEIGHTS = Array.from({ length: 20 }, (_, i) => {
   return h;
 });
 
-// Temporary Audio stub for expo-av migration
-const Audio = {
-  requestPermissionsAsync: () => Promise.resolve({ status: 'denied' }),
-  setAudioModeAsync: () => Promise.resolve(),
-  Recording: {
-    createAsync: () =>
-      Promise.resolve({
-        recording: {
-          timer: null,
-          stopAndUnloadAsync: () => Promise.resolve(),
-          getURI: () => null,
-          getStatusAsync: () => Promise.resolve({}),
-        },
-      }),
-  },
-  RecordingOptionsPresets: { HIGH_QUALITY: {} },
-  Sound: {
-    createAsync: (_source: any, _initialStatus?: any) =>
-      Promise.resolve({
-        sound: { playAsync: () => Promise.resolve(), unloadAsync: () => Promise.resolve() },
-      }),
-  },
+type TeamVoiceRecorder = InstanceType<typeof AudioModule.AudioRecorder> & {
+  timer?: ReturnType<typeof setInterval>;
+  startedAt?: number;
 };
 
-// Using expo-audio for recording and playback functionality
+type TeamVoicePlayer = AudioPlayer & {
+  subscription?: { remove?: () => void };
+};
 
 interface ChatMessage {
   id: string;
@@ -136,7 +128,7 @@ const selectChatMembers = (membersData: any[]): TeamMember[] =>
     user: m.user
       ? {
           id: String(m.user.id),
-          display_name: m.user.display_name || m.user.name,
+          display_name: m.user.username || 'Member',
           email: m.user.email,
           avatar_url: m.user.avatar_url,
         }
@@ -145,6 +137,16 @@ const selectChatMembers = (membersData: any[]): TeamMember[] =>
     status: 'offline' as 'online' | 'offline' | 'away',
     lastSeen: undefined,
   }));
+
+const mapMimeTypeToFileType = (mimeType: string): string => {
+  const mime = mimeType.toLowerCase();
+  if (mime.includes('pdf')) return 'pdf';
+  if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('ms-excel'))
+    return 'excel';
+  if (mime.includes('image')) return 'image';
+  if (mime.includes('video')) return 'video';
+  return 'document';
+};
 
 export default function TeamChatScreen() {
   // Group-chat management mirrors the server's canManageTeam boundary (team
@@ -183,13 +185,12 @@ export default function TeamChatScreen() {
   } | null>(null);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  // const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [recording, setRecording] = useState<any>(null);
+  const [recording, setRecording] = useState<TeamVoiceRecorder | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [audioPosition, setAudioPosition] = useState<{ [key: string]: number }>({});
-  // const [soundObjects, setSoundObjects] = useState<{ [key: string]: Audio.Sound }>({});
-  const [soundObjects, setSoundObjects] = useState<{ [key: string]: any }>({});
+  const recordingRef = useRef<TeamVoiceRecorder | null>(null);
+  const soundObjectsRef = useRef<Record<string, TeamVoicePlayer>>({});
 
   // Modal states for custom menus
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -273,6 +274,37 @@ export default function TeamChatScreen() {
       }
     },
     [id]
+  );
+
+  const addUploadedFile = useCallback(
+    ({
+      name,
+      size,
+      mimeType,
+      url,
+    }: {
+      name: string;
+      size?: number;
+      mimeType?: string;
+      url: string;
+    }) => {
+      const newFile = {
+        id: Date.now().toString(),
+        name,
+        size: formatFileSize(size || 0),
+        type: mapMimeTypeToFileType(mimeType || 'application/octet-stream'),
+        uploadedBy: 'You',
+        uploadedAt: new Date().toISOString(),
+        url,
+      };
+
+      setFiles(prev => {
+        const updated = [newFile, ...prev];
+        void saveFiles(updated);
+        return updated;
+      });
+    },
+    [saveFiles]
   );
 
   const loadFiles = useCallback(async (): Promise<any[]> => {
@@ -620,6 +652,23 @@ export default function TeamChatScreen() {
     setShowAttachmentMenu(true);
   }, []);
 
+  const markMessageSent = useCallback(
+    (messageId: string, updatedMessage: ChatMessage) => {
+      setMessages(prev => {
+        const updated = prev.map(msg => (msg.id === messageId ? updatedMessage : msg));
+        void saveMessages(updated);
+        return updated;
+      });
+    },
+    [saveMessages]
+  );
+
+  const scrollMessagesToEnd = useCallback(() => {
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, []);
+
   const getFileIcon = (type: string) => {
     const mimeType = type.toLowerCase();
     if (mimeType.includes('pdf')) return 'document-text';
@@ -699,32 +748,14 @@ export default function TeamChatScreen() {
           status: 'sent',
         };
 
-        setMessages(prev => {
-          const updated = prev.map(msg => (msg.id === message.id ? updatedMessage : msg));
-          void saveMessages(updated);
-          return updated;
-        });
+        markMessageSent(message.id, updatedMessage);
+        scrollMessagesToEnd();
 
-        // Scroll to bottom
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-
-        // Add image to files tab list
-        const newFile = {
-          id: Date.now().toString(),
+        addUploadedFile({
           name: fileToUpload.name,
-          size: formatFileSize(fileToUpload.size || 0),
-          type: mapMimeTypeToFileType(fileToUpload.type || 'image/jpeg'),
-          uploadedBy: 'You',
-          uploadedAt: new Date().toISOString(),
+          size: fileToUpload.size,
+          mimeType: fileToUpload.type,
           url: uploadResponse.url,
-        };
-
-        setFiles(prev => {
-          const updated = [newFile, ...prev];
-          void saveFiles(updated);
-          return updated;
         });
 
         showToast('Image uploaded successfully!');
@@ -750,7 +781,16 @@ export default function TeamChatScreen() {
         showModal('Error', 'Failed to upload image to server');
       }
     },
-    [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]
+    [
+      addUploadedFile,
+      animateNewMessage,
+      markMessageSent,
+      replyingTo,
+      saveMessages,
+      scrollMessagesToEnd,
+      showModal,
+      showToast,
+    ]
   );
 
   const pickImage = useCallback(async () => {
@@ -820,14 +860,60 @@ export default function TeamChatScreen() {
     setSelectedImage(null);
   }, []);
 
-  // Voice recording functions - TEMPORARILY DISABLED
   const startRecording = useCallback(async () => {
-    showModal(
-      'Audio Recording',
-      'Voice recording temporarily disabled during migration to expo-audio'
-    );
-    return;
-  }, [showModal]);
+    if (isRecording) return;
+    if (Platform.OS === 'web') {
+      showModal('Audio Recording', 'Voice recording is available in the mobile app.');
+      return;
+    }
+
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        showModal(
+          'Microphone Permission Needed',
+          'Enable microphone access to record voice messages.',
+          [
+            { label: 'Cancel', onPress: () => {} },
+            { label: 'Open Settings', onPress: () => Linking.openSettings(), color: '#2563eb' },
+          ]
+        );
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+      });
+
+      const voiceRecorder = new AudioModule.AudioRecorder(
+        RecordingPresets.HIGH_QUALITY
+      ) as TeamVoiceRecorder;
+      await voiceRecorder.prepareToRecordAsync();
+      voiceRecorder.record();
+      voiceRecorder.startedAt = Date.now();
+      voiceRecorder.timer = setInterval(() => {
+        const status = voiceRecorder.getStatus();
+        const elapsedMs =
+          typeof status.durationMillis === 'number'
+            ? status.durationMillis
+            : Date.now() - (voiceRecorder.startedAt || Date.now());
+        setRecordingDuration(Math.max(0, Math.floor(elapsedMs / 1000)));
+      }, 250);
+
+      recordingRef.current = voiceRecorder;
+      setRecording(voiceRecorder);
+      setRecordingDuration(0);
+      setIsRecording(true);
+    } catch (error) {
+      if (__DEV__) console.error('Failed to start voice recording:', error);
+      showModal('Error', 'Failed to start voice recording');
+      setIsRecording(false);
+      setRecording(null);
+      setRecordingDuration(0);
+    }
+  }, [isRecording, showModal]);
 
   const sendVoiceMessage = useCallback(
     async (uri: string, duration: number) => {
@@ -844,7 +930,7 @@ export default function TeamChatScreen() {
           type: 'voice',
           voice: {
             uri,
-            duration: Math.round(duration / 1000), // Convert to seconds
+            duration: Math.max(0, Math.round(duration)),
           },
           replyTo: replyingTo?.id,
           status: 'sending',
@@ -886,27 +972,45 @@ export default function TeamChatScreen() {
     if (!recording) return;
 
     try {
-      // Clear timer
-      if ((recording as any).timer) {
-        clearInterval((recording as any).timer);
+      if (recording.timer) {
+        clearInterval(recording.timer);
       }
 
       setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      await recording.stop();
+      recordingRef.current = null;
+      const uri = recording.uri;
 
       if (uri) {
-        const status = await recording.getStatusAsync();
-        await sendVoiceMessage(uri, status.durationMillis || 0);
+        const status = recording.getStatus();
+        const elapsedMs =
+          typeof status.durationMillis === 'number'
+            ? status.durationMillis
+            : Date.now() - (recording.startedAt || Date.now());
+        await sendVoiceMessage(uri, elapsedMs);
+      } else {
+        showModal('Error', 'No audio file was created. Please try recording again.');
       }
 
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+      }).catch(() => {});
       setRecording(null);
       setRecordingDuration(0);
-    } catch {
+    } catch (error) {
+      if (__DEV__) console.error('Failed to stop voice recording:', error);
       showModal('Error', 'Failed to stop recording');
       setRecording(null);
+      recordingRef.current = null;
       setIsRecording(false);
       setRecordingDuration(0);
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+      }).catch(() => {});
     }
   }, [recording, sendVoiceMessage, showModal]);
 
@@ -916,55 +1020,59 @@ export default function TeamChatScreen() {
       try {
         // Stop any currently playing audio
         if (playingAudio && playingAudio !== messageId) {
-          const currentSound = soundObjects[playingAudio];
+          const currentSound = soundObjectsRef.current[playingAudio];
           if (currentSound) {
-            await currentSound.stopAsync();
+            await currentSound.seekTo(0).catch(() => {});
+            currentSound.pause();
           }
         }
 
         // If this message is already playing, pause it
         if (playingAudio === messageId) {
-          const sound = soundObjects[messageId];
+          const sound = soundObjectsRef.current[messageId];
           if (sound) {
-            await sound.pauseAsync();
+            sound.pause();
             setPlayingAudio(null);
           }
           return;
         }
 
         // Create new sound object if it doesn't exist
-        let sound = soundObjects[messageId];
+        let sound = soundObjectsRef.current[messageId];
         if (!sound) {
-          const { sound: newSound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
-          sound = newSound;
-          setSoundObjects(prev => ({ ...prev, [messageId]: sound }));
+          const player = createAudioPlayer({ uri }, { updateInterval: 250 }) as TeamVoicePlayer;
+          sound = player;
+          soundObjectsRef.current[messageId] = sound;
 
-          // Set up playback status update
-          sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.isLoaded) {
-              if (status.positionMillis !== undefined && status.durationMillis) {
-                setAudioPosition(prev => ({
-                  ...prev,
-                  [messageId]: status.positionMillis / status.durationMillis,
-                }));
-              }
+          sound.subscription = sound.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+            if (status.isLoaded && status.duration > 0) {
+              setAudioPosition(prev => ({
+                ...prev,
+                [messageId]: Math.min(1, Math.max(0, status.currentTime / status.duration)),
+              }));
+            }
 
-              if (status.didJustFinish) {
-                setPlayingAudio(null);
-                setAudioPosition(prev => ({ ...prev, [messageId]: 0 }));
-              }
+            if (status.didJustFinish) {
+              setPlayingAudio(null);
+              setAudioPosition(prev => ({ ...prev, [messageId]: 0 }));
+              sound.seekTo(0).catch(() => {});
             }
           });
         }
 
-        // Play the sound
-        await sound.playAsync();
+        await setAudioModeAsync({
+          allowsRecording: false,
+          playsInSilentMode: true,
+          shouldPlayInBackground: false,
+        }).catch(() => {});
+        sound.play();
         setPlayingAudio(messageId);
-      } catch {
+      } catch (error) {
+        if (__DEV__) console.error('Failed to play voice message:', error);
         showModal('Error', 'Failed to play voice message');
       }
     },
-    [playingAudio, showModal, soundObjects]
+    [playingAudio, showModal]
   );
 
   const formatDuration = useCallback((milliseconds: number) => {
@@ -1035,32 +1143,14 @@ export default function TeamChatScreen() {
           status: 'sent',
         };
 
-        setMessages(prev => {
-          const updated = prev.map(msg => (msg.id === message.id ? updatedMessage : msg));
-          void saveMessages(updated);
-          return updated;
-        });
+        markMessageSent(message.id, updatedMessage);
+        scrollMessagesToEnd();
 
-        // Scroll to bottom
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-
-        // Add file to files tab list
-        const newFile = {
-          id: Date.now().toString(),
+        addUploadedFile({
           name: fileAsset.name,
-          size: formatFileSize(fileAsset.size || 0),
-          type: mapMimeTypeToFileType(fileAsset.mimeType || 'application/octet-stream'),
-          uploadedBy: 'You',
-          uploadedAt: new Date().toISOString(),
+          size: fileAsset.size,
+          mimeType: fileAsset.mimeType,
           url: uploadResponse.url,
-        };
-
-        setFiles(prev => {
-          const updated = [newFile, ...prev];
-          void saveFiles(updated);
-          return updated;
         });
 
         showToast('File uploaded successfully!');
@@ -1097,7 +1187,16 @@ export default function TeamChatScreen() {
         }
       }
     },
-    [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]
+    [
+      addUploadedFile,
+      animateNewMessage,
+      markMessageSent,
+      replyingTo,
+      saveMessages,
+      scrollMessagesToEnd,
+      showModal,
+      showToast,
+    ]
   );
 
   // Document picking functions
@@ -1230,16 +1329,6 @@ export default function TeamChatScreen() {
     }
   };
 
-  const mapMimeTypeToFileType = (mimeType: string): string => {
-    const mime = mimeType.toLowerCase();
-    if (mime.includes('pdf')) return 'pdf';
-    if (mime.includes('excel') || mime.includes('spreadsheet') || mime.includes('ms-excel'))
-      return 'excel';
-    if (mime.includes('image')) return 'image';
-    if (mime.includes('video')) return 'video';
-    return 'document';
-  };
-
   const handleTextChange = useCallback(
     (text: string) => {
       setNewMessage(text);
@@ -1271,20 +1360,26 @@ export default function TeamChatScreen() {
     };
   }, []);
 
-  // Cleanup audio players
+  // Cleanup audio players and recorder
   useEffect(() => {
     return () => {
-      // Stop and unload all sound objects
-      Object.values(soundObjects).forEach(async sound => {
+      const activeRecording = recordingRef.current;
+      if (activeRecording?.timer) clearInterval(activeRecording.timer);
+      if (activeRecording?.isRecording) {
+        activeRecording.stop().catch(() => {});
+      }
+      Object.values(soundObjectsRef.current).forEach(sound => {
         try {
-          await sound.stopAsync();
-          await sound.unloadAsync();
+          sound.subscription?.remove?.();
+          sound.pause();
+          sound.remove();
         } catch {
           // Ignore cleanup errors
         }
       });
+      soundObjectsRef.current = {};
     };
-  }, [soundObjects]);
+  }, []);
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -1366,7 +1461,7 @@ export default function TeamChatScreen() {
         {showAvatar && !isCurrentUser && (
           <View style={[styles.avatar, { backgroundColor: Colors[colorScheme].tint }]}>
             <Text style={styles.avatarText}>
-              {item.author.display_name.charAt(0).toUpperCase()}
+              {(item.author.username || 'M').charAt(0).toUpperCase()}
             </Text>
           </View>
         )}
@@ -1382,7 +1477,7 @@ export default function TeamChatScreen() {
           {showAvatar && !isCurrentUser && (
             <View style={styles.messageHeader}>
               <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-                {item.author.display_name}
+                {item.author.username ? `@${item.author.username}` : 'Member'}
               </Text>
               <Text style={[styles.authorRole, { color: Colors[colorScheme].mutedText }]}>
                 {item.author.role}
@@ -1396,7 +1491,7 @@ export default function TeamChatScreen() {
           {replyMessage && (
             <View style={[styles.replyContainer, { borderColor: Colors[colorScheme].border }]}>
               <Text style={[styles.replyAuthor, { color: Colors[colorScheme].tint }]}>
-                {replyMessage.author.display_name}
+                {replyMessage.author.username ? `@${replyMessage.author.username}` : 'Member'}
               </Text>
               <Text
                 style={[styles.replyText, { color: Colors[colorScheme].mutedText }]}
@@ -1519,7 +1614,11 @@ export default function TeamChatScreen() {
                     },
                   ]}
                 >
-                  {formatDuration(item.voice.duration)}
+                  {formatDuration(
+                    item.voice.duration > 0 && item.voice.duration < 1000
+                      ? item.voice.duration * 1000
+                      : item.voice.duration
+                  )}
                 </Text>
               </View>
             )}
@@ -1804,36 +1903,40 @@ export default function TeamChatScreen() {
     </Pressable>
   );
 
+  const renderTeamChatHeaderLeft = useCallback(
+    () => (
+      <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
+        <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+      </Pressable>
+    ),
+    [colorScheme, explicitFallback, router]
+  );
+
+  const renderLoadingState = () => (
+    <SafeAreaView
+      style={[
+        styles.container,
+        styles.centerContent,
+        { backgroundColor: Colors[colorScheme].background },
+      ]}
+      edges={['top', 'bottom']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Team Chat',
+          headerShown: true,
+          headerLeft: renderTeamChatHeaderLeft,
+        }}
+      />
+      <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+      <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+        Loading team chat...
+      </Text>
+    </SafeAreaView>
+  );
+
   if (coachLoading) {
-    return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          styles.centerContent,
-          { backgroundColor: Colors[colorScheme].background },
-        ]}
-        edges={['top', 'bottom']}
-      >
-        <Stack.Screen
-          options={{
-            title: 'Team Chat',
-            headerShown: true,
-            headerLeft: () => (
-              <Pressable
-                onPress={() => safeGoBack(router, explicitFallback)}
-                style={{ paddingRight: 8 }}
-              >
-                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-              </Pressable>
-            ),
-          }}
-        />
-        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
-          Loading team chat...
-        </Text>
-      </SafeAreaView>
-    );
+    return renderLoadingState();
   }
 
   if (!canAccessCoachTools) {
@@ -1847,35 +1950,7 @@ export default function TeamChatScreen() {
   }
 
   if (loading) {
-    return (
-      <SafeAreaView
-        style={[
-          styles.container,
-          styles.centerContent,
-          { backgroundColor: Colors[colorScheme].background },
-        ]}
-        edges={['top', 'bottom']}
-      >
-        <Stack.Screen
-          options={{
-            title: 'Team Chat',
-            headerShown: true,
-            headerLeft: () => (
-              <Pressable
-                onPress={() => safeGoBack(router, explicitFallback)}
-                style={{ paddingRight: 8 }}
-              >
-                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-              </Pressable>
-            ),
-          }}
-        />
-        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
-          Loading team chat...
-        </Text>
-      </SafeAreaView>
-    );
+    return renderLoadingState();
   }
 
   if (error) {
@@ -1892,14 +1967,7 @@ export default function TeamChatScreen() {
           options={{
             title: 'Team Chat',
             headerShown: true,
-            headerLeft: () => (
-              <Pressable
-                onPress={() => safeGoBack(router, explicitFallback)}
-                style={{ paddingRight: 8 }}
-              >
-                <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-              </Pressable>
-            ),
+            headerLeft: renderTeamChatHeaderLeft,
           }}
         />
         <Ionicons name="cloud-offline-outline" size={48} color={Colors[colorScheme].mutedText} />
@@ -1934,14 +2002,7 @@ export default function TeamChatScreen() {
           headerShown: true,
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
-          headerLeft: () => (
-            <Pressable
-              onPress={() => safeGoBack(router, explicitFallback)}
-              style={{ paddingRight: 8 }}
-            >
-              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ),
+          headerLeft: renderTeamChatHeaderLeft,
           headerRight: () => (
             <Pressable
               onPress={() =>
@@ -2094,7 +2155,8 @@ export default function TeamChatScreen() {
               >
                 <View style={styles.replyingToContent}>
                   <Text style={[styles.replyingToLabel, { color: Colors[colorScheme].tint }]}>
-                    Replying to {replyingTo.author.display_name}
+                    Replying to{' '}
+                    {replyingTo.author.username ? `@${replyingTo.author.username}` : 'Member'}
                   </Text>
                   <Text
                     style={[styles.replyingToText, { color: Colors[colorScheme].mutedText }]}
@@ -2130,7 +2192,7 @@ export default function TeamChatScreen() {
                   onChangeText={handleTextChange}
                   placeholder={
                     replyingTo
-                      ? `Reply to ${replyingTo.author.display_name}...`
+                      ? `Reply to ${replyingTo.author.username ? '@' + replyingTo.author.username : 'member'}...`
                       : 'Type a message...'
                   }
                   placeholderTextColor={Colors[colorScheme].mutedText}

@@ -46,17 +46,39 @@ export const queryClient = new QueryClient({
 });
 
 /**
- * AsyncStorage-backed persister. On cold start the cache rehydrates from disk
- * so the app opens to the user's last-seen feed/profile/team data instantly,
- * then revalidates in the background (per the 30s staleTime).
+ * AsyncStorage-backed persister. Keep this selective: large volatile timelines
+ * make cold-start hydration slower over time and are cheap to refetch after the
+ * first screen is interactive.
  *
  * AsyncStorage is already a native dependency in the shipped binary, and the
  * persist packages are pure-JS, so this ships safely via `eas update`.
  *
- * `CACHE_BUSTER` must be bumped whenever a persisted query's shape changes so
- * stale-shaped entries are dropped instead of rehydrated.
+ * `CACHE_BUSTER` must be bumped whenever a persisted query's shape changes or
+ * when the persistence policy changes so stale/oversized entries are dropped.
  */
-export const CACHE_BUSTER = 'vh-rq-1';
+export const CACHE_BUSTER = 'vh-rq-3';
+
+const VOLATILE_PERSIST_PREFIXES = [
+  'feed',
+  'feed-',
+  'discover-',
+  'highlights',
+  'profile-posts',
+  'profile-replies',
+  'profile-upvotes',
+  'messages',
+  'notifications',
+];
+
+export function shouldPersistQuery(query: {
+  queryKey?: readonly unknown[];
+  state?: { status?: string };
+}) {
+  if (query.state?.status !== 'success') return false;
+  const firstKey = query.queryKey?.[0];
+  if (typeof firstKey !== 'string') return true;
+  return !VOLATILE_PERSIST_PREFIXES.some(prefix => firstKey.startsWith(prefix));
+}
 
 export const asyncStoragePersister = createAsyncStoragePersister({
   storage: AsyncStorage,

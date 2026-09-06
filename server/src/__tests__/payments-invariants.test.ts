@@ -22,6 +22,8 @@ const SRC = join(process.cwd(), 'src');
 const read = (rel: string) => readFileSync(join(SRC, rel), 'utf8');
 
 const payments = read('routes/payments.ts');
+const paymentCheckoutHelpers = read('services/payments/checkoutHelpers.ts');
+const googlePlayVerifier = read('services/payments/googlePlayVerifier.ts');
 const requireOnboarded = read('middleware/requireOnboarded.ts');
 const appleAuth = read('lib/appleAuth.ts');
 const appleNotifDedup = read('lib/appleNotificationDedup.ts');
@@ -109,19 +111,19 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(appleAuth.length).toBeGreaterThan(100);
     });
 
-    it('Apple signedPayload verification failures return retriable 5xx responses', () => {
-      const block =
-        payments.match(/Failed to verify\/decode signedPayload[\s\S]{0,200}/)?.[0] || '';
-      expect(block).toMatch(/sendStatus\(503\)/);
+    it('invalid Apple signatures are rejected before notification processing', () => {
+      expect(payments).toContain('await verifyAppleNotificationJws(signedPayload)');
+      expect(payments).toContain("code: 'INVALID_APPLE_SIGNATURE'");
     });
 
-    it('inner Apple JWS payloads are verified instead of falling back to unverified decode', () => {
-      const block =
-        payments.match(
-          /const verifyInnerJWS = \(token: string\): any => \{[\s\S]{0,2600}?\n\s*\};/
-        )?.[0] || '';
-      expect(block).toMatch(/jwt\.verify\(token, innerKey, \{ algorithms: \['ES256'\] \}\)/);
-      expect(block).not.toMatch(/return jwt\.decode\(token\)/);
+    it('inner Apple JWS payloads use the same trusted verifier', () => {
+      expect(payments).toContain('await verifyAppleSignedJws(data.signedTransactionInfo)');
+      expect(payments).toContain('await verifyAppleRenewalJws(data.signedRenewalInfo)');
+      expect(payments).not.toContain('const verifyInnerJWS');
+      const verifier = read('lib/appleSignedJws.ts');
+      expect(verifier).toContain('new SignedDataVerifier([APPLE_ROOT_CA_G3]');
+      expect(verifier).toContain('verifyAndDecodeTransaction');
+      expect(verifier).toContain('verifyAndDecodeNotification');
     });
   });
 
@@ -167,13 +169,18 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(payments).toMatch(/updateTransactionStatus/);
     });
 
-    it('PaymentIntent ad activation uses a conditional update guard, not an unconditional ad.update', () => {
+    it('PaymentIntent activation carries its purchase identity through the guarded reservation pipeline', () => {
+      const helper =
+        payments.match(/async function activateApprovedAdPaymentIntent[\s\S]{0,2500}?\n\}/)?.[0] ||
+        '';
       const block =
         payments.match(/if \(event\.type === 'payment_intent\.succeeded'\)[\s\S]{0,5000}/)?.[0] ||
         '';
-      expect(block).toMatch(/updateMany\(\{/);
-      expect(block).toMatch(/status:\s*\{\s*in:\s*\['approved', 'active'\]\s*\}/);
-      expect(block).toMatch(/updated\.count === 0/);
+      expect(block).toMatch(/activateApprovedAdPaymentIntent\(tx, adId, piDates, pi.id\)/);
+      expect(helper).toMatch(/!\['approved', 'active', 'archived'\]\.includes\(ad.status\)/);
+      expect(helper).toMatch(/AD_NOT_APPROVED/);
+      expect(helper).toMatch(/reserveAdSlots\(tx/);
+      expect(helper).toMatch(/purchaseReference/);
     });
 
     it('Stripe processing fee is computed and stored per transaction', () => {
@@ -188,7 +195,8 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('web checkout success URLs include the session id and payment type for app handoff', () => {
-      const block = payments.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
+      const block =
+        paymentCheckoutHelpers.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
       expect(block).toMatch(
         /payment-success\?session_id=\{CHECKOUT_SESSION_ID\}&type=\$\{params\.type\}/
       );
@@ -293,7 +301,8 @@ describe('payments & subscriptions — structural invariants', () => {
 
   describe('Google Play purchase identity', () => {
     it('hashes purchase tokens for order_id instead of truncating them', () => {
-      const block = payments.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
+      const block =
+        googlePlayVerifier.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
       expect(block).toMatch(/crypto\.createHash\('sha256'\)/);
       expect(block).toMatch(/google_purchase:/);
     });

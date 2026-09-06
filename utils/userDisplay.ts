@@ -10,20 +10,18 @@ const nonEmpty = (value?: string | null) => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
+/**
+ * The one front-facing identity string for a user. Owner rule: a user is
+ * recognized ONLY by their @username — never a real/government name, email,
+ * Apple ID, or Gmail. So this deliberately ignores display_name and email and
+ * NEVER surfaces them. If there is no username yet (e.g. an OAuth user who
+ * hasn't finished onboarding), fall back to a stable, non-identifying short id
+ * so rows/threads stay distinguishable — but no personal data leaks.
+ */
 export function formatUserLabel(user?: UserLike | null, fallback = 'User') {
-  const displayName = nonEmpty(user?.display_name);
-  if (displayName) return displayName;
-
   const username = nonEmpty(user?.username);
   if (username) return `@${username}`;
 
-  const email = nonEmpty(user?.email);
-  if (email) return email;
-
-  // v1.0.3: if the server returned a user with an id but no display fields
-  // (happens with OAuth users who haven't completed step-2 onboarding), use
-  // a stable short-id rather than the previous "Unknown User" which looked
-  // like a system error and made it impossible to tell threads apart.
   const id = nonEmpty(user?.id);
   if (id) {
     return `User ${id.slice(-4).toUpperCase()}`;

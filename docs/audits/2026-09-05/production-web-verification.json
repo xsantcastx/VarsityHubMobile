@@ -1,0 +1,30 @@
+{
+  "sourceCommit": "e6af820df6498235758d49b924a41fcd8f53e747",
+  "deployment": {
+    "id": "dpl_4cdZGbFZvCrZ9DPnNxCPzV3mqF1W",
+    "url": "varsityhub-lyt7ffbii-emilmancero-devs-projects.vercel.app",
+    "target": "production",
+    "readyState": "READY",
+    "createdAt": 1788625028254,
+    "aliases": ["varsityhub-web-emilmancero-devs-projects.vercel.app"]
+  },
+  "createdAtUtc": "2026-09-05T16:17:08.254000+00:00",
+  "servedConfiguration": {
+    "scriptAssetsChecked": [
+      "https://www.varsityhub.app/_expo/static/js/web/entry-1632ff951a7bb77f211e716eccf61888.js"
+    ],
+    "stripeMatchesProductionApi": true,
+    "sentryMatchesProductionProfile": true,
+    "referencesRelocatedIconAssets": true
+  },
+  "browserChecks": {
+    "cases": 14,
+    "pageErrors": 0,
+    "errorBoundaries": 0,
+    "failedAssets": 0,
+    "attemptedApiWrites": 0,
+    "apiReadCount": 74,
+    "expectedProtectedReads": "Each anonymous Discover visit receives 401 from /teams/managed; all other recorded API reads returned 200."
+  },
+  "deployNotes": "First final upload exited 1 without useful CLI output. No manual replacement existed. Script now prints captured CLI failure output; retry and both explicit aliases succeeded. Only deployment-script diagnostics changed after the app source commit."
+}

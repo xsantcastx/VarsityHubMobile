@@ -3,9 +3,9 @@ import type { ProFixture, ProScheduleAdapter } from './types.js';
 
 /**
  * Routes each league to the sub-adapter that serves it, so one adapter can span
- * sources — ESPN for the four league sports, TheSportsDB for touring WWE. The
- * first sub-adapter that lists a league wins it. Downstream (cron, ingest) sees
- * a single adapter covering every league.
+ * sources — ESPN for scoreboard-backed sports, TheSportsDB for touring WWE.
+ * The first sub-adapter that lists a league wins it. Downstream (cron, ingest)
+ * sees one adapter for the currently configured live sources.
  */
 export function compositeAdapter(subs: ProScheduleAdapter[]): ProScheduleAdapter {
   const byLeague = new Map<ProLeague, ProScheduleAdapter>();

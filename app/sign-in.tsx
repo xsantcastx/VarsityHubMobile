@@ -10,7 +10,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -21,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import PasswordInput from '@/components/PasswordInput';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useExistingSessionActions } from '@/hooks/useExistingSessionActions';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
@@ -567,8 +567,10 @@ export default function SignInScreen() {
 
           {!sessionGuardActive && Platform.OS === 'ios' ? (
             <View
-              pointerEvents={authBusy ? 'none' : 'auto'}
-              style={authBusy ? styles.buttonDisabled : undefined}
+              style={[
+                authBusy ? styles.buttonDisabled : undefined,
+                { pointerEvents: authBusy ? 'none' : 'auto' },
+              ]}
             >
               <AppleAuthenticationButton
                 onPress={handleAppleLogin}

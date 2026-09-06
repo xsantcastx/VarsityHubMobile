@@ -8,10 +8,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  WEEKDAY_BLOCK_PRICE_CENTS,
-  WEEKEND_BLOCK_PRICE_CENTS,
-} from '../utils/adPricing.js';
+import { WEEKDAY_BLOCK_PRICE_CENTS, WEEKEND_BLOCK_PRICE_CENTS } from '../utils/adPricing.js';
 
 const SERVER_ROOT = process.cwd();
 const REPO_ROOT = join(SERVER_ROOT, '..');
@@ -20,6 +17,13 @@ const read = (...parts: string[]) => readFileSync(join(...parts), 'utf8');
 
 const payments = read(SERVER_ROOT, 'src', 'routes', 'payments.ts');
 const paymentInternals = read(SERVER_ROOT, 'src', 'lib', 'paymentInternals.ts');
+const googlePlayVerifier = read(
+  SERVER_ROOT,
+  'src',
+  'services',
+  'payments',
+  'googlePlayVerifier.ts'
+);
 const appleIapReconciliation = read(SERVER_ROOT, 'src', 'lib', 'appleIapReconciliation.ts');
 const adPricing = read(SERVER_ROOT, 'src', 'utils', 'adPricing.ts');
 const env = read(SERVER_ROOT, 'src', 'lib', 'env.ts');
@@ -53,7 +57,9 @@ describe('IAP product configuration invariants', () => {
       /export const APPLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/
     );
     // Google reuses the one canonical Apple map — no second literal that can drift.
-    expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[^\n]*=\s*APPLE_PRODUCT_TO_PLAN/);
+    expect(googlePlayVerifier).toMatch(
+      /export const GOOGLE_PRODUCT_TO_PLAN[^\n]*=\s*APPLE_PRODUCT_TO_PLAN/
+    );
   });
 
   it('reconciliation reverse map is derived by inverting the canonical map (cannot drift)', () => {

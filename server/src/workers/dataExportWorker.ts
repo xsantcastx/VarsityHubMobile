@@ -18,6 +18,8 @@
  */
 
 import type { Job, Worker as WorkerType } from 'bullmq';
+import type { Redis as RedisType } from 'ioredis';
+import { deleteExportObject, EXPORT_RETENTION_DAYS } from '../lib/dataExport/lifecycle.js';
 import type { DataExportJob } from '../jobs/queues.js';
 import { prisma } from '../lib/prisma.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -27,7 +29,7 @@ import { getObjectStorageAdapter, ObjectStorageNotConfiguredError } from '../lib
 
 let worker: WorkerType<DataExportJob> | null = null;
 
-const DATA_EXPORT_RETENTION_DAYS_DEFAULT = 7;
+let connection: RedisType | null = null;
 
 function buildStorageKey(exportId: string, userId: string): string {
   // Path shape: exports/{user_id_first_2}/{user_id}/{export_id}.zip
@@ -41,66 +43,40 @@ function buildStorageKey(exportId: string, userId: string): string {
 /** @internal exported for unit testing; production callers use the Worker wrapper */
 export async function processExportJob(job: Job<DataExportJob>): Promise<void> {
   const { exportId, userId } = job.data;
-  const p = prisma as any;
-
-  // Load and lock via status check — if the row is already past pending,
-  // someone else is handling it (or it was canceled). Idempotent.
-  const row = await p.dataExport.findUnique({ where: { id: exportId } });
-  if (!row) {
-    console.warn('[data-export-worker] Export row missing, skipping job');
-    return;
-  }
-  if (row.user_id !== userId) {
-    // Sanity: job payload disagrees with the row. Refuse to process.
-    await p.dataExport.update({
-      where: { id: exportId },
-      data: { status: 'failed', error_category: 'job_user_mismatch' },
-    });
-    return;
-  }
-  if (row.status !== 'pending') {
-    debugLog(`[data-export-worker] Export ${exportId} already ${row.status}, skipping`);
-    return;
-  }
-
-  // Storage backend check happens BEFORE we flip to building so the user
-  // can retry later once ops fixes env. Distinct from a build failure.
   const storage = getObjectStorageAdapter();
-  if (!storage.isConfigured()) {
-    await p.dataExport.update({
-      where: { id: exportId },
-      data: { status: 'failed', error_category: 'storage_not_configured' },
-    });
-    console.error('[data-export-worker] Storage adapter not configured — failing export');
-    return;
-  }
-
-  await p.dataExport.update({
-    where: { id: exportId },
-    data: { status: 'building', started_at: new Date() },
+  const storageKey = buildStorageKey(exportId, userId);
+  const startedAt = new Date();
+  // Atomic claim: only one delivery may build. Mismatched payloads must not
+  // mutate another user's row, and canceled/completed rows stay terminal.
+  const claimed = await prisma.dataExport.updateMany({
+    where: { id: exportId, user_id: userId, status: 'pending' },
+    data: storage.isConfigured()
+      ? { status: 'building', started_at: startedAt, storage_key: storageKey }
+      : { status: 'failed', error_category: 'storage_not_configured' },
   });
+  if (!claimed.count || !storage.isConfigured()) return;
 
   try {
     const { zipBuffer, sizeBytes, domainsIncluded, domainsFailed } =
       await buildUserDataExportArchive(userId);
 
-    const storageKey = buildStorageKey(exportId, userId);
+    if (domainsFailed.length) throw new Error('Incomplete export archive');
     await storage.putObject(storageKey, zipBuffer, 'application/zip');
 
-    const retentionDays =
-      Number(process.env.DATA_EXPORT_RETENTION_DAYS) || DATA_EXPORT_RETENTION_DAYS_DEFAULT;
-    const expiresAt = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
-
-    await p.dataExport.update({
-      where: { id: exportId },
+    const published = await prisma.dataExport.updateMany({
+      where: { id: exportId, user_id: userId, status: 'building', started_at: startedAt },
       data: {
         status: 'ready',
         storage_key: storageKey,
         size_bytes: sizeBytes,
         completed_at: new Date(),
-        expires_at: expiresAt,
+        expires_at: new Date(Date.now() + EXPORT_RETENTION_DAYS * 24 * 60 * 60 * 1000),
       },
     });
+    if (!published.count) {
+      await deleteExportObject(exportId, storageKey);
+      return;
+    }
 
     console.log(
       `[data-export-worker] Export ready: bytes=${sizeBytes} domains=${domainsIncluded.length} failed=${domainsFailed.length}`
@@ -121,9 +97,9 @@ export async function processExportJob(job: Job<DataExportJob>): Promise<void> {
       errorCategory = 'storage_5xx';
     }
 
-    await p.dataExport
-      .update({
-        where: { id: exportId },
+    await prisma.dataExport
+      .updateMany({
+        where: { id: exportId, user_id: userId, status: 'building', started_at: startedAt },
         data: { status: 'failed', error_category: errorCategory },
       })
       .catch((nestedErr: any) => {
@@ -135,6 +111,8 @@ export async function processExportJob(job: Job<DataExportJob>): Promise<void> {
         });
       });
 
+    await deleteExportObject(exportId, storageKey);
+
     // Also send the original error to Sentry so we get stack traces in
     // aggregate. Keep the DB row PII-safe.
     captureException(err instanceof Error ? err : new Error(String(err)), {
@@ -145,6 +123,7 @@ export async function processExportJob(job: Job<DataExportJob>): Promise<void> {
 
 export async function startDataExportWorker(): Promise<void> {
   const redisUrl = process.env.REDIS_URL;
+  if (worker || !getObjectStorageAdapter().isConfigured()) return;
   if (!redisUrl) {
     debugLog('[data-export-worker] No REDIS_URL configured, worker not started');
     return;
@@ -153,8 +132,8 @@ export async function startDataExportWorker(): Promise<void> {
   try {
     const { default: Redis } = await import('ioredis');
     const { Worker } = await import('bullmq');
-    const RedisCtor = Redis as unknown as new (url: string, options?: any) => any;
-    const connection = new RedisCtor(redisUrl, {
+    const RedisCtor = Redis as unknown as new (url: string, options?: any) => RedisType;
+    connection = new RedisCtor(redisUrl, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
     });
@@ -185,8 +164,10 @@ export async function startDataExportWorker(): Promise<void> {
       console.error('[data-export-worker] Worker error:', err);
     });
 
+    await worker.waitUntilReady();
     debugLog('[data-export-worker] Started and listening for jobs');
   } catch (error) {
+    await stopDataExportWorker();
     console.error('[data-export-worker] Failed to start:', error);
     captureException(error instanceof Error ? error : new Error(String(error)), {
       extra: { context: 'data_export_worker_start_failed' },
@@ -199,5 +180,9 @@ export async function stopDataExportWorker(): Promise<void> {
     await worker.close();
     worker = null;
     debugLog('[data-export-worker] Stopped');
+  }
+  if (connection) {
+    connection.disconnect();
+    connection = null;
   }
 }

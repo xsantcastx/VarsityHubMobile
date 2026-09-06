@@ -8,6 +8,7 @@ import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { buildEventDetailRoute } from '@/utils/eventRoutes';
 import { safeGoBack } from '@/utils/navigation';
+import { buildPostGridViewerState, unwrapPostGridItem } from '@/utils/postGridViewer';
 import { useProgramScreenSummary } from '@/hooks/useProgramScreenSummary';
 import { buildProgramSubTeams } from '@/constants/programs';
 import { getGradientForColor } from '@/utils/theme';
@@ -17,7 +18,15 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ComponentType,
+  ReactElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -124,7 +133,7 @@ const toFeedPost = (item: any): FeedPost | null => {
     author: item?.author
       ? {
           id: String(item.author.id ?? item.author.user_id ?? id),
-          username: item.author.username ?? item.author.display_name ?? null,
+          username: item.author.username ?? null,
           display_name: (item.author as any).display_name ?? null,
           avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
         }
@@ -418,6 +427,15 @@ function TeamScreen() {
   // sub-teams. State + count come from the program screen-summary (ProgramFollow-
   // based), not the single opened sub-team. A lone team keeps the team-follow path.
   const programId = team?.program_id ?? null;
+  // Team data arrives before its program summary. Until the summary resolves,
+  // we cannot choose between a whole-sport follow and a lone-team follow.
+  // Cached data for this program key remains usable during background refresh.
+  const programFollowDataReady =
+    programQuery.data?.program?.id === programId && Array.isArray(programQuery.data?.levels);
+  const followContextLoading =
+    Boolean(programId) && !programFollowDataReady && programQuery.isPending;
+  const followContextError =
+    Boolean(programId) && !programFollowDataReady && !programQuery.isPending;
   const [programIsFollowing, setProgramIsFollowing] = useState(false);
   useEffect(() => {
     if (isProgramTeam && programQuery.data?.program) {
@@ -514,12 +532,134 @@ function TeamScreen() {
     }
   }, [upvotesHasMore, upvotesLoading, team?.id]);
 
-  const unwrapPost = useCallback(
-    (item: PostItem | { post?: PostItem; target?: PostItem | { post?: PostItem } }) => {
-      const postItem = item as any; // Complex nested structure from interactions
-      return postItem?.post || postItem?.target?.post || postItem?.target || item;
+  const openPostGridViewer = useCallback(
+    (sourceItems: any[], index: number, unwrapSource: boolean) => {
+      const state = buildPostGridViewerState(sourceItems, index, unwrapSource, toFeedPost);
+      setViewerItems(state.items);
+      setViewerIndex(state.index);
+      setViewerOpen(true);
     },
     []
+  );
+
+  const renderPostGridTile = useCallback(
+    ({
+      item,
+      index,
+      sourceItems,
+      unwrapSource = false,
+    }: {
+      item: any;
+      index: number;
+      sourceItems: any[];
+      unwrapSource?: boolean;
+    }) => {
+      const postItem = unwrapSource ? unwrapPostGridItem(item) : item;
+      const media = resolvePostMedia(postItem);
+      const likes = postItem?.upvotes_count ?? 0;
+      const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+
+      return (
+        <Pressable
+          style={[styles.gridItem, { backgroundColor: theme.card }]}
+          onPress={() => openPostGridViewer(sourceItems, index, unwrapSource)}
+        >
+          {media.hasMedia ? (
+            <View style={styles.gridImageContainer}>
+              {media.displayImageUrl ? (
+                <Image
+                  source={{ uri: optimizeImageUrl(media.displayImageUrl, 500) }}
+                  style={styles.gridImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[styles.gridImage, styles.gridImageFallback]}>
+                  <LinearGradient
+                    colors={['#0f172a', '#1e293b']}
+                    style={StyleSheet.absoluteFillObject as any}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  />
+                  <Ionicons name="play-circle" size={34} color="#fff" />
+                </View>
+              )}
+              <View style={styles.gridImageOverlay} />
+            </View>
+          ) : (
+            <View style={[styles.gridImage, styles.gridImageFallback]}>
+              <LinearGradient
+                colors={['#667eea', '#764ba2', '#f093fb']}
+                style={StyleSheet.absoluteFillObject as any}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              <View style={styles.textPostOverlay}>
+                <Text numberOfLines={4} style={styles.gridTextOnly}>
+                  {String(postItem?.caption || postItem?.content || '').trim() || 'Post'}
+                </Text>
+              </View>
+            </View>
+          )}
+          <View style={styles.gridCounts}>
+            <View style={styles.gridCountItem}>
+              <Ionicons name="arrow-up" size={12} color="#fff" />
+              <Text style={styles.gridCountText}>{likes}</Text>
+            </View>
+            <View style={styles.gridCountItem}>
+              <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+              <Text style={styles.gridCountText}>{comments}</Text>
+            </View>
+          </View>
+          <View style={styles.gridIconBadge}>
+            <Ionicons
+              name={
+                media.hasMedia ? (media.isVideo ? 'play-circle-outline' : 'camera-outline') : 'text'
+              }
+              size={14}
+              color="#fff"
+            />
+          </View>
+        </Pressable>
+      );
+    },
+    [openPostGridViewer, theme.card]
+  );
+
+  const renderPostGridList = ({
+    data,
+    keyPrefix,
+    keyExtractor,
+    emptyComponent,
+    onEndReached,
+    loading,
+    unwrapItems = false,
+  }: {
+    data: any[];
+    keyPrefix: string;
+    keyExtractor: (item: any, index: number) => string;
+    emptyComponent: ComponentType<any> | ReactElement | null;
+    onEndReached: () => void;
+    loading: boolean;
+    unwrapItems?: boolean;
+  }) => (
+    <FlatList
+      data={data}
+      key={`${keyPrefix}-grid-2cols`}
+      numColumns={2}
+      columnWrapperStyle={styles.gridRow}
+      keyExtractor={keyExtractor}
+      ListHeaderComponent={renderHeader}
+      ListEmptyComponent={emptyComponent}
+      contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
+      onEndReachedThreshold={0.5}
+      onEndReached={onEndReached}
+      renderItem={({ item, index }) =>
+        renderPostGridTile({ item, index, sourceItems: data, unwrapSource: unwrapItems })
+      }
+      ListFooterComponent={
+        loading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
+      }
+    />
   );
 
   // Get header background (teams don't have preferences field yet, so no custom header image)
@@ -569,10 +709,9 @@ function TeamScreen() {
         {/* Dark scrim at the bottom of the header for text readability */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.55)']}
-          style={styles.headerGradient}
+          style={[styles.headerGradient, { pointerEvents: 'none' }]}
           start={{ x: 0, y: 0.3 }}
           end={{ x: 0, y: 1 }}
-          pointerEvents="none"
         />
 
         {/* Back Button - Top Left */}
@@ -694,25 +833,38 @@ function TeamScreen() {
                     backgroundColor: effectiveFollowing ? '#10B981' : '#FFD600',
                     borderWidth: 0,
                   },
-                  followLoading && { opacity: 0.5 },
+                  (followLoading || followContextLoading) && { opacity: 0.5 },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={
-                  effectiveFollowing
-                    ? isProgramTeam
-                      ? 'Unfollow sport'
-                      : 'Unfollow team'
-                    : isProgramTeam
-                      ? 'Follow sport'
-                      : 'Follow team'
+                  followContextLoading
+                    ? 'Loading follow status'
+                    : followContextError
+                      ? 'Retry follow status'
+                      : effectiveFollowing
+                        ? isProgramTeam
+                          ? 'Unfollow sport'
+                          : 'Unfollow team'
+                        : isProgramTeam
+                          ? 'Follow sport'
+                          : 'Follow team'
                 }
-                disabled={followLoading}
+                disabled={followLoading || followContextLoading}
                 onPress={async () => {
-                  if (!team?.id || team.id.startsWith('temp-') || followLoading) {
+                  if (
+                    !team?.id ||
+                    team.id.startsWith('temp-') ||
+                    followLoading ||
+                    followContextLoading
+                  ) {
                     return;
                   }
                   if (!currentUser) {
                     router.push('/sign-in' as any);
+                    return;
+                  }
+                  if (followContextError) {
+                    void programQuery.refetch();
                     return;
                   }
                   // Program team → follow the whole SPORT. Program.follow fans out
@@ -798,7 +950,11 @@ function TeamScreen() {
                   }
                 }}
               >
-                {effectiveFollowing ? (
+                {followContextLoading || followLoading ? (
+                  <ActivityIndicator size="small" color="#1A1A1A" />
+                ) : followContextError ? (
+                  <Ionicons name="refresh" size={18} color="#1A1A1A" />
+                ) : effectiveFollowing ? (
                   // audit: fixed white on the fixed green button (theme-independent bg)
                   <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                 ) : (
@@ -810,6 +966,15 @@ function TeamScreen() {
             )}
           </View>
         </View>
+
+        {followContextError && !isTeamAdmin ? (
+          <Text
+            accessibilityRole="alert"
+            style={{ color: theme.text, paddingHorizontal: 16, marginBottom: 8 }}
+          >
+            Could not load follow status. Tap to retry.
+          </Text>
+        ) : null}
 
         {/* Team Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
@@ -1112,304 +1277,40 @@ function TeamScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: team?.name || 'Team', headerShown: false }} />
       {activeTab === 'posts' ? (
-        <FlatList
-          data={posts}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={item => item.id}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedPosts}
-          renderItem={({ item, index }) => {
-            const media = resolvePostMedia(item);
-            const likes = item.upvotes_count ?? 0;
-            const comments = item.comments_count ?? item?._count?.comments ?? 0;
-            return (
-              <Pressable
-                style={[styles.gridItem, { backgroundColor: theme.card }]}
-                onPress={() => {
-                  const mapped = (posts || []).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = mapped[index]?.id;
-                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {media.hasMedia ? (
-                  <View style={styles.gridImageContainer}>
-                    {media.displayImageUrl ? (
-                      <Image
-                        source={{ uri: optimizeImageUrl(media.displayImageUrl, 500) }}
-                        style={styles.gridImage}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <View style={[styles.gridImage, styles.gridImageFallback]}>
-                        <LinearGradient
-                          colors={['#0f172a', '#1e293b']}
-                          style={StyleSheet.absoluteFillObject as any}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                        />
-                        <Ionicons name="play-circle" size={34} color="#fff" />
-                      </View>
-                    )}
-                    <View style={styles.gridImageOverlay} />
-                  </View>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient
-                      colors={['#667eea', '#764ba2', '#f093fb']}
-                      style={StyleSheet.absoluteFillObject as any}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>
-                        {String(item.caption || item.content || '').trim() || 'Post'}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                <View style={styles.gridIconBadge}>
-                  <Ionicons
-                    name={
-                      media.hasMedia
-                        ? media.isVideo
-                          ? 'play-circle-outline'
-                          : 'camera-outline'
-                        : 'text'
-                    }
-                    size={14}
-                    color="#fff"
-                  />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={
-            postsLoading ? (
-              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
-            ) : null
-          }
-        />
+        renderPostGridList({
+          data: posts,
+          keyPrefix: activeTab,
+          keyExtractor: item => item.id,
+          emptyComponent: renderEmptyPosts,
+          onEndReached: onEndReachedPosts,
+          loading: postsLoading,
+        })
       ) : activeTab === 'replies' ? (
-        <FlatList
-          data={replies}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => {
-            const postItem = unwrapPost(item);
+        renderPostGridList({
+          data: replies,
+          keyPrefix: activeTab,
+          keyExtractor: (item, index) => {
+            const postItem = unwrapPostGridItem(item);
             return postItem?.id ?? item?.id ?? `reply-${index}`;
-          }}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyReplies}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedReplies}
-          renderItem={({ item, index }) => {
-            const postItem = unwrapPost(item);
-            const media = resolvePostMedia(postItem);
-            const likes = postItem?.upvotes_count ?? 0;
-            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-            return (
-              <Pressable
-                style={[styles.gridItem, { backgroundColor: theme.card }]}
-                onPress={() => {
-                  const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = unwrapPost(replies[index])?.id;
-                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {media.hasMedia ? (
-                  <View style={styles.gridImageContainer}>
-                    {media.displayImageUrl ? (
-                      <Image
-                        source={{ uri: optimizeImageUrl(media.displayImageUrl, 500) }}
-                        style={styles.gridImage}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <View style={[styles.gridImage, styles.gridImageFallback]}>
-                        <LinearGradient
-                          colors={['#0f172a', '#1e293b']}
-                          style={StyleSheet.absoluteFillObject as any}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                        />
-                        <Ionicons name="play-circle" size={34} color="#fff" />
-                      </View>
-                    )}
-                    <View style={styles.gridImageOverlay} />
-                  </View>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient
-                      colors={['#667eea', '#764ba2', '#f093fb']}
-                      style={StyleSheet.absoluteFillObject as any}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>
-                        {String(postItem?.caption || postItem?.content || '').trim() || 'Post'}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                <View style={styles.gridIconBadge}>
-                  <Ionicons
-                    name={
-                      media.hasMedia
-                        ? media.isVideo
-                          ? 'play-circle-outline'
-                          : 'camera-outline'
-                        : 'text'
-                    }
-                    size={14}
-                    color="#fff"
-                  />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={
-            repliesLoading ? (
-              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
-            ) : null
-          }
-        />
+          },
+          emptyComponent: renderEmptyReplies,
+          onEndReached: onEndReachedReplies,
+          loading: repliesLoading,
+          unwrapItems: true,
+        })
       ) : activeTab === 'upvotes' ? (
-        <FlatList
-          data={upvotes}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => {
-            const postItem = unwrapPost(item);
+        renderPostGridList({
+          data: upvotes,
+          keyPrefix: activeTab,
+          keyExtractor: (item, index) => {
+            const postItem = unwrapPostGridItem(item);
             return postItem?.id ?? item?.id ?? `upvote-${index}`;
-          }}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyUpvotes}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedUpvotes}
-          renderItem={({ item, index }) => {
-            const postItem = unwrapPost(item);
-            const media = resolvePostMedia(postItem);
-            const likes = postItem?.upvotes_count ?? 0;
-            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-            return (
-              <Pressable
-                style={[styles.gridItem, { backgroundColor: theme.card }]}
-                onPress={() => {
-                  const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = unwrapPost(upvotes[index])?.id;
-                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {media.hasMedia ? (
-                  <View style={styles.gridImageContainer}>
-                    {media.displayImageUrl ? (
-                      <Image
-                        source={{ uri: optimizeImageUrl(media.displayImageUrl, 500) }}
-                        style={styles.gridImage}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <View style={[styles.gridImage, styles.gridImageFallback]}>
-                        <LinearGradient
-                          colors={['#0f172a', '#1e293b']}
-                          style={StyleSheet.absoluteFillObject as any}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                        />
-                        <Ionicons name="play-circle" size={34} color="#fff" />
-                      </View>
-                    )}
-                    <View style={styles.gridImageOverlay} />
-                  </View>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient
-                      colors={['#667eea', '#764ba2', '#f093fb']}
-                      style={StyleSheet.absoluteFillObject as any}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>
-                        {String(postItem?.caption || postItem?.content || '').trim() || 'Post'}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                <View style={styles.gridIconBadge}>
-                  <Ionicons
-                    name={
-                      media.hasMedia
-                        ? media.isVideo
-                          ? 'play-circle-outline'
-                          : 'camera-outline'
-                        : 'text'
-                    }
-                    size={14}
-                    color="#fff"
-                  />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={
-            upvotesLoading ? (
-              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
-            ) : null
-          }
-        />
+          },
+          emptyComponent: renderEmptyUpvotes,
+          onEndReached: onEndReachedUpvotes,
+          loading: upvotesLoading,
+          unwrapItems: true,
+        })
       ) : (
         <FlatList
           data={[...eventsGames].sort((a, b) => {
@@ -1527,23 +1428,25 @@ function TeamScreen() {
         />
       )}
 
-      <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
-        <GameVerticalFeedScreen
-          onClose={() => setViewerOpen(false)}
-          showHeader
-          initialPosts={viewerItems}
-          startIndex={viewerIndex}
-          title={
-            activeTab === 'posts'
-              ? 'Team posts'
-              : activeTab === 'replies'
-                ? 'Team replies'
-                : activeTab === 'upvotes'
-                  ? 'Team upvotes'
-                  : 'Team events'
-          }
-        />
-      </Modal>
+      {viewerOpen ? (
+        <Modal visible animationType="slide" onRequestClose={() => setViewerOpen(false)}>
+          <GameVerticalFeedScreen
+            onClose={() => setViewerOpen(false)}
+            showHeader
+            initialPosts={viewerItems}
+            startIndex={viewerIndex}
+            title={
+              activeTab === 'posts'
+                ? 'Team posts'
+                : activeTab === 'replies'
+                  ? 'Team replies'
+                  : activeTab === 'upvotes'
+                    ? 'Team upvotes'
+                    : 'Team events'
+            }
+          />
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }

@@ -1,14 +1,15 @@
 import type { ProLeague } from '@prisma/client';
 import { geocodeVenue, type GeocodeFn } from './geocodeVenue.js';
 import { resolveProTeamRef } from './resolveProTeamRef.js';
-import type { ProFixture, ProScheduleAdapter } from './types.js';
+import type { ProFixture, ProScheduleAdapter, ProviderTeam } from './types.js';
+import { isNcaaLeague } from './types.js';
 
 /**
  * ESPN public scoreboard adapter.
  *
- * Covers the four league sports ESPN serves (NFL/NBA/WNBA/MLB) via one
- * date-range call per league. WWE is a touring promotion ESPN does not carry —
- * it is intentionally excluded and needs its own source.
+ * Covers ESPN-backed pro and major NCAA league sports via one date-range call
+ * per league. WWE is a touring promotion ESPN does not carry — it is
+ * intentionally excluded and needs its own source.
  *
  * ESPN provides no venue coordinates. For a HOME game that is fine —
  * resolveFixture falls back to the home team's seeded stadium. But a
@@ -23,19 +24,59 @@ const ESPN_PATH: Partial<Record<ProLeague, string>> = {
   nba: 'basketball/nba',
   wnba: 'basketball/wnba',
   mlb: 'baseball/mlb',
+  atp: 'tennis/atp',
+  wta: 'tennis/wta',
+  ncaaf: 'football/college-football',
+  ncaamb: 'basketball/mens-college-basketball',
+  ncaawb: 'basketball/womens-college-basketball',
+  ncaabaseball: 'baseball/college-baseball',
+  ncaamhockey: 'hockey/mens-college-hockey',
 };
 
 export const ESPN_LEAGUES = Object.keys(ESPN_PATH) as ProLeague[];
 
-type EspnCompetitor = { homeAway: 'home' | 'away'; team?: { displayName?: string } };
+type EspnTeam = {
+  id?: string;
+  displayName?: string;
+  shortDisplayName?: string;
+  abbreviation?: string;
+  location?: string;
+  name?: string;
+  color?: string;
+};
+type EspnCompetitor = { homeAway: 'home' | 'away'; team?: EspnTeam };
+type EspnTennisCompetitor = {
+  homeAway?: 'home' | 'away';
+  athlete?: { displayName?: string; shortName?: string };
+  roster?: { displayName?: string; shortDisplayName?: string };
+};
 type EspnEvent = {
   id: string;
   date: string;
+  endDate?: string;
+  name?: string;
+  shortName?: string;
+  venue?: { displayName?: string };
+  groupings?: Array<{
+    grouping?: { slug?: string; displayName?: string };
+    competitions?: EspnTennisCompetition[];
+  }>;
   competitions?: Array<{
     venue?: { fullName?: string; address?: { city?: string; state?: string; country?: string } };
     status?: { type?: { name?: string } };
     competitors?: EspnCompetitor[];
   }>;
+};
+type EspnTennisCompetition = {
+  id: string;
+  date?: string;
+  startDate?: string;
+  timeValid?: boolean;
+  venue?: { fullName?: string; court?: string };
+  status?: { type?: { name?: string } };
+  competitors?: EspnTennisCompetitor[];
+  type?: { text?: string; slug?: string };
+  round?: { displayName?: string };
 };
 
 /** A parsed fixture before geocoding; `_geocodeQuery` is set only for neutral-site games. */
@@ -54,6 +95,227 @@ function mapStatus(name?: string): ProFixture['status'] {
   return 'scheduled';
 }
 
+function normalizeColor(color?: string): string | null {
+  if (!color) return null;
+  const trimmed = color.trim().replace(/^#/, '');
+  return /^[0-9a-f]{6}$/i.test(trimmed) ? `#${trimmed}` : null;
+}
+
+function varchar(value: string | null | undefined, max: number): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.length > max ? trimmed.slice(0, max) : trimmed;
+}
+
+function ncaaTeamRef(league: ProLeague, team?: EspnTeam | null): string | null {
+  if (!team?.id) return null;
+  return `${league}:espn-${team.id}`;
+}
+
+function providerTeam(league: ProLeague, team?: EspnTeam | null): ProviderTeam | null {
+  const externalRef = ncaaTeamRef(league, team);
+  if (!externalRef || !team?.displayName) return null;
+  return {
+    external_ref: externalRef,
+    league,
+    name: varchar(team.displayName, 120) ?? externalRef,
+    short_name: varchar(team.shortDisplayName || team.name || team.displayName, 60) ?? externalRef,
+    abbreviation: varchar(team.abbreviation, 8),
+    city: varchar(team.location, 100),
+    state: null,
+    conference: null,
+    division: null,
+    venue_name: null,
+    venue_address: null,
+    venue_lat: null,
+    venue_lng: null,
+    timezone: null,
+    primary_color: normalizeColor(team.color),
+  };
+}
+
+function tennisCompetitorName(competitor?: EspnTennisCompetitor | null): string | null {
+  return (
+    varchar(
+      competitor?.athlete?.displayName ||
+        competitor?.athlete?.shortName ||
+        competitor?.roster?.displayName ||
+        competitor?.roster?.shortDisplayName,
+      120
+    ) ?? null
+  );
+}
+
+const TENNIS_TOURNAMENT_VENUES: Record<
+  string,
+  {
+    venue_name: string;
+    venue_address: string;
+    venue_lat: number;
+    venue_lng: number;
+    timezone: string;
+  }
+> = {
+  'us open': {
+    venue_name: 'USTA Billie Jean King National Tennis Center',
+    venue_address: 'Flushing Meadows Corona Park, Queens, NY 11368',
+    venue_lat: 40.7499,
+    venue_lng: -73.8476,
+    timezone: 'America/New_York',
+  },
+  'winston-salem open': {
+    venue_name: 'Wake Forest Tennis Complex',
+    venue_address: '100 W 32nd St, Winston-Salem, NC 27105',
+    venue_lat: 36.1302,
+    venue_lng: -80.2548,
+    timezone: 'America/New_York',
+  },
+};
+
+function tennisVenueFor(event: EspnEvent) {
+  const key = (event.name || event.shortName || '').trim().toLowerCase();
+  return TENNIS_TOURNAMENT_VENUES[key] ?? null;
+}
+
+function tennisDrawMatchesLeague(league: ProLeague, drawSlug?: string | null): boolean {
+  const slug = (drawSlug ?? '').toLowerCase();
+  if (league === 'atp') return slug.startsWith('mens-');
+  if (league === 'wta') return slug.startsWith('womens-');
+  return false;
+}
+
+function tennisTitle(event: EspnEvent, competition: EspnTennisCompetition): string | null {
+  const home = tennisCompetitorName(
+    competition.competitors?.find(c => c.homeAway === 'home') ?? null
+  );
+  const away = tennisCompetitorName(
+    competition.competitors?.find(c => c.homeAway === 'away') ?? null
+  );
+  const tournament = varchar(event.shortName || event.name, 80);
+  if (home && away && home !== 'TBD' && away !== 'TBD') {
+    return tournament ? `${away} vs ${home} - ${tournament}` : `${away} vs ${home}`;
+  }
+  return null;
+}
+
+function timeZoneParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const value = (type: string) => Number(parts.find(part => part.type === type)?.value);
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+    hour: value('hour') % 24,
+    minute: value('minute'),
+    second: value('second'),
+  };
+}
+
+function timeZoneOffsetMs(date: Date, timeZone: string): number {
+  const parts = timeZoneParts(date, timeZone);
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
+  );
+  return asUtc - date.getTime();
+}
+
+function utcDateForTimeZone(
+  timeZone: string,
+  parts: { year: number; month: number; day: number; hour: number }
+): Date {
+  const firstPass = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour));
+  const offset = timeZoneOffsetMs(firstPass, timeZone);
+  return new Date(firstPass.getTime() - offset);
+}
+
+function tennisWindowKey(startsAt: Date, timeZone: string) {
+  const parts = timeZoneParts(startsAt, timeZone);
+  const windowStartHour = parts.hour < 12 ? 0 : 12;
+  const windowStart = utcDateForTimeZone(timeZone, { ...parts, hour: windowStartHour });
+  const dateKey = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(
+    parts.day
+  ).padStart(2, '0')}`;
+  const label = windowStartHour === 0 ? '12 AM-12 PM' : '12 PM-12 AM';
+  return { dateKey, label, windowStartHour, windowStart };
+}
+
+function tennisWindowTitle(event: EspnEvent, league: ProLeague, dateKey: string, label: string) {
+  const tournament = varchar(event.shortName || event.name, 80);
+  const leagueLabel = league.toUpperCase();
+  return tournament
+    ? `${tournament} ${leagueLabel} ${dateKey} ${label}`
+    : `${leagueLabel} Tennis ${dateKey} ${label}`;
+}
+
+function parseTennisScoreboard(
+  league: ProLeague,
+  raw: unknown,
+  from: Date,
+  to: Date
+): EspnPreGeocode[] {
+  const events = (raw as { events?: EspnEvent[] })?.events;
+  if (!Array.isArray(events)) throw new Error('[espn] Invalid scoreboard: expected events array');
+
+  const buckets = new Map<string, EspnPreGeocode & { hasScheduled: boolean }>();
+  for (const event of events) {
+    const venue = tennisVenueFor(event);
+    if (!venue) continue;
+    for (const grouping of event.groupings ?? []) {
+      if (!tennisDrawMatchesLeague(league, grouping.grouping?.slug)) continue;
+      for (const competition of grouping.competitions ?? []) {
+        const startsAt = new Date(competition.startDate || competition.date || event.date);
+        if (Number.isNaN(startsAt.getTime())) continue;
+        if (startsAt < from || startsAt > to) continue;
+        const title = tennisTitle(event, competition);
+        if (!title) continue;
+        const window = tennisWindowKey(startsAt, venue.timezone);
+        const status = mapStatus(competition.status?.type?.name);
+        const externalRef = `${league}:${event.id}:${window.dateKey}:h${window.windowStartHour}`;
+        const existing = buckets.get(externalRef);
+        if (existing) {
+          existing.hasScheduled = existing.hasScheduled || status === 'scheduled';
+          existing.status = existing.hasScheduled ? 'scheduled' : existing.status;
+          continue;
+        }
+        buckets.set(externalRef, {
+          external_ref: externalRef,
+          league,
+          starts_at: window.windowStart,
+          home_team_ref: null,
+          away_team_ref: null,
+          home_team: null,
+          away_team: null,
+          title: tennisWindowTitle(event, league, window.dateKey, window.label),
+          venue_name: venue.venue_name,
+          venue_address: venue.venue_address,
+          venue_lat: venue.venue_lat,
+          venue_lng: venue.venue_lng,
+          timezone: venue.timezone,
+          venue_is_neutral: false,
+          status,
+          _geocodeQuery: null,
+          hasScheduled: status === 'scheduled',
+        });
+      }
+    }
+  }
+  return [...buckets.values()].map(({ hasScheduled: _hasScheduled, ...fixture }) => fixture);
+}
+
 /** UTC yyyymmdd for ESPN's `dates=START-END` range param. */
 function yyyymmdd(d: Date): string {
   return d.toISOString().slice(0, 10).replace(/-/g, '');
@@ -65,8 +327,10 @@ export function parseScoreboard(
   from: Date,
   to: Date
 ): EspnPreGeocode[] {
+  if (league === 'atp' || league === 'wta') return parseTennisScoreboard(league, raw, from, to);
+
   const events = (raw as { events?: EspnEvent[] })?.events;
-  if (!Array.isArray(events)) return [];
+  if (!Array.isArray(events)) throw new Error('[espn] Invalid scoreboard: expected events array');
 
   const out: EspnPreGeocode[] = [];
   for (const e of events) {
@@ -76,10 +340,13 @@ export function parseScoreboard(
     if (Number.isNaN(startsAt.getTime())) continue;
     if (startsAt < from || startsAt > to) continue;
 
-    const home = comp.competitors?.find(c => c.homeAway === 'home')?.team?.displayName ?? null;
-    const away = comp.competitors?.find(c => c.homeAway === 'away')?.team?.displayName ?? null;
-    const homeRef = resolveProTeamRef(league, home);
-    const awayRef = resolveProTeamRef(league, away);
+    const homeTeam = comp.competitors?.find(c => c.homeAway === 'home')?.team ?? null;
+    const awayTeam = comp.competitors?.find(c => c.homeAway === 'away')?.team ?? null;
+    const home = homeTeam?.displayName ?? null;
+    const away = awayTeam?.displayName ?? null;
+    const collegeLeague = isNcaaLeague(league);
+    const homeRef = collegeLeague ? ncaaTeamRef(league, homeTeam) : resolveProTeamRef(league, home);
+    const awayRef = collegeLeague ? ncaaTeamRef(league, awayTeam) : resolveProTeamRef(league, away);
 
     const venueName = comp.venue?.fullName ?? null;
     const addr = comp.venue?.address ?? {};
@@ -95,9 +362,16 @@ export function parseScoreboard(
     const country = (addr.country ?? '').trim();
     const DOMESTIC = new Set(['usa', 'us', 'united states']);
     const isNeutral = country.length > 0 && !DOMESTIC.has(country.toLowerCase());
-    const geocodeQuery = isNeutral
-      ? [venueName, addr.city, addr.state, country].filter(Boolean).join(', ')
-      : null;
+    // Pro leagues have seeded home venues, so ordinary domestic games can
+    // inherit the home team's geofence. NCAA teams are provider-created and do
+    // not have seeded stadium coordinates, so their fixture venue must be
+    // geocoded before ingest can publish the event.
+    const shouldGeocodeVenue = isNeutral || collegeLeague;
+    const venueAddress = [addr.city, addr.state, country].filter(Boolean).join(', ') || null;
+    const geocodeQuery =
+      shouldGeocodeVenue && venueName
+        ? [venueName, addr.city, addr.state, country].filter(Boolean).join(', ')
+        : null;
 
     out.push({
       external_ref: `${league}:${e.id}`,
@@ -105,8 +379,11 @@ export function parseScoreboard(
       starts_at: startsAt,
       home_team_ref: homeRef,
       away_team_ref: awayRef,
+      home_team: collegeLeague ? providerTeam(league, homeTeam) : null,
+      away_team: collegeLeague ? providerTeam(league, awayTeam) : null,
       title: null, // resolveFixture derives "Away at Home" from short names
       venue_name: venueName,
+      venue_address: venueAddress,
       venue_lat: null,
       venue_lng: null,
       venue_is_neutral: isNeutral,
@@ -125,10 +402,17 @@ export function espnAdapter(geocode: GeocodeFn = geocodeVenue): EspnAdapter {
     async fetchFixtures(league: ProLeague, from: Date, to: Date): Promise<ProFixture[]> {
       const path = ESPN_PATH[league];
       if (!path) return []; // e.g. WWE — not served by ESPN
-      const url =
+      const rangedUrl =
         `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard` +
         `?dates=${yyyymmdd(from)}-${yyyymmdd(to)}&limit=1000`;
-      const res = await fetch(url);
+      let res = await fetch(rangedUrl, { signal: AbortSignal.timeout(30_000) });
+      let url = rangedUrl;
+      if (!res.ok && (league === 'ncaamb' || league === 'ncaawb')) {
+        // ESPN's college basketball site API returns 404 for some preseason
+        // date ranges while the undated scoreboard returns the next slate.
+        url = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard?limit=1000`;
+        res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      }
       if (!res.ok) throw new Error(`[espn] ${res.status} for ${league} (${url})`);
       const parsed = parseScoreboard(league, await res.json(), from, to);
 

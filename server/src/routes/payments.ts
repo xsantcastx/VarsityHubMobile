@@ -1,3 +1,17 @@
+import {
+  AdIntentError,
+  createAdPurchaseIntent,
+  listAdPurchaseIntents,
+  recordAdPurchaseReceipt,
+  reconcileReadyAdPurchases,
+  reviseAdPurchaseIntentDates,
+} from '../lib/adPurchaseIntents.js';
+import {
+  verifyAppleSignedJws,
+  verifyAppleNotificationJws,
+  verifyAppleRenewalJws,
+} from '../lib/appleSignedJws.js';
+import { releaseAdPurchaseHolds } from '../lib/adInventory.js';
 import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import expressPkg, { Router, type Response } from 'express';
@@ -13,11 +27,24 @@ import { redactIdentifier } from '../lib/logRedaction.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import {
+  formatUsd,
+  getCheckoutReturnUrls,
+  getPastAdDates,
+} from '../services/payments/checkoutHelpers.js';
+import {
+  getGooglePurchaseOrderId,
+  GOOGLE_ALLOWED_PACKAGES,
+  GOOGLE_PRODUCT_TO_PLAN,
+  hasGooglePlayVerifierConfig,
+  verifyGooglePurchaseWithPlayApi,
+} from '../services/payments/googlePlayVerifier.js';
+import {
   AD_PRODUCT_CENTS,
   APPLE_PRODUCT_TO_PLAN,
   ensureApplePendingTransactionLog,
   finalizeAppleAdPurchase,
   finalizeAppleSubscriptionPurchase,
+  getFullAdSlotDates,
   getVeteranBillingSnapshot,
   getVeteranTotalTeamAllowance,
   isUniqueConstraintError,
@@ -45,6 +72,7 @@ import {
 } from '../lib/planDefinitions.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
+import { sendError } from '../lib/http/sendError.js';
 import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { runWithBreaker } from '../lib/circuitBreaker.js';
@@ -68,7 +96,7 @@ import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { calculateAdPriceCents } from '../utils/adPricing.js';
+import { adDateSchema, calculateAdPriceCents } from '../utils/adPricing.js';
 import { getDatesPastBookingHorizon } from '../utils/bookingHorizon.js';
 
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
@@ -86,7 +114,6 @@ const stripe = new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_conf
   timeout: 20000,
   maxNetworkRetries: 2,
 });
-const MAX_AD_SLOTS = 2;
 const webhookEventLocks = new Map<string, Promise<any>>();
 const isJestRuntime = process.env.JEST_WORKER_ID != null;
 const hasStripeWebhookSecret = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
@@ -145,62 +172,20 @@ const OWNER_MANAGED_SUBSCRIPTION_ERROR =
 async function activateApprovedAdPaymentIntent(
   tx: Prisma.TransactionClient,
   adId: string,
-  dates: string[]
+  dates: string[],
+  purchaseReference: string
 ) {
-  const adRecord = await tx.ad.findUnique({
-    where: { id: adId },
-    select: { target_zip_code: true, status: true, payment_status: true },
-  });
-
-  if (adRecord?.target_zip_code) {
-    const reservedAdsInZip = await tx.ad.findMany({
-      where: {
-        target_zip_code: adRecord.target_zip_code,
-        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-        NOT: { id: adId },
-      },
-      select: { id: true },
-      take: 100,
-    });
-    if (reservedAdsInZip.length > 0) {
-      const dateObjects = dates.map(s => new Date(s + 'T00:00:00.000Z'));
-      const bookedSlots = await tx.adReservation.groupBy({
-        by: ['date'],
-        where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-        _count: { date: true },
-      });
-      const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-      if (fullDates.length > 0) {
-        const err = new Error('SLOT_FULL') as Error & { slotFull?: boolean; dates?: string[] };
-        err.slotFull = true;
-        err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-        throw err;
-      }
-    }
+  const ad = await tx.ad.findUnique({ where: { id: adId } });
+  if (!ad || !['approved', 'active', 'archived'].includes(ad.status)) {
+    throw new Error(`AD_NOT_APPROVED: Ad ${adId} cannot activate`);
   }
-
-  if (!adRecord || (adRecord.status !== 'approved' && adRecord.status !== 'active')) {
-    throw new Error(`AD_NOT_APPROVED: Ad ${adId} status is ${adRecord?.status}, cannot activate`);
-  }
-  if (adRecord.payment_status === 'paid') {
-    return;
-  }
-
-  const updated = await tx.ad.updateMany({
-    where: {
-      id: adId,
-      status: { in: ['approved', 'active'] },
-      payment_status: { not: 'paid' },
-    },
-    data: { payment_status: 'paid', status: 'active' },
-  });
-  if (updated.count === 0) {
-    throw new Error(`AD_NOT_APPROVED: Ad ${adId} was no longer approved at activation time`);
-  }
-
-  await tx.adReservation.createMany({
-    data: dates.map(s => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
-    skipDuplicates: true,
+  await reserveAdSlots(tx, {
+    adId,
+    isoDates: dates,
+    paymentStatus: 'paid',
+    status: 'active',
+    purchaseReference,
+    stripePaymentIntentId: purchaseReference,
   });
 }
 
@@ -523,7 +508,17 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         // Find the original transaction by payment intent
         const tx = piId
           ? await prisma.transactionLog.findFirst({
-              where: { stripe_payment_intent_id: piId },
+              where: {
+                OR: [
+                  { stripe_payment_intent_id: piId },
+                  // Historical PaymentSheet writers stored the verified PI in the session field.
+                  {
+                    transaction_type: 'AD_PURCHASE',
+                    stripe_payment_intent_id: null,
+                    stripe_session_id: piId,
+                  },
+                ],
+              },
               orderBy: { created_at: 'desc' },
             })
           : null;
@@ -536,6 +531,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             context: 'refund_no_tx',
             chargeId: charge.id,
           });
+          throw new Error('Refund transaction is not available yet');
         } else {
           const promoRollbackRefs = Array.from(
             new Set(
@@ -545,80 +541,139 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             )
           );
 
-          const { promoRollback } = await prisma.$transaction(async db => {
-            const promoRollbackResult = await reversePromoRedemption(
-              { orderReferences: promoRollbackRefs },
-              db
-            );
-
-            await db.transactionLog.update({
-              where: { id: tx.id },
-              data: {
-                status: 'REFUNDED' as any,
-                metadata: {
-                  ...((tx.metadata as any) || {}),
-                  refund_source:
-                    event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
-                  refunded_amount_cents: refundAmount,
-                  stripe_charge_id: charge.id,
-                  refunded_at: new Date().toISOString(),
-                  promo_redemption_reversed: promoRollbackResult.reversed,
-                  promo_reversal_count: promoRollbackResult.count,
-                  promo_reversal_refs: promoRollbackResult.orderReferences,
-                },
-              },
-            });
-
-            // Cascade based on transaction type:
-            // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
-            // - AD_PURCHASE → mark ad refunded + release reservations
-            if (
-              tx.user_id &&
-              (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
-                tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
-            ) {
-              const u = await db.user.findUnique({
-                where: { id: tx.user_id },
-                select: { preferences: true },
-              });
-              const prefs = (u?.preferences as any) || {};
-              const nextPrefs = mergeBillingStateIntoPreferences(
-                { ...prefs, subscription_id: null, subscription_period_end: null },
-                {
-                  plan: 'rookie',
-                  pending_plan: null,
-                  payment_pending: false,
-                  payment_approved: false,
-                }
+          const { promoRollback, entitlementRevoked } = await prisma.$transaction(
+            async db => {
+              const fresh = await db.transactionLog.findUniqueOrThrow({ where: { id: tx.id } });
+              if ((fresh.metadata as any)?.refund_event_id === event.id)
+                return {
+                  promoRollback: { reversed: false, count: 0, orderReferences: [] as string[] },
+                  entitlementRevoked: false,
+                };
+              let entitlementRevoked = false;
+              const promoRollbackResult = await reversePromoRedemption(
+                { orderReferences: promoRollbackRefs },
+                db
               );
-              // cache-invalidation-exempt: invalidateMeCacheForUser called below
-              await db.user.update({
-                where: { id: tx.user_id },
+
+              await db.transactionLog.update({
+                where: { id: tx.id },
                 data: {
-                  preferences: nextPrefs,
-                  ...buildBillingStateColumns({
-                    plan: 'rookie',
-                    pending_plan: null,
-                    payment_pending: false,
-                    payment_approved: false,
-                  }),
-                  subscription_tier: 'free',
-                  subscription_status: 'canceled',
-                  max_teams: SERVER_ROOKIE_TEAM_LIMIT,
+                  status: 'REFUNDED' as any,
+                  ...(piId && !fresh.stripe_payment_intent_id
+                    ? { stripe_payment_intent_id: piId }
+                    : {}),
+                  metadata: {
+                    ...((tx.metadata as any) || {}),
+                    refund_source:
+                      event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+                    refunded_amount_cents: refundAmount,
+                    stripe_charge_id: charge.id,
+                    refunded_at: new Date().toISOString(),
+                    refund_event_id: event.id,
+                    promo_redemption_reversed: promoRollbackResult.reversed,
+                    promo_reversal_count: promoRollbackResult.count,
+                    promo_reversal_refs: promoRollbackResult.orderReferences,
+                  },
                 },
               });
-            } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
-              await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
-              await db.ad.updateMany({
-                where: { id: tx.order_id },
-                data: { status: 'draft', payment_status: 'refunded' },
-              });
-            }
 
-            return { promoRollback: promoRollbackResult };
-          });
+              // Cascade based on transaction type:
+              // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
+              // - AD_PURCHASE → mark ad refunded + release reservations
+              if (
+                tx.user_id &&
+                (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
+                  tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
+              ) {
+                const u = await db.user.findUnique({
+                  where: { id: tx.user_id },
+                  select: { preferences: true },
+                });
+                const prefs = (u?.preferences as any) || {};
+                const refundSubscriptionId =
+                  tx.stripe_subscription_id ||
+                  (tx.metadata as any)?.subscription_id ||
+                  (tx.metadata as any)?.stripe_subscription_id;
+                if (
+                  typeof refundSubscriptionId === 'string' &&
+                  prefs.subscription_id === refundSubscriptionId &&
+                  shouldApplyStripeSubscriptionEvent(prefs, refundSubscriptionId)
+                ) {
+                  entitlementRevoked = true;
+                  const nextPrefs = mergeBillingStateIntoPreferences(
+                    { ...prefs, subscription_id: null, subscription_period_end: null },
+                    {
+                      plan: 'rookie',
+                      pending_plan: null,
+                      payment_pending: false,
+                      payment_approved: false,
+                    }
+                  );
+                  // cache-invalidation-exempt: invalidateMeCacheForUser called below
+                  await db.user.update({
+                    where: { id: tx.user_id },
+                    data: {
+                      preferences: nextPrefs,
+                      ...buildBillingStateColumns({
+                        plan: 'rookie',
+                        pending_plan: null,
+                        payment_pending: false,
+                        payment_approved: false,
+                      }),
+                      subscription_tier: 'free',
+                      subscription_status: 'canceled',
+                      max_teams: SERVER_ROOKIE_TEAM_LIMIT,
+                    },
+                  });
+                }
+              } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+                const purchaseReferences = [
+                  tx.stripe_session_id,
+                  tx.stripe_payment_intent_id,
+                ].filter((ref): ref is string => !!ref);
+                // Purchase provenance prevents a refund for an earlier run erasing newer inventory.
+                // NULL legacy rows require reconciliation; no guessed date ownership.
+                await db.adReservation.deleteMany({
+                  where: { ad_id: tx.order_id, purchase_reference: { in: purchaseReferences } },
+                });
+                await db.adSlotHold.deleteMany({
+                  where: { ad_id: tx.order_id, purchase_reference: { in: purchaseReferences } },
+                });
+                const remaining = await db.adReservation.count({ where: { ad_id: tx.order_id } });
+                if (!remaining) {
+                  const liveHolds = await db.adSlotHold.count({
+                    where: { ad_id: tx.order_id, expires_at: { gt: new Date() } },
+                  });
+                  if (liveHolds) {
+                    const currentAd = await db.ad.findUnique({
+                      where: { id: tx.order_id },
+                      select: { status: true },
+                    });
+                    await db.ad.updateMany({
+                      where: { id: tx.order_id },
+                      data: {
+                        payment_status: 'hold',
+                        ...(['active', 'approved', 'archived'].includes(currentAd?.status || '')
+                          ? { status: 'approved' }
+                          : {}),
+                      },
+                    });
+                  } else {
+                    await db.ad.updateMany({
+                      where: { id: tx.order_id },
+                      data: { status: 'draft', payment_status: 'refunded' },
+                    });
+                  }
+                }
+              }
+
+              return { promoRollback: promoRollbackResult, entitlementRevoked };
+            },
+            { isolationLevel: 'Serializable' }
+          );
 
           if (
+            entitlementRevoked &&
             tx.user_id &&
             (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
               tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
@@ -642,43 +697,18 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
       } catch (refundErr: any) {
         console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
         captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+        throw refundErr;
       }
     }
 
     if (event.type === 'checkout.session.expired') {
       const session = event.data.object as Stripe.Checkout.Session;
-      await updateTransactionStatus(session.id, 'FAILED', {
-        metadata: { reason: 'checkout_expired' },
-      }).catch(err => {
-        console.error('[transaction-log] expired session update failed:', err);
-        captureException(err as Error, { context: 'transaction_log_expired_session' });
-      });
-
-      // Release ad slot holds if this was an ad checkout
-      const expiredAdId = session.metadata?.ad_id;
-      if (expiredAdId) {
-        try {
-          const heldAd = await prisma.ad.findUnique({
-            where: { id: expiredAdId },
-            select: { payment_status: true },
-          });
-          if (heldAd?.payment_status === 'hold') {
-            await prisma.$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
-              prisma.ad.update({ where: { id: expiredAdId }, data: { payment_status: 'unpaid' } }),
-            ]);
-            debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId });
-          }
-        } catch (releaseErr) {
-          console.error(
-            '[webhook] Failed to release ad hold on expiry:',
-            (releaseErr as any)?.message
-          );
-          captureException(releaseErr as Error, {
-            context: 'release_ad_hold_expired',
-            adId: expiredAdId,
-          });
-        }
+      if (session.metadata?.ad_id) {
+        await releaseAdPurchaseHolds(session.metadata.ad_id, session.id, true);
+      } else {
+        await updateTransactionStatus(session.id, 'FAILED', {
+          metadata: { reason: 'checkout_expired' },
+        });
       }
     }
 
@@ -687,85 +717,40 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     if (event.type === 'payment_intent.canceled') {
       const pi = event.data.object as Stripe.PaymentIntent;
       const meta = pi.metadata || {};
-      await logTransaction({
-        transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
-        status: 'FAILED',
-        stripePaymentIntentId: pi.id,
-        userId: meta.user_id || undefined,
-        totalCents: pi.amount,
-        metadata: { reason: 'payment_intent_canceled', ...meta },
-      }).catch(err => {
-        console.error('[transaction-log] canceled PI log failed:', err);
-        captureException(err as Error, { context: 'transaction_log_canceled_pi' });
-      });
+      if (!meta.ad_id)
+        await logTransaction({
+          transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+          status: 'FAILED',
+          stripePaymentIntentId: pi.id,
+          userId: meta.user_id || undefined,
+          totalCents: pi.amount,
+          metadata: { reason: 'payment_intent_canceled', ...meta },
+        }).catch(err => {
+          console.error('[transaction-log] canceled PI log failed:', err);
+          captureException(err as Error, { context: 'transaction_log_canceled_pi' });
+        });
 
-      if (meta.ad_id) {
-        try {
-          const heldAd = await prisma.ad.findUnique({
-            where: { id: meta.ad_id },
-            select: { payment_status: true },
-          });
-          if (heldAd?.payment_status === 'hold') {
-            await prisma.$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
-              prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
-            ]);
-            debugLog('[webhook] Released ad slot hold on PI cancellation', { ad_id: meta.ad_id });
-          }
-        } catch (releaseErr) {
-          console.error(
-            '[webhook] Failed to release ad hold on PI cancel:',
-            (releaseErr as any)?.message
-          );
-          captureException(releaseErr as Error, {
-            context: 'release_ad_hold_pi_canceled',
-            adId: meta.ad_id,
-          });
-        }
-      }
+      if (meta.ad_id) await releaseAdPurchaseHolds(meta.ad_id, pi.id, true);
     }
 
     // Handle failed payment intents
     if (event.type === 'payment_intent.payment_failed') {
       const pi = event.data.object as Stripe.PaymentIntent;
       const meta = pi.metadata || {};
-      await logTransaction({
-        transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
-        status: 'FAILED',
-        stripePaymentIntentId: pi.id,
-        userId: meta.user_id || undefined,
-        totalCents: pi.amount,
-        metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
-      }).catch(err => {
-        console.error('[transaction-log] failed payment log failed:', err);
-        captureException(err as Error, { context: 'transaction_log_failed_payment' });
-      });
+      if (!meta.ad_id)
+        await logTransaction({
+          transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+          status: 'FAILED',
+          stripePaymentIntentId: pi.id,
+          userId: meta.user_id || undefined,
+          totalCents: pi.amount,
+          metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
+        }).catch(err => {
+          console.error('[transaction-log] failed payment log failed:', err);
+          captureException(err as Error, { context: 'transaction_log_failed_payment' });
+        });
 
-      // Release ad slot holds on payment failure
-      if (meta.ad_id) {
-        try {
-          const heldAd = await prisma.ad.findUnique({
-            where: { id: meta.ad_id },
-            select: { payment_status: true },
-          });
-          if (heldAd?.payment_status === 'hold') {
-            await prisma.$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
-              prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
-            ]);
-            debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
-          }
-        } catch (releaseErr) {
-          console.error(
-            '[webhook] Failed to release ad hold on payment failure:',
-            (releaseErr as any)?.message
-          );
-          captureException(releaseErr as Error, {
-            context: 'release_ad_hold_failed_pi',
-            adId: meta.ad_id,
-          });
-        }
-      }
+      if (meta.ad_id) await releaseAdPurchaseHolds(meta.ad_id, pi.id, true);
 
       // Notify user of failed payment
       if (meta.user_id) {
@@ -803,71 +788,12 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
           try {
             await prisma.$transaction(
               async tx => {
-                const adRecord = await tx.ad.findUnique({
-                  where: { id: adId },
-                  select: { target_zip_code: true, status: true, payment_status: true },
-                });
-                if (adRecord?.target_zip_code) {
-                  const reservedAdsInZip = await tx.ad.findMany({
-                    where: {
-                      target_zip_code: adRecord.target_zip_code,
-                      payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-                      NOT: { id: adId },
-                    },
-                    select: { id: true },
-                    take: 100,
-                  });
-                  if (reservedAdsInZip.length > 0) {
-                    const dateObjects = piDates.map(s => new Date(s + 'T00:00:00.000Z'));
-                    const bookedSlots = await tx.adReservation.groupBy({
-                      by: ['date'],
-                      where: {
-                        ad_id: { in: reservedAdsInZip.map(a => a.id) },
-                        date: { in: dateObjects },
-                      },
-                      _count: { date: true },
-                    });
-                    const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-                    if (fullDates.length > 0) {
-                      const err = new Error('SLOT_FULL') as any;
-                      err.slotFull = true;
-                      err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-                      throw err;
-                    }
-                  }
-                }
-                if (!adRecord || (adRecord.status !== 'approved' && adRecord.status !== 'active')) {
-                  throw new Error(
-                    `AD_NOT_APPROVED: Ad ${adId} status is ${adRecord?.status}, cannot activate`
-                  );
-                }
-                if (adRecord.payment_status === 'paid') {
-                  return;
-                }
-
-                const updated = await tx.ad.updateMany({
-                  where: {
-                    id: adId,
-                    status: { in: ['approved', 'active'] },
-                    payment_status: { not: 'paid' },
-                  },
-                  data: { payment_status: 'paid', status: 'active' },
-                });
-                if (updated.count === 0) {
-                  throw new Error(
-                    `AD_NOT_APPROVED: Ad ${adId} was no longer approved at activation time`
-                  );
-                }
-                await tx.adReservation.createMany({
-                  data: piDates.map(s => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
-                  skipDuplicates: true,
-                });
+                await activateApprovedAdPaymentIntent(tx, adId, piDates, pi.id);
               },
               { isolationLevel: 'Serializable' }
             );
 
-            // Update transaction
-            await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+            // Completion was committed with inventory in reserveAdSlots.
             // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
             const adForEmail = await prisma.ad.findUnique({
               where: { id: adId },
@@ -939,6 +865,10 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
               }
             }
           } catch (e: any) {
+            if (e?.code === 'AD_PURCHASE_REFUNDED') {
+              await markStripeEventProcessed(event.id);
+              return { status: 200, body: { received: true, refunded: true } };
+            }
             if (e?.slotFull) {
               console.error(
                 '[payments] SLOT_FULL on payment_intent.succeeded — issuing auto-refund',
@@ -951,7 +881,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
                   reason: 'requested_by_customer',
                 });
                 try {
-                  await releaseAdInventoryAfterSlotFullRefundWithRetry(adId);
+                  await releaseAdInventoryAfterSlotFullRefundWithRetry(adId, pi.id);
                   await updateTransactionStatus(pi.id, 'REFUNDED', {
                     metadata: {
                       reason: 'slot_full',
@@ -1106,7 +1036,7 @@ paymentsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const quoteSchema = z.object({
       ad_id: z.string(),
-      dates: z.array(z.string()).min(1),
+      dates: z.array(adDateSchema).min(1),
       promo_code: z.string().optional(),
     });
     const parsed = quoteSchema.safeParse(req.body || {});
@@ -1143,18 +1073,6 @@ paymentsRouter.post(
     });
   })
 );
-
-const formatUsd = (cents?: number | null) => {
-  if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
-  return `$${(cents / 100).toFixed(2)}`;
-};
-
-function getPastAdDates(isoDates: string[], now: Date = new Date()): string[] {
-  const todayIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    .toISOString()
-    .slice(0, 10);
-  return isoDates.filter(dateIso => dateIso < todayIso);
-}
 
 async function buildAdQuote(params: {
   adId: string;
@@ -1227,26 +1145,89 @@ async function buildAdQuote(params: {
   };
 }
 
-function getCheckoutReturnUrls(params: { type: 'subscription' | 'ad'; mode?: 'app' | 'web' }) {
-  if (params.mode === 'web') {
-    const appBase = (process.env.APP_BASE_URL || process.env.EXPO_PUBLIC_API_URL || '')
-      .trim()
-      .replace(/\/$/, '');
-    if (!appBase && process.env.NODE_ENV === 'production') {
-      throw new Error('APP_BASE_URL must be set in production');
+async function handleFullyCompedAdPayment(params: {
+  res: Response;
+  userId: string;
+  adId: string;
+  isoDates: string[];
+  appliedCode?: string | null;
+  subtotalCents: number;
+  discountCents: number;
+  ad: {
+    target_zip_code?: string | null;
+    business_name?: string | null;
+  };
+  transactionLogContext: string;
+}) {
+  const { res, userId, adId, isoDates, appliedCode, subtotalCents, discountCents, ad } = params;
+
+  if (appliedCode) {
+    await redeemPromo({
+      code: appliedCode,
+      subtotalCents,
+      userId,
+      service: 'booking',
+      orderId: `FREE-${crypto.randomUUID()}`,
+    });
+  }
+  try {
+    await prisma.$transaction(
+      async tx => {
+        await reserveAdSlots(tx, {
+          adId,
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'paid',
+          status: 'active',
+        });
+      },
+      { isolationLevel: 'Serializable' }
+    );
+  } catch (e: any) {
+    if (e?.slotFull) {
+      return res.status(409).json({
+        error: 'One or more selected dates are fully booked',
+        dates: e.dates,
+      });
     }
-    const base = appBase || 'http://localhost:8081';
-    return {
-      success: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}&type=${params.type}`,
-      cancel: `${base}/payment-cancel${params.type === 'ad' ? '?type=ad' : ''}`,
-    };
+    console.error('Failed to create ad reservations for free promo:', e);
+    return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
   }
 
-  const appScheme = 'varsityhubmobile';
-  return {
-    success: `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=${params.type}`,
-    cancel: `${appScheme}://payment-cancel${params.type === 'ad' ? '?type=ad' : ''}`,
-  };
+  try {
+    await logTransaction({
+      transactionType: 'AD_PURCHASE',
+      status: 'COMPLETED',
+      userId,
+      subtotalCents,
+      taxCents: 0,
+      discountCents,
+      promoCode: appliedCode || undefined,
+      promoDiscountCents: discountCents,
+      totalCents: 0,
+      netCents: 0,
+      currency: 'usd',
+      metadata: { free_promo: true, ad_id: adId, dates: isoDates },
+    });
+  } catch (err) {
+    console.error('[payments] Failed to log free promo transaction:', err);
+    captureException(err as Error, {
+      context: params.transactionLogContext,
+      adId,
+    });
+  }
+
+  sendAdPaymentEmail({
+    userId,
+    adId,
+    dates: isoDates,
+    totalCents: 0,
+    businessName: ad.business_name,
+    zipCode: ad.target_zip_code,
+  }).catch((err: any) =>
+    console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
+  );
+  return res.json({ free: true });
 }
 
 // Ad pricing now uses the shared helper from utils/adPricing.ts
@@ -1560,7 +1541,7 @@ paymentsRouter.post(
     req.log?.info({ userId: req.user?.id, path: '/checkout' }, '[checkout] start');
     const checkoutSchema = z.object({
       ad_id: z.string().optional(),
-      dates: z.array(z.string()).optional(),
+      dates: z.array(adDateSchema).optional(),
       promo_code: z.string().optional(),
       plan: z.string().optional(),
       team_count: z.number().optional(),
@@ -1628,32 +1609,19 @@ paymentsRouter.post(
     }
 
     // Slot availability check — reject before Stripe if any date is already full.
-    // Up to MAX_AD_SLOTS different ads may run per date per zip.
+    // Up to the shared ad-slot cap may run per date per zip.
     if (ad.target_zip_code) {
       // Include paid, hold, and pending_approval — align with PaymentSheet to prevent overfilling zip
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id: String(ad_id) },
-        },
-        select: { id: true },
-        take: 100,
+      const fullDates = await getFullAdSlotDates(prisma, {
+        adId: String(ad_id),
+        targetZipCode: ad.target_zip_code,
+        isoDates,
       });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
+      if (fullDates.length > 0) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: fullDates,
         });
-        const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-          });
-        }
       }
     }
 
@@ -1666,75 +1634,17 @@ paymentsRouter.post(
     // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
     const isFullyComped = discount >= subtotal;
     if (total === 0 || isFullyComped) {
-      // Record redemption and create reservations
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId: req.user!.id,
-          service: 'booking',
-          orderId: `FREE-${crypto.randomUUID()}`,
-        });
-      }
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'paid',
-              status: 'active',
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-      } catch (e) {
-        if ((e as any)?.slotFull) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: (e as any).dates,
-          });
-        }
-        console.error('Failed to create ad reservations for free promo:', e);
-        return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
-      }
-      // v1.0.2 audit fix: await so financial audit trail can't silently drop.
-      // On DB failure, the user-facing response succeeds but we capture to Sentry at error level.
-      try {
-        await logTransaction({
-          transactionType: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          userId: req.user!.id,
-          subtotalCents: subtotal,
-          taxCents: 0,
-          discountCents: discount,
-          promoCode: appliedCode || undefined,
-          promoDiscountCents: discount,
-          totalCents: 0,
-          netCents: 0,
-          currency: 'usd',
-          metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-        });
-      } catch (err) {
-        console.error('[payments] Failed to log free promo transaction:', err);
-        captureException(err as Error, {
-          context: 'free_promo_transaction_log',
-          adId: String(ad_id),
-        });
-      }
-      // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
-      sendAdPaymentEmail({
+      return handleFullyCompedAdPayment({
+        res,
         userId: req.user!.id,
         adId: String(ad_id),
-        dates: isoDates,
-        totalCents: 0,
-        businessName: ad.business_name,
-        zipCode: ad.target_zip_code,
-      }).catch((err: any) =>
-        console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
-      );
-      return res.json({ free: true });
+        isoDates,
+        appliedCode,
+        subtotalCents: subtotal,
+        discountCents: discount,
+        ad,
+        transactionLogContext: 'free_promo_transaction_log',
+      });
     }
 
     const { success, cancel } = getCheckoutReturnUrls({ type: 'ad', mode: checkout_mode });
@@ -1873,14 +1783,24 @@ paymentsRouter.post(
 
     // v1.0.2 audit fix: same idempotency drift bug — widen fallback window to 1h.
     const adIdemClientKey = (req.headers['x-idempotency-key'] as string) || '';
-    const adIdempotencyKey =
-      adIdemClientKey || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
+    const adIdempotencyKey = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify([
+          'ad_checkout',
+          req.user!.id,
+          ad_id,
+          [...isoDates].sort(),
+          appliedCode || '',
+          adIdemClientKey || Math.floor(Date.now() / (60 * 60 * 1000)),
+        ])
+      )
+      .digest('hex');
     const session = await stripe.checkout.sessions.create(sessionConfig, {
       idempotencyKey: adIdempotencyKey,
     });
 
-    // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
-    // On payment success, status moves to 'paid'. On failure/expiry, hold is released.
+    // Hold only this purchase's dates; existing paid inventory keeps serving.
     try {
       await prisma.$transaction(
         async tx => {
@@ -1889,15 +1809,30 @@ paymentsRouter.post(
             targetZipCode: ad.target_zip_code,
             isoDates,
             paymentStatus: 'hold',
+            purchaseReference: session.id,
+            expiresAt: new Date(session.expires_at * 1000),
             ...(ad.status === 'archived' ? { status: 'approved' as const } : {}),
           });
         },
         { isolationLevel: 'Serializable' }
       );
     } catch (holdErr) {
-      if ((holdErr as any)?.slotFull) {
+      await stripe.checkout.sessions.expire(session.id).catch(error =>
+        captureException(error, {
+          context: 'expire_checkout_after_hold_failure',
+          sessionId: session.id,
+        })
+      );
+      if ((holdErr as any)?.slotFull || (holdErr as any)?.code === 'P2034') {
         return res.status(409).json({
-          error: 'One or more selected dates are fully booked',
+          error:
+            (holdErr as any)?.code === 'AD_DATES_ALREADY_BOOKED'
+              ? 'Selected dates are already paid or booked for this ad.'
+              : 'One or more selected dates are fully booked',
+          code:
+            (holdErr as any)?.code === 'AD_DATES_ALREADY_BOOKED'
+              ? 'AD_DATES_ALREADY_BOOKED'
+              : 'SLOT_FULL',
           dates: (holdErr as any).dates,
         });
       }
@@ -1959,7 +1894,7 @@ paymentsRouter.post(
     const userId = req.user!.id;
     const paymentSheetSchema = z.object({
       ad_id: z.string().optional(),
-      dates: z.array(z.string()).optional(),
+      dates: z.array(adDateSchema).optional(),
       promo_code: z.string().optional(),
       plan: z.string().optional(),
       team_count: z.number().optional(),
@@ -2215,31 +2150,17 @@ paymentsRouter.post(
     }
 
     // Slot availability check — include 'hold' and 'pending_approval' ads
-    const MAX_AD_SLOTS = 2;
     if (ad.target_zip_code) {
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id: String(ad_id) },
-        },
-        select: { id: true },
-        take: 100,
+      const fullDates = await getFullAdSlotDates(prisma, {
+        adId: String(ad_id),
+        targetZipCode: ad.target_zip_code,
+        isoDates,
       });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
+      if (fullDates.length > 0) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: fullDates,
         });
-        const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-          });
-        }
       }
     }
 
@@ -2251,74 +2172,17 @@ paymentsRouter.post(
     const total = quote.totalCents;
     const isFullyComped = discount >= subtotal;
     if (total === 0 || isFullyComped) {
-      // Free via promo — only if already approved (approval required before any charge/activation)
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId,
-          service: 'booking',
-          orderId: `FREE-${crypto.randomUUID()}`,
-        });
-      }
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'paid',
-              status: 'active',
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-      } catch (e: any) {
-        if (e?.slotFull) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: e.dates,
-          });
-        }
-        console.error('Failed to create ad reservations for free promo:', e);
-        return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
-      }
-      // v1.0.2 audit fix: await to preserve audit trail on PaymentSheet free-promo path.
-      try {
-        await logTransaction({
-          transactionType: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          userId,
-          subtotalCents: subtotal,
-          taxCents: 0,
-          discountCents: discount,
-          promoCode: appliedCode || undefined,
-          promoDiscountCents: discount,
-          totalCents: 0,
-          netCents: 0,
-          currency: 'usd',
-          metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-        });
-      } catch (err) {
-        console.error('[payments] Failed to log free promo transaction:', err);
-        captureException(err as Error, {
-          context: 'free_promo_transaction_log_pi',
-          adId: String(ad_id),
-        });
-      }
-      // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
-      sendAdPaymentEmail({
+      return handleFullyCompedAdPayment({
+        res,
         userId,
         adId: String(ad_id),
-        dates: isoDates,
-        totalCents: 0,
-        businessName: ad.business_name,
-        zipCode: ad.target_zip_code,
-      }).catch((err: any) =>
-        console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
-      );
-      return res.json({ free: true });
+        isoDates,
+        appliedCode,
+        subtotalCents: subtotal,
+        discountCents: discount,
+        ad,
+        transactionLogContext: 'free_promo_transaction_log_pi',
+      });
     }
 
     try {
@@ -2342,9 +2206,20 @@ paymentsRouter.post(
         },
         {
           // v1.0.2 audit fix: widen fallback window from 60s to 1h to prevent duplicate payment intents on retry
-          idempotencyKey:
-            (req.headers['x-idempotency-key'] as string) ||
-            `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`,
+          idempotencyKey: crypto
+            .createHash('sha256')
+            .update(
+              JSON.stringify([
+                'ad_pi',
+                userId,
+                ad_id,
+                [...isoDates].sort(),
+                appliedCode || '',
+                (req.headers['x-idempotency-key'] as string) ||
+                  Math.floor(Date.now() / (60 * 60 * 1000)),
+              ])
+            )
+            .digest('hex'),
         }
       );
 
@@ -2357,6 +2232,7 @@ paymentsRouter.post(
               targetZipCode: ad.target_zip_code,
               isoDates,
               paymentStatus: 'hold',
+              purchaseReference: paymentIntent.id,
               ...(ad.status === 'archived' ? { status: 'approved' as const } : {}),
             });
           },
@@ -2376,9 +2252,17 @@ paymentsRouter.post(
           '[payments] Failed to hold ad slots, cancelled payment:',
           (holdErr as any)?.message
         );
-        return res
-          .status(409)
-          .json({ error: 'Ad slots are no longer available. Please try different dates.' });
+        return sendError(
+          res,
+          409,
+          holdErr?.code === 'AD_DATES_ALREADY_BOOKED'
+            ? 'Selected dates are already paid or booked for this ad.'
+            : 'Ad slots are no longer available. Please try different dates.',
+          {
+            code:
+              holdErr?.code === 'AD_DATES_ALREADY_BOOKED' ? 'AD_DATES_ALREADY_BOOKED' : 'SLOT_FULL',
+          }
+        );
       }
 
       // Log transaction
@@ -2386,6 +2270,7 @@ paymentsRouter.post(
         transactionType: 'AD_PURCHASE',
         status: 'PENDING',
         stripeSessionId: paymentIntent.id,
+        stripePaymentIntentId: paymentIntent.id,
         userId,
         userEmail: user?.email || 'unknown',
         orderId: String(ad_id),
@@ -2532,13 +2417,18 @@ paymentsRouter.post(
         ['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(pi.status)
       ) {
         await stripe.paymentIntents.cancel(payment_intent_id);
+      } else if (pi.status !== 'canceled') {
+        return sendError(res, 409, 'Payment is no longer cancelable', {
+          extraFields: { canceled: false },
+        });
       }
-      await updateTransactionStatus(payment_intent_id, 'FAILED', {
-        metadata: { reason: 'user_abandoned', canceled_at: new Date().toISOString() },
-      }).catch(err => {
-        console.error('[transaction-log] cancel-intent log failed:', err);
-        captureException(err as Error, { context: 'cancel_intent_log' });
-      });
+      if (!pi.metadata?.ad_id)
+        await updateTransactionStatus(payment_intent_id, 'FAILED', {
+          metadata: { reason: 'user_abandoned', canceled_at: new Date().toISOString() },
+        }).catch(err => {
+          console.error('[transaction-log] cancel-intent log failed:', err);
+          captureException(err as Error, { context: 'cancel_intent_log' });
+        });
 
       // Cancel incomplete subscription if this PI belongs to one (prevents orphaned subscriptions in Stripe)
       if (pi.invoice) {
@@ -2561,27 +2451,8 @@ paymentsRouter.post(
         }
       }
 
-      // Release ad slot holds if this was an ad payment
       const cancelAdId = pi.metadata?.ad_id;
-      if (cancelAdId) {
-        const heldAd = await prisma.ad.findUnique({
-          where: { id: cancelAdId },
-          select: { payment_status: true },
-        });
-        if (heldAd?.payment_status === 'hold') {
-          await prisma
-            .$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: cancelAdId } }),
-              prisma.ad.update({ where: { id: cancelAdId }, data: { payment_status: 'unpaid' } }),
-            ])
-            .catch(releaseErr => {
-              console.error(
-                '[payments] Failed to release hold on cancel-intent:',
-                (releaseErr as any)?.message
-              );
-            });
-        }
-      }
+      if (cancelAdId) await releaseAdPurchaseHolds(cancelAdId, pi.id, true);
 
       return res.json({ canceled: true });
     } catch (err: any) {
@@ -3558,75 +3429,6 @@ const APPLE_VERIFY_URL_SANDBOX = 'https://sandbox.itunes.apple.com/verifyReceipt
 
 const APPLE_AD_PRODUCTS = ['MOND_THURS', 'FRI_SUN'] as const;
 
-function verifyAppleSignedJws(token: string): any {
-  const decoded = jwt.decode(token, { complete: true });
-  const header = decoded?.header as any;
-  if (!header?.x5c?.length) {
-    throw new Error('Missing certificate chain');
-  }
-  if (header.alg !== 'ES256') {
-    throw new Error(`Invalid Apple JWS algorithm: ${header.alg}`);
-  }
-
-  const x5cCerts = (header.x5c as string[]).map(
-    (cert: string) => `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----`
-  );
-  const rootCert = new crypto.X509Certificate(x5cCerts[x5cCerts.length - 1]);
-  // SECURITY: Pin to exact CN=Apple Root CA - G3 + O=Apple Inc. to prevent any other
-  // Apple-signed cert (developer certs, intermediate CAs, etc.) from being accepted.
-  // This matches the stricter check already in place for S2S notifications.
-  if (
-    !rootCert.subject.includes('CN=Apple Root CA - G3') ||
-    !rootCert.subject.includes('O=Apple Inc.') ||
-    !rootCert.issuer.includes('Apple Root CA - G3')
-  ) {
-    throw new Error('Invalid Apple root certificate: must be CN=Apple Root CA - G3, O=Apple Inc.');
-  }
-  if (!rootCert.checkIssued(rootCert)) {
-    throw new Error('Apple root certificate is not self-signed');
-  }
-  for (let i = 0; i < x5cCerts.length - 1; i++) {
-    const cert = new crypto.X509Certificate(x5cCerts[i]);
-    const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
-    if (!cert.checkIssued(issuerCert)) {
-      throw new Error(`Broken Apple certificate chain at index ${i}`);
-    }
-  }
-
-  const leafKey = crypto.createPublicKey(x5cCerts[0]);
-  const payload = jwt.verify(token, leafKey, { algorithms: ['ES256'] }) as any;
-
-  const expectedBundleId = process.env.APPLE_BUNDLE_ID?.trim();
-  if (process.env.NODE_ENV === 'production' && !expectedBundleId) {
-    throw new Error('APPLE_BUNDLE_ID is required for Apple JWS verification in production');
-  }
-
-  const bundleId = String(payload.bundleId || payload.appBundleId || payload.bid || '').trim();
-  // SECURITY: Reject when bundleId is present but wrong, AND when it is absent in
-  // production — an omitted field must not silently bypass the check.
-  if (expectedBundleId) {
-    if (!bundleId) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('Apple JWS payload missing bundleId in production');
-      }
-    } else if (bundleId !== expectedBundleId) {
-      throw new Error(`Apple bundle mismatch: ${bundleId}`);
-    }
-  }
-
-  const environment = String(payload.environment || payload.environmentIOS || '').trim();
-  if (environment && environment !== 'Sandbox' && environment !== 'Production') {
-    throw new Error(`Unexpected Apple transaction environment: ${environment}`);
-  }
-  // NOTE: Sandbox transactions are intentionally accepted in production to support
-  // TestFlight testers. This is a deliberate policy decision. Apple's own
-  // guidelines permit it for TestFlight, and blocking Sandbox in production would
-  // break all pre-release IAP testing. The environment value is logged and stored
-  // so any unexpected Sandbox activity in production is auditable.
-
-  return payload;
-}
-
 async function markStripeEventProcessed(eventId: string) {
   await prisma.processedStripeEvent.update({
     where: { event_id: eventId },
@@ -3745,7 +3547,7 @@ paymentsRouter.post(
       if (jws) {
         let signedTransaction: any;
         try {
-          signedTransaction = verifyAppleSignedJws(jws);
+          signedTransaction = await verifyAppleSignedJws(jws);
         } catch (error: any) {
           console.error('[payments] Apple JWS verification failed (subscription):', error?.message);
           captureException(error, { context: 'apple_jws_verify_subscription' });
@@ -3861,6 +3663,95 @@ paymentsRouter.post(
   })
 );
 
+// Durable Apple ad checkout: establish account-bound intent before StoreKit.
+function adIntentHandler(fn: (req: AuthedRequest, res: Response) => Promise<unknown>) {
+  return asyncHandler(async (req: AuthedRequest, res: Response) => {
+    try {
+      await fn(req, res);
+    } catch (error: any) {
+      if (error instanceof z.ZodError)
+        return sendError(res, 400, 'Invalid purchase intent payload', {
+          code: 'INVALID_PURCHASE_INTENT',
+        });
+      if (error instanceof AdIntentError) {
+        const messages: Record<string, string> = {
+          REPLACEMENT_PRODUCT_MISMATCH:
+            'Select the same number of weekday and weekend blocks as your saved purchase.',
+          PURCHASE_DATES_CHANGED:
+            'This purchase was updated elsewhere. Refresh it before changing dates.',
+          PURCHASE_ALREADY_COMPLETED: 'This purchase is already booked and cannot be moved here.',
+          INVALID_BOOKING_DATES: 'Select future dates within the next eight weeks.',
+          SLOT_FULL: 'Some selected dates are full. Choose other dates; your payment is saved.',
+          AD_DATES_ALREADY_BOOKED:
+            'This ad already has a booking on some selected dates. Choose other dates.',
+          AD_NOT_APPROVED: 'This ad needs approval before it can be booked.',
+        };
+        return sendError(res, error.statusCode, messages[error.code] || error.message, {
+          code: error.code,
+        });
+      }
+      captureException(new Error('Ad intent request failed'), {
+        context: 'ad_intent_request',
+        failure_code: error?.code || 'unknown',
+      });
+      return sendError(res, 503, 'Purchase recovery will retry. Do not purchase again.', {
+        code: 'PURCHASE_RECOVERY_RETRY',
+      });
+    }
+  });
+}
+paymentsRouter.post(
+  '/apple/ad-intents',
+  requireAuth as any,
+  paymentLimiter,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
+  adIntentHandler(async (req, res) => {
+    if (!(await enforceVerifiedForAdPaymentFlow(req, res, String(req.body?.ad_id || '')))) return;
+    res.json(await createAdPurchaseIntent(req.user!.id, req.body));
+  })
+);
+paymentsRouter.get(
+  '/apple/ad-intents',
+  requireAuth as any,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
+  adIntentHandler(async (req, res) => {
+    res.json({ items: await listAdPurchaseIntents(req.user!.id) });
+  })
+);
+paymentsRouter.post(
+  '/apple/ad-intents/reconcile',
+  requireAuth as any,
+  paymentLimiter,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
+  adIntentHandler(async (req, res) => {
+    res.json(await reconcileReadyAdPurchases(req.user!.id));
+  })
+);
+paymentsRouter.post(
+  '/apple/ad-intents/:id/dates',
+  requireAuth as any,
+  paymentLimiter,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
+  adIntentHandler(async (req, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    res.json(await reviseAdPurchaseIntentDates(req.user!.id, id, req.body));
+  })
+);
+paymentsRouter.post(
+  '/apple/ad-intents/:id/receipts',
+  requireAuth as any,
+  paymentLimiter,
+  // async-handler-exempt: adIntentHandler wraps this callback in asyncHandler and maps intent errors.
+  adIntentHandler(async (req, res) => {
+    const id = z.string().uuid().parse(req.params.id);
+    const { jws } = z
+      .object({ jws: z.string().min(1).max(100000) })
+      .strict()
+      .parse(req.body);
+    res.json(await recordAdPurchaseReceipt(req.user!.id, id, jws));
+  })
+);
+
 // Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
 paymentsRouter.post(
   '/apple/verify-ad-receipt',
@@ -3874,7 +3765,7 @@ paymentsRouter.post(
 
       const appleAdReceiptSchema = z.object({
         ad_id: z.string().min(1),
-        dates: z.array(z.string()).min(1),
+        dates: z.array(adDateSchema).min(1),
         receipts: z
           .array(
             z.object({
@@ -3952,14 +3843,30 @@ paymentsRouter.post(
         const unitCents = AD_PRODUCT_CENTS[productId];
         if (!unitCents) return res.status(400).json({ error: `Unknown ad product: ${productId}` });
 
+        let purchasedQty: number;
+        let transactionId: string;
         if (jws) {
           let signedTransaction: any;
           try {
-            signedTransaction = verifyAppleSignedJws(jws);
+            signedTransaction = await verifyAppleSignedJws(jws);
           } catch (error: any) {
             console.error('[payments] Apple JWS verification failed (ad):', error?.message);
             captureException(error, { context: 'apple_jws_verify_ad' });
             return res.status(400).json({ error: 'Invalid Apple transaction signature' });
+          }
+          if (signedTransaction.appAccountToken) {
+            const token = z.string().uuid().safeParse(signedTransaction.appAccountToken);
+            if (
+              token.success &&
+              (await prisma.adPurchaseIntent.findUnique({
+                where: { id: token.data },
+                select: { id: true },
+              }))
+            ) {
+              return sendError(res, 409, 'Continue this purchase through its saved intent', {
+                code: 'PURCHASE_INTENT_REQUIRED',
+              });
+            }
           }
           const signedProductId = String(
             signedTransaction.productId || signedTransaction.product_id || ''
@@ -3969,19 +3876,17 @@ paymentsRouter.post(
               .status(400)
               .json({ error: 'Signed Apple transaction does not match requested product' });
           }
-          const purchasedQty = Math.max(
+          purchasedQty = Math.max(
             1,
             Number(signedTransaction.quantity || signedTransaction.quantityIOS || 1)
           );
-          verifiedCents += unitCents * purchasedQty;
-          const txId = String(
+          transactionId = String(
             signedTransaction.transactionId ||
               signedTransaction.id ||
               signedTransaction.originalTransactionId ||
               signedTransaction.originalTransactionIdentifierIOS ||
               ''
           ).trim();
-          if (txId) appleTransactionIds.push(txId);
         } else {
           let result = await verifyAppleReceipt(receipt!, false);
           if (result.status === 21007) result = await verifyAppleReceipt(receipt!, true);
@@ -3999,46 +3904,39 @@ paymentsRouter.post(
               product_id: productId,
             });
           }
-          const purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
-          verifiedCents += unitCents * purchasedQty;
+          purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
 
-          const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
-          if (txId) appleTransactionIds.push(String(txId));
+          transactionId = String(
+            matching[0]?.transaction_id || matching[0]?.original_transaction_id || ''
+          ).trim();
         }
+        if (!transactionId) {
+          return sendError(res, 400, 'Missing Apple transaction ID in receipt', {
+            code: 'APPLE_TRANSACTION_ID_REQUIRED',
+          });
+        }
+        // Settlement deduplicates claims. Valuation must use the same identity
+        // boundary so repeating a receipt cannot pay for a larger booking.
+        if (appleTransactionIds.includes(transactionId)) continue;
+        appleTransactionIds.push(transactionId);
+        verifiedCents += unitCents * purchasedQty;
       }
 
       if (verifiedCents < expectedPricing.totalCents) {
         return res.status(400).json({ error: 'Receipt total does not match expected amount' });
       }
-      if (Array.from(new Set(appleTransactionIds.filter(Boolean))).length === 0) {
-        return res.status(400).json({ error: 'Missing Apple transaction ids in purchase data' });
-      }
 
-      const MAX_AD_SLOTS = 2;
       if (ad.target_zip_code) {
-        const reservedAdsInZip = await prisma.ad.findMany({
-          where: {
-            target_zip_code: ad.target_zip_code,
-            payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-            NOT: { id: String(ad_id) },
-          },
-          select: { id: true },
-          take: 100,
+        const fullDates = await getFullAdSlotDates(prisma, {
+          adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates: dates,
         });
-        if (reservedAdsInZip.length > 0) {
-          const dateObjects = dates.map((s: string) => new Date(s + 'T00:00:00.000Z'));
-          const bookedSlots = await prisma.adReservation.groupBy({
-            by: ['date'],
-            where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-            _count: { date: true },
+        if (fullDates.length > 0) {
+          return res.status(409).json({
+            error: 'One or more dates are fully booked',
+            dates: fullDates,
           });
-          const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-          if (fullDates.length > 0) {
-            return res.status(409).json({
-              error: 'One or more dates are fully booked',
-              dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-            });
-          }
         }
       }
 
@@ -4110,77 +4008,13 @@ paymentsRouter.post(
         return res.sendStatus(200); // Always 200 to Apple
       }
 
-      // Verify JWS signature using the x5c certificate chain from the header.
-      // The leaf cert signs the payload; we verify the chain against Apple's root CA.
       let payload: any;
       try {
-        // Step 1: Decode header WITHOUT verification to inspect x5c chain
-        const decoded = jwt.decode(signedPayload, { complete: true });
-        const header = decoded?.header as any;
-        if (!header?.x5c?.length) {
-          console.error(
-            '[apple-s2s] No x5c certificate chain in JWS header — rejecting unverified payload'
-          );
-          return res.status(400).json({ error: 'Missing certificate chain' });
-        }
-
-        // Step 2: Enforce ES256 algorithm — reject anything else
-        if (header.alg !== 'ES256') {
-          console.error(
-            '[apple-s2s] Unexpected algorithm:',
-            header.alg,
-            '— only ES256 is accepted'
-          );
-          return res.status(403).json({ error: 'Invalid algorithm' });
-        }
-
-        // Step 3: Build PEM certs from x5c chain
-        const x5cCerts = (header.x5c as string[]).map(
-          (c: string) => `-----BEGIN CERTIFICATE-----\n${c}\n-----END CERTIFICATE-----`
-        );
-        const leafCertPem = x5cCerts[0];
-
-        // Step 4: Pin root cert to Apple Root CA - G3
-        // Apple's App Store S2S notifications always chain to "Apple Root CA - G3"
-        const rootCert = x5cCerts[x5cCerts.length - 1];
-        const rootX509 = new crypto.X509Certificate(rootCert);
-        // PAY-2: Pin to exact Apple Root CA - G3 identity (CN + O) to prevent
-        // any other Apple-signed cert (e.g. developer certs) from being accepted.
-        if (
-          !rootX509.subject.includes('CN=Apple Root CA - G3') ||
-          !rootX509.subject.includes('O=Apple Inc.') ||
-          !rootX509.issuer.includes('Apple Root CA - G3')
-        ) {
-          console.error(
-            '[apple-s2s] Root cert is NOT Apple Root CA - G3 — rejecting. Subject:',
-            rootX509.subject,
-            'Issuer:',
-            rootX509.issuer
-          );
-          return res.status(403).json({ error: 'Invalid certificate chain' });
-        }
-        // Verify root is self-signed
-        if (!rootX509.checkIssued(rootX509)) {
-          console.error('[apple-s2s] Root cert is not self-signed — rejecting');
-          return res.status(403).json({ error: 'Invalid root certificate' });
-        }
-
-        // Step 5: Verify full chain — each cert issued by the next
-        for (let i = 0; i < x5cCerts.length - 1; i++) {
-          const cert = new crypto.X509Certificate(x5cCerts[i]);
-          const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
-          if (!cert.checkIssued(issuerCert)) {
-            console.error(`[apple-s2s] Certificate chain broken at index ${i} — rejecting`);
-            return res.status(403).json({ error: 'Broken certificate chain' });
-          }
-        }
-
-        // Step 6: Verify JWS signature with leaf cert public key — strict ES256 only
-        const leafCert = crypto.createPublicKey(leafCertPem);
-        payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
-      } catch (decodeErr) {
-        console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);
-        return res.sendStatus(503);
+        payload = await verifyAppleNotificationJws(signedPayload);
+      } catch {
+        return sendError(res, 403, 'Invalid Apple notification signature', {
+          code: 'INVALID_APPLE_SIGNATURE',
+        });
       }
 
       if (!payload) {
@@ -4211,49 +4045,18 @@ paymentsRouter.post(
         console.warn('[apple-s2s] Unexpected Apple notification environment:', environment);
       }
 
-      // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).
-      // SECURITY: Verify the full cert chain of the inner JWS (not just the leaf cert) so a
-      // crafted token with a self-signed leaf cannot be accepted as a valid Apple inner token.
-      const verifyInnerJWS = (token: string): any => {
-        try {
-          const innerHeader = jwt.decode(token, { complete: true })?.header as any;
-          if (!innerHeader?.x5c?.length) return {};
-          const innerCerts = (innerHeader.x5c as string[]).map(
-            (c: string) => `-----BEGIN CERTIFICATE-----\n${c}\n-----END CERTIFICATE-----`
-          );
-          // Pin inner chain root to Apple Root CA - G3 as well
-          const innerRoot = new crypto.X509Certificate(innerCerts[innerCerts.length - 1]);
-          if (
-            !innerRoot.subject.includes('CN=Apple Root CA - G3') ||
-            !innerRoot.subject.includes('O=Apple Inc.')
-          ) {
-            console.warn('[apple-s2s] Inner JWS root cert is not Apple Root CA - G3 — skipping');
-            return {};
-          }
-          for (let i = 0; i < innerCerts.length - 1; i++) {
-            const cert = new crypto.X509Certificate(innerCerts[i]);
-            const issuerCert = new crypto.X509Certificate(innerCerts[i + 1]);
-            if (!cert.checkIssued(issuerCert)) {
-              console.warn(`[apple-s2s] Inner JWS cert chain broken at index ${i} — skipping`);
-              return {};
-            }
-          }
-          const innerKey = crypto.createPublicKey(innerCerts[0]);
-          return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
-        } catch (innerErr) {
-          console.warn('[apple-s2s] Failed to verify inner JWS token:', innerErr);
-        }
-        return {};
-      };
-
+      // A verified outer envelope cannot authorize unverified inner transaction data.
       let transactionInfo: any = {};
-      if (data.signedTransactionInfo) {
-        transactionInfo = verifyInnerJWS(data.signedTransactionInfo);
-      }
-
       let renewalInfo: any = {};
-      if (data.signedRenewalInfo) {
-        renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
+      try {
+        if (data.signedTransactionInfo)
+          transactionInfo = await verifyAppleSignedJws(data.signedTransactionInfo);
+        if (data.signedRenewalInfo)
+          renewalInfo = await verifyAppleRenewalJws(data.signedRenewalInfo);
+      } catch {
+        return sendError(res, 403, 'Invalid Apple notification contents', {
+          code: 'INVALID_APPLE_SIGNATURE',
+        });
       }
 
       const appleTransactionId: string = transactionInfo.transactionId || '';
@@ -4269,6 +4072,26 @@ paymentsRouter.post(
         productId,
         environment,
       });
+
+      if (notificationType === 'ONE_TIME_CHARGE' && APPLE_AD_PRODUCTS.includes(productId as any)) {
+        const token = z.string().uuid().safeParse(transactionInfo.appAccountToken);
+        if (!token.success || !data.signedTransactionInfo) {
+          captureException(new Error('Apple ad notification has no purchase intent'), {
+            context: 'ad_intent_notification_unbound',
+          });
+          return res.sendStatus(200); // Legacy unbound purchases remain on their existing path.
+        }
+        try {
+          await recordAdPurchaseReceipt(undefined, token.data, data.signedTransactionInfo);
+          return res.sendStatus(200);
+        } catch {
+          captureException(new Error('Apple ad notification recovery failed'), {
+            context: 'ad_intent_notification',
+            intent_id: token.data,
+          });
+          return res.sendStatus(503);
+        }
+      }
 
       const receiptState = await recordAppleNotificationReceipt(prisma, {
         notificationUUID,
@@ -4540,130 +4363,13 @@ paymentsRouter.post(
 );
 
 // ── Google Play Billing verification ────────────────────────────────
-// Google Play uses the same subscription SKU strings as Apple, so reuse the one
-// canonical product→plan map (imported above) rather than a second literal that
-// could silently drift.
-export const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = APPLE_PRODUCT_TO_PLAN;
-export const GOOGLE_ALLOWED_PACKAGES = (
-  process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub,com.xsantcastx.varsityhub'
-)
-  .split(',')
-  .map(value => value.trim())
-  .filter(Boolean);
-const GOOGLE_PLAY_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const GOOGLE_PLAY_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
-const GOOGLE_PLAY_API_BASE = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
-const GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL = (
-  process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || ''
-).trim();
-const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (
-  process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY || ''
-)
-  .replace(/\\n/g, '\n')
-  .trim();
-const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
 // Security audit 2026-06 #4 (P2): the unverified-fallback flag is a hard no-op in
 // production — resolveGooglePlayUnverifiedFallback() ignores it (with a console.warn)
 // when NODE_ENV === 'production', so this constant is always false in prod and the
 // no-credentials path below fails closed with 503. This supersedes the old M3 block
 // that crashed the server at boot when the flag was set in prod without credentials.
 const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = resolveGooglePlayUnverifiedFallback(process.env);
-
-function getGooglePurchaseOrderId(purchaseToken: string): string {
-  return `google_purchase:${crypto.createHash('sha256').update(String(purchaseToken)).digest('hex')}`;
-}
-
-export function hasGooglePlayVerifierConfig() {
-  return Boolean(GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL && GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY);
-}
-
-async function getGooglePlayAccessToken(): Promise<string | null> {
-  if (!hasGooglePlayVerifierConfig()) return null;
-  const now = Math.floor(Date.now() / 1000);
-  const assertion = jwt.sign(
-    {
-      iss: GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL,
-      scope: GOOGLE_PLAY_SCOPE,
-      aud: GOOGLE_PLAY_TOKEN_URL,
-      iat: now,
-      exp: now + 3600,
-    },
-    GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY,
-    { algorithm: 'RS256' }
-  );
-
-  const body = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion,
-  });
-  const response = await runWithBreaker(
-    'google-play',
-    () =>
-      fetch(GOOGLE_PLAY_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      }),
-    { timeout: 10000 }
-  );
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(
-      `Google token exchange failed (${response.status}): ${text || 'no response body'}`
-    );
-  }
-  const payload: any = await response.json();
-  return typeof payload?.access_token === 'string' ? payload.access_token : null;
-}
-
-export async function verifyGooglePurchaseWithPlayApi(params: {
-  packageName: string;
-  productId: string;
-  purchaseToken: string;
-}) {
-  const accessToken = await getGooglePlayAccessToken();
-  if (!accessToken) {
-    return { verified: false as const, reason: 'google_verifier_not_configured' };
-  }
-
-  const { packageName, productId, purchaseToken } = params;
-  const url = `${GOOGLE_PLAY_API_BASE}/applications/${encodeURIComponent(packageName)}/purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}`;
-  const response = await runWithBreaker(
-    'google-play',
-    () =>
-      fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }),
-    { timeout: 10000 }
-  );
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    return {
-      verified: false as const,
-      reason: `google_play_api_${response.status}`,
-      details: text || null,
-    };
-  }
-
-  const payload: any = await response.json();
-  const expiryTimeMillis = Number(payload?.expiryTimeMillis || 0);
-  const cancelReason = payload?.cancelReason;
-  const isExpired = !expiryTimeMillis || expiryTimeMillis <= Date.now();
-  const isCanceled = cancelReason !== undefined && cancelReason !== null;
-  if (isExpired || isCanceled) {
-    return {
-      verified: false as const,
-      reason: isExpired ? 'google_subscription_expired' : 'google_subscription_canceled',
-      details: payload,
-    };
-  }
-
-  return {
-    verified: true as const,
-    expiresAt: new Date(expiryTimeMillis).toISOString(),
-    details: payload,
-  };
-}
+const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
 
 // Google Play purchase verification
 paymentsRouter.post(

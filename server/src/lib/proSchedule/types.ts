@@ -20,6 +20,8 @@ export type ProFixture = {
    */
   home_team_ref: string | null;
   away_team_ref: string | null;
+  home_team?: ProviderTeam | null;
+  away_team?: ProviderTeam | null;
 
   /**
    * Display title. Optional for two-team fixtures (derived as "Away at Home");
@@ -49,6 +51,48 @@ export type ProFixture = {
   status: 'scheduled' | 'postponed' | 'cancelled';
 };
 
+export type ProviderTeam = {
+  external_ref: string;
+  league: ProLeague;
+  name: string;
+  short_name: string;
+  abbreviation: string | null;
+  city: string | null;
+  state: string | null;
+  conference: string | null;
+  division: string | null;
+  venue_name: string | null;
+  venue_address: string | null;
+  venue_lat: number | null;
+  venue_lng: number | null;
+  timezone: string | null;
+  primary_color: string | null;
+};
+
+export const NCAA_LEAGUES = [
+  'ncaaf',
+  'ncaamb',
+  'ncaawb',
+  'ncaabaseball',
+  'ncaamhockey',
+] as const satisfies readonly ProLeague[];
+
+export const PRO_SCHEDULE_LEAGUES = [
+  'nfl',
+  'nba',
+  'wnba',
+  'mlb',
+  'wwe',
+  'ufc',
+  'atp',
+  'wta',
+  ...NCAA_LEAGUES,
+] as const satisfies readonly ProLeague[];
+
+export function isNcaaLeague(league: ProLeague): boolean {
+  return (NCAA_LEAGUES as readonly ProLeague[]).includes(league);
+}
+
 export type ProScheduleAdapter = {
   /** Provider name, for logs. */
   readonly name: string;
@@ -64,7 +108,7 @@ export type ProScheduleAdapter = {
 
 /**
  * Hours after start that the geofenced posting window stays open, per league.
- * The window always opens 1 hour before start (server/src/lib/geofencing.ts);
+ * The window always opens 12 hours before start / game day (server/src/lib/geofencing.ts);
  * only the after-start bound is tunable, via Event.live_window_hours_after_start.
  *
  * Football gets the longest tail because tailgating outlasts the game itself;
@@ -75,6 +119,14 @@ export const LIVE_WINDOW_HOURS_BY_LEAGUE: Record<ProLeague, number> = {
   nfl: 5,
   mlb: 4,
   wwe: 4,
+  ufc: 6,
+  atp: 4,
+  wta: 4,
   nba: 3,
   wnba: 3,
+  ncaaf: 4,
+  ncaamb: 4,
+  ncaawb: 4,
+  ncaabaseball: 4,
+  ncaamhockey: 4,
 };

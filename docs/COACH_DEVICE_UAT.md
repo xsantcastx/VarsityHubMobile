@@ -122,8 +122,8 @@ Run these with one real org owner account, one fan-role org manager account, and
   - Open `/approvals` and confirm it opens instead of redirecting away.
   - Open `/event-approvals` and confirm it opens instead of redirecting away.
   - Open the organization profile and confirm:
-    - admin tools render
-    - `Invite Coach` is visible
+    - event/game management tools render only for the manager's organization
+    - `Invite Coach` is not visible; organization invites are owner-only
     - `Edit Profile` is not visible
     - `Coach Requests` only appears if the account is the owner, not just a manager
   - Confirm pending event/game moderation data loads from the seeded org/team.
@@ -147,7 +147,7 @@ Run these with one real org owner account, one fan-role org manager account, and
 - No non-approved coach reaches a functional coach screen.
 - No fully completed approved coach is incorrectly blocked.
 - Missing-agreement fixtures are blocked only on the agreement gate and recover cleanly after acceptance.
-- A fan-role user with active `manager` org membership can reach org-admin surfaces without being treated as org owner.
+- A fan-role user with active `manager` org membership can manage permitted organization events/games, but cannot edit the organization, manage its invites, review coach applications or use founder administration.
 - A normal fan is not shown a false `Request to Join` CTA on the organization profile.
 - Quick Actions route correctly on first tap.
 - No stale offline/auth latch appears after refresh or relaunch.

@@ -2,7 +2,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';

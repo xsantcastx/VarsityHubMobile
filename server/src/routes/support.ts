@@ -7,6 +7,8 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { supportLimiter } from '../middleware/rateLimiters.js';
+import { recordSupportFeedback } from '../lib/supportFeedback.js';
+import { isAllowedAssetUrl } from '../lib/mediaHosts.js';
 
 const contactSchema = z.object({
   name: z.string().min(1).max(200),
@@ -18,7 +20,18 @@ const contactSchema = z.object({
 const feedbackSchema = z.object({
   category: z.string().min(1).max(100),
   message: z.string().min(1).max(5000),
-  screenshot_url: z.string().url().max(2048).optional(),
+  screenshot_url: z
+    .string()
+    .url()
+    .max(2048)
+    .refine(isAllowedAssetUrl, 'Unsupported screenshot host')
+    .optional(),
+  submission_id: z
+    .string()
+    .min(16)
+    .max(80)
+    .regex(/^[a-zA-Z0-9_-]+$/)
+    .optional(),
 });
 
 export const supportRouter = Router();
@@ -107,11 +120,12 @@ supportRouter.post(
       }
       const { category, message, screenshot_url } = parsed.data;
       const uid = req.user.id;
+      const reportId = await recordSupportFeedback(uid, parsed.data);
       req.log?.info?.(
         { type: 'support_feedback', user_id: uid, category, screenshot_url },
         'Feedback submit'
       );
-      return res.json({ ok: true });
+      return res.json({ ok: true, reportId });
     } catch (err) {
       console.error('[support] POST /feedback error:', err);
       return sendError(res, 500, 'SUPPORT_FEEDBACK_FAILED', {

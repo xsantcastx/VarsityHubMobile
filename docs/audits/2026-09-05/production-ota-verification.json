@@ -1,0 +1,51 @@
+{
+  "channel": "production",
+  "paused": false,
+  "branchMapping": {
+    "data": [
+      {
+        "branchId": "019c8911-0180-7d10-a148-df668172ca3a",
+        "branchMappingLogic": "true"
+      }
+    ],
+    "version": 0
+  },
+  "updates": [
+    {
+      "id": "01a07255-c29d-708f-a826-9996c3c7b9b7",
+      "group": "6f4b1579-d3f4-4a9a-9e8b-9594acc78e30",
+      "platform": "android",
+      "runtimeVersion": "1.0.5",
+      "createdAt": "2026-09-05T16:10:18.141Z",
+      "gitCommitHash": "e6af820df6498235758d49b924a41fcd8f53e747",
+      "isGitWorkingTreeDirty": false,
+      "branch": "production",
+      "apiUrl": "https://api-production-8ac3.up.railway.app",
+      "nodeEnv": "production",
+      "publicProviderConfigPresent": {
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": true,
+        "EXPO_PUBLIC_SENTRY_DSN": true,
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": true
+      },
+      "stripeLive": true
+    },
+    {
+      "id": "01a07255-c29d-7b29-9a28-32767fa38ac9",
+      "group": "6f4b1579-d3f4-4a9a-9e8b-9594acc78e30",
+      "platform": "ios",
+      "runtimeVersion": "1.0.5",
+      "createdAt": "2026-09-05T16:10:18.141Z",
+      "gitCommitHash": "e6af820df6498235758d49b924a41fcd8f53e747",
+      "isGitWorkingTreeDirty": false,
+      "branch": "production",
+      "apiUrl": "https://api-production-8ac3.up.railway.app",
+      "nodeEnv": "production",
+      "publicProviderConfigPresent": {
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": true,
+        "EXPO_PUBLIC_SENTRY_DSN": true,
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": true
+      },
+      "stripeLive": true
+    }
+  ]
+}

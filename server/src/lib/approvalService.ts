@@ -78,6 +78,72 @@ function reportPushFailure(
   });
 }
 
+async function loadPendingEventForReview(
+  eventId: string,
+  adminId: string | null,
+  prisma: PrismaClient,
+  action: 'approve' | 'reject'
+) {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) return { ok: false as const, error: 'Event not found', status: 404 as const };
+  if (event.approval_status === 'approved') {
+    return { ok: false as const, error: 'Event already approved', status: 400 as const };
+  }
+  if (event.approval_status === 'rejected') {
+    return { ok: false as const, error: 'Event already rejected', status: 400 as const };
+  }
+  if (event.approval_status !== 'pending') {
+    return { ok: false as const, error: 'Invalid state', status: 400 as const };
+  }
+  if (adminId && event.creator_id === adminId) {
+    return {
+      ok: false as const,
+      error: `You cannot ${action} your own event`,
+      status: 403 as const,
+    };
+  }
+  return { ok: true as const, event };
+}
+
+async function buildEventReviewRaceResponse(
+  eventId: string,
+  prisma: PrismaClient,
+  action: 'approve' | 'reject'
+) {
+  addBreadcrumb(
+    `Event ${action === 'approve' ? 'approval' : 'rejection'} lost race`,
+    'approval.event',
+    'warning',
+    {
+      action,
+      event_id: eventId,
+    }
+  );
+  const current = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { approval_status: true },
+  });
+  return {
+    ok: false as const,
+    error: `Event state changed during review (now ${current?.approval_status ?? 'unknown'}). Refresh and try again.`,
+    status: 409,
+  };
+}
+
+type EventReviewResult =
+  | {
+      ok: true;
+      event: any;
+      error?: undefined;
+      status?: undefined;
+    }
+  | {
+      ok?: false;
+      error: string;
+      status: number;
+      event?: undefined;
+    };
+
 /**
  * Check whether an organization is admin-approved.
  * Use this before team creation, coach approval, etc.
@@ -664,7 +730,10 @@ export async function approveCoach(
   });
 
   if (raced) {
-    return { error: 'User approval status changed before this action completed', status: 409 as const };
+    return {
+      error: 'User approval status changed before this action completed',
+      status: 409 as const,
+    };
   }
 
   await invalidateMeCacheForUser(userId);
@@ -1202,17 +1271,13 @@ export async function rejectAd(
 // Event approval
 // ────────────────────────────────────────────────────────────────────────────
 
-export async function approveEvent(eventId: string, adminId: string | null, prisma: PrismaClient) {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) return { error: 'Event not found', status: 404 };
-  if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
-  if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
-  if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
-  // IDOR guard: a reviewer must not approve an event they created/pitched.
-  // Mirrors approveAd. Another manager or a platform admin must sign off.
-  if (adminId && event.creator_id === adminId) {
-    return { error: 'You cannot approve your own event', status: 403 as const };
-  }
+export async function approveEvent(
+  eventId: string,
+  adminId: string | null,
+  prisma: PrismaClient
+): Promise<EventReviewResult> {
+  const review = await loadPendingEventForReview(eventId, adminId, prisma, 'approve');
+  if (!review.ok) return review;
 
   const guard = await prisma.event.updateMany({
     where: { id: eventId, approval_status: 'pending' },
@@ -1224,18 +1289,7 @@ export async function approveEvent(eventId: string, adminId: string | null, pris
     },
   });
   if (guard.count === 0) {
-    addBreadcrumb('Event approval lost race', 'approval.event', 'warning', {
-      action: 'approve',
-      event_id: eventId,
-    });
-    const current = await prisma.event.findUnique({
-      where: { id: eventId },
-      select: { approval_status: true },
-    });
-    return {
-      error: `Event state changed during review (now ${current?.approval_status ?? 'unknown'}). Refresh and try again.`,
-      status: 409,
-    };
+    return buildEventReviewRaceResponse(eventId, prisma, 'approve');
   }
 
   const updated = await prisma.event.findUniqueOrThrow({
@@ -1302,16 +1356,9 @@ export async function rejectEvent(
   adminId: string | null,
   prisma: PrismaClient,
   opts?: { reason?: string }
-) {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) return { error: 'Event not found', status: 404 };
-  if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
-  if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
-  if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
-  // IDOR guard: a reviewer must not reject an event they created/pitched.
-  if (adminId && event.creator_id === adminId) {
-    return { error: 'You cannot reject your own event', status: 403 as const };
-  }
+): Promise<EventReviewResult> {
+  const review = await loadPendingEventForReview(eventId, adminId, prisma, 'reject');
+  if (!review.ok) return review;
 
   const reason = opts?.reason;
 
@@ -1326,18 +1373,7 @@ export async function rejectEvent(
     },
   });
   if (guard.count === 0) {
-    addBreadcrumb('Event rejection lost race', 'approval.event', 'warning', {
-      action: 'reject',
-      event_id: eventId,
-    });
-    const current = await prisma.event.findUnique({
-      where: { id: eventId },
-      select: { approval_status: true },
-    });
-    return {
-      error: `Event state changed during review (now ${current?.approval_status ?? 'unknown'}). Refresh and try again.`,
-      status: 409,
-    };
+    return buildEventReviewRaceResponse(eventId, prisma, 'reject');
   }
 
   const updated = await prisma.event.findUniqueOrThrow({

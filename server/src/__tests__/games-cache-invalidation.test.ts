@@ -15,10 +15,13 @@ const mockUserFindUnique = jest.fn();
 const mockTransaction = jest.fn(async (callback: any) =>
   callback({
     game: {
+      create: mockGameCreate,
+      count: jest.fn(async () => 0),
       updateMany: mockGameUpdateMany,
       findUnique: mockGameFindUnique,
     },
     event: {
+      create: mockEventCreate,
       updateMany: mockEventUpdateMany,
     },
   })
@@ -97,8 +100,11 @@ jest.unstable_mockModule('../middleware/rateLimiters.js', () => {
 
 jest.unstable_mockModule('../lib/privacyUtils.js', () => ({
   getExcludedPrivateAuthorIds: jest.fn(async () => []),
+  getExcludedPrivateTeamIds: jest.fn(async () => []),
   getBlockedUserIds: jest.fn(async () => []),
   getRequestBlockedCache: jest.fn(() => new Map()),
+  buildPrivateTeamGameVisibilityWhere: jest.fn(() => ({})),
+  mergeAndWhere: jest.fn((...clauses: any[]) => ({ AND: clauses.filter(Boolean) })),
 }));
 
 jest.unstable_mockModule('../lib/notifications.js', () => ({

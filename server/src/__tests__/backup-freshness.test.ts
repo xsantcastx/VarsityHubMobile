@@ -21,12 +21,12 @@ const row = (table: string, primary: number, backup: number | null): PerTableCou
 });
 
 describe('evaluateFreshness (shared pass/fail definition)', () => {
-  it('byte-for-byte identical → ok, 0 drift', () => {
+  it('equal counts do not claim content equality', () => {
     const r = evaluateFreshness([row('User', 100, 100), row('Post', 50, 50)], 10);
     expect(r.ok).toBe(true);
     expect(r.deficit).toBe(0);
     expect(r.driftPct).toBe(0);
-    expect(r.reason).toMatch(/byte-for-byte/i);
+    expect(r.reason).toMatch(/content equality and restore readiness are not verified/i);
   });
 
   it('trails by a few rows within budget → ok (expected between 6h syncs)', () => {
@@ -54,6 +54,14 @@ describe('evaluateFreshness (shared pass/fail definition)', () => {
     expect(r.reason).toMatch(/missing/i);
   });
 
+  it('does not hide an empty User table behind larger tables', () => {
+    expect(evaluateFreshness([row('User', 100, 0), row('Post', 10000, 10000)]).ok).toBe(false);
+  });
+  it('does not offset missing rows with surplus rows in another table', () => {
+    const result = evaluateFreshness([row('User', 100, 50), row('Post', 100, 150)]);
+    expect(result.deficit).toBe(50);
+    expect(result.ok).toBe(false);
+  });
   it('empty primary → ok, no divide-by-zero', () => {
     const r = evaluateFreshness([row('User', 0, 0)], 10);
     expect(r.ok).toBe(true);
@@ -63,7 +71,7 @@ describe('evaluateFreshness (shared pass/fail definition)', () => {
   it('backup AHEAD of primary (negative deficit) is within budget → ok', () => {
     const r = evaluateFreshness([row('User', 100, 103)], 10);
     expect(r.ok).toBe(true);
-    expect(r.deficit).toBe(-3);
+    expect(r.deficit).toBe(0);
   });
 });
 

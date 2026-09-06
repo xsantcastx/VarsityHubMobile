@@ -26,7 +26,6 @@ jest.mock('expo-router', () => ({
   ...jest.requireActual('expo-router'),
   ...require('@/test-utils/screenMocks').expoRouterOverrides(),
 }));
-jest.mock('@/api/entities', () => require('@/test-utils/screenMocks').apiEntitiesMock()());
 
 // FeedScreen-specific deps.
 jest.mock('@react-navigation/bottom-tabs', () => ({
@@ -54,6 +53,9 @@ jest.mock('../game-details/GameVerticalFeedScreen', () =>
 );
 
 let mockUser: any = null;
+const mockGameList = jest.fn().mockResolvedValue([]);
+const mockEventFilter = jest.fn().mockResolvedValue([]);
+const mockHttpPost = jest.fn().mockResolvedValue({});
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
     user: mockUser,
@@ -62,10 +64,31 @@ jest.mock('@/context/AuthProvider', () => ({
   }),
 }));
 jest.mock('@/hooks/useColorScheme', () => ({ useColorScheme: () => 'light' }));
-
+jest.mock('@/api/entities', () =>
+  require('@/test-utils/screenMocks').apiEntitiesMock({
+    Game: { list: (...args: any[]) => mockGameList(...args) },
+    Event: { filter: (...args: any[]) => mockEventFilter(...args) },
+    Feed: { bundle: jest.fn().mockResolvedValue({}) },
+    Message: { unreadCount: jest.fn().mockResolvedValue({ count: 0 }) },
+    Notification: {
+      list: jest.fn().mockResolvedValue([]),
+      markAllRead: jest.fn().mockResolvedValue({}),
+      unreadCount: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+  })()
+);
+jest.mock('@/api/http', () => ({
+  httpPost: (...args: any[]) => mockHttpPost(...args),
+}));
 import FeedScreen from '../feed';
 
 describe('FeedScreen (render smoke)', () => {
+  beforeEach(() => {
+    mockGameList.mockClear();
+    mockEventFilter.mockClear();
+    mockHttpPost.mockClear();
+  });
+
   it('mounts and renders a tree without crashing for an empty user', () => {
     mockUser = null;
     const { toJSON, unmount } = render(<FeedScreen />);

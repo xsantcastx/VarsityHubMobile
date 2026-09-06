@@ -7,7 +7,7 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const packageJson = read('package.json');
 const appConfig = read('app.config.js');
-const httpTransport = read('api/http.ts');
+const httpTransport = read('apiclient/http.ts');
 const envConfig = read('config/env.ts');
 
 describe('local api dev contracts', () => {

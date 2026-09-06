@@ -10,21 +10,21 @@ not Kubernetes — and that is the correct choice at this scale.
 
 ## What each layer actually is
 
-| Layer                    | Reality                                                                                                          |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| Frontend                 | Expo SDK 54 / React Native, Expo Router (~90 file-based routes)                                                  |
-| API / backend            | Express + Prisma, domain-split routes (`server/src/routes/*`)                                                    |
-| Database & storage       | PostgreSQL via Prisma (47 models, ~178 indexes, `$transaction` for race-safety). Media in Cloudinary, not the DB |
-| Auth & permissions       | JWT + `session_epoch` single-session (`server/src/middleware/auth.ts`), bcrypt, server-side role/plan/ownership  |
-| Hosting / deploy         | Railway, single Dockerfile service; `start.sh` runs `prisma migrate deploy` on **every** deploy                  |
-| Cloud & compute          | Railway-managed; `railway.toml` `numReplicas=2`                                                                  |
-| CI/CD                    | GitHub Actions (18 workflows) + Railway auto-deploy from `main`; EAS for binaries/OTA                            |
-| Security & RLS           | Helmet/TLS/JWT; Postgres RLS **enabled-not-forced** (dormant defense-in-depth)                                   |
-| Rate limiting            | Redis-backed, fails closed in prod (`redisRateLimit.ts`)                                                         |
-| Caching & CDN            | Redis cache (`cache.ts`, DB 2) + react-query (client) + Cloudinary CDN + Expo OTA                                |
-| Load balancing / scaling | Railway edge LB; multi-replica safe via `runClusterOnce`                                                         |
-| Error tracking / logs    | Sentry + pino-http                                                                                               |
-| Availability / recovery  | Health checks, retries, distributed locks, DB backup sync, circuit breaker                                       |
+| Layer                    | Reality                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Frontend                 | Expo SDK 54 / React Native, Expo Router (file-based routes)                                                     |
+| API / backend            | Express + Prisma, domain-split routes (`server/src/routes/*`)                                                   |
+| Database & storage       | PostgreSQL via Prisma (`$transaction` for race-safety). Media in Cloudinary, not the DB                         |
+| Auth & permissions       | JWT + `session_epoch` single-session (`server/src/middleware/auth.ts`), bcrypt, server-side role/plan/ownership |
+| Hosting / deploy         | Railway, single Dockerfile service; `start.sh` runs `prisma migrate deploy` on **every** deploy                 |
+| Cloud & compute          | Railway-managed; `railway.toml` `numReplicas=1`; increase when workload requires                                |
+| CI/CD                    | GitHub Actions + Railway auto-deploy from `main`; EAS for binaries/OTA                                          |
+| Security & RLS           | Helmet/TLS/JWT; Postgres RLS **enabled-not-forced** (dormant defense-in-depth)                                  |
+| Rate limiting            | Redis-backed, fails closed in prod (`redisRateLimit.ts`)                                                        |
+| Caching & CDN            | Redis cache (`cache.ts`, DB 2) + react-query (client) + Cloudinary CDN + Expo OTA                               |
+| Load balancing / scaling | Railway edge LB; multi-replica safe via `runClusterOnce`                                                        |
+| Error tracking / logs    | Sentry + pino-http                                                                                              |
+| Availability / recovery  | Health checks, retries, distributed locks, DB backup sync, circuit breaker                                      |
 
 ## Buzzword audit (what's present vs. correctly absent)
 
@@ -73,6 +73,22 @@ not introduce a parallel one.
    and bypasses them (dormant). NEVER `FORCE ROW LEVEL SECURITY` without first
    adding a non-owner DB role + per-transaction `SET LOCAL app.current_user_id`
    middleware — and remember `start.sh` auto-applies migrations to prod on deploy.
+
+## September 5 inventory and startup corrections
+
+Paid ad dates live in `AdReservation`; expiring checkout intent lives in
+`AdSlotHold`, keyed by purchase reference. The single `adInventory.ts` adapter
+counts paid dates plus active holds, preserves paid delivery during Run Again,
+and applies settlement, cancellation, expiry and refunds to the matching purchase.
+Both tables participate in the existing backup table order. The additive migration
+requires an explicit stop of the old checkout writer before the new version starts;
+zero overlap configuration alone is not an atomic transition. See the
+[release record](audits/2026-09-05/release-verification.md) for cutover and rollback.
+
+The startup placeholder returns 503, primary migration exhaustion aborts startup,
+and migration/backup commands are bounded. Railway's 600-second health window
+waits for the real API. Backup schema mutations are excluded from startup; reviewed repairs are rehearsed on an isolated restore before deployment. The atomic backup job checks PostgreSQL object parity and copies migration history with data; a scheduled isolated restore verifies migration startup.
+its success is separate from a tested restoration of production data.
 
 ## Org → program → team hierarchy (sport-program layer, 2026-07, Phase 0+1; re-keyed 2026-07-10)
 

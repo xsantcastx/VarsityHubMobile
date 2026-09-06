@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
@@ -8,10 +9,6 @@ let signJwt: any;
 
 const PASSWORD = 'TestPassword123!';
 const ts = Date.now();
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
 describeDb('Ad geofencing integration', () => {
   const userIds: string[] = [];

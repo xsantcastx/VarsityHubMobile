@@ -35,6 +35,8 @@ const createAuthMock = (overrides: Partial<AuthContextType> = {}): AuthContextTy
   healthError: null,
   checkAuth: jest.fn(),
   signOut: jest.fn(),
+  savePreferences: jest.fn().mockResolvedValue({}),
+  preferenceSaveState: { pending: 0, error: false, saved: false },
   registerPushToken: jest.fn(),
   markOnboardingCompleteLocally: jest.fn(),
   markOnboardingIncompleteLocally: jest.fn(),

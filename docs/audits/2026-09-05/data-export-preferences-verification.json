@@ -1,0 +1,31 @@
+{
+  "sourceCommit": "e7f38857fd5964dcc897d4807d90a0b6ad48c6a9",
+  "checkedAt": "2026-09-05T21:41:46.394992+00:00",
+  "archiveFieldAssertions": [
+    "Saved notification choices, including false, survive export",
+    "Unknown nested push-token data excluded"
+  ],
+  "targetedJestSuites": 2,
+  "directWorkerTests": 4,
+  "childHttpLifecycleCases": 10,
+  "typechecks": {
+    "client": 0,
+    "server": 0
+  },
+  "localReleaseGate": {
+    "exitCode": 0,
+    "logSha256": "3bc1fe9bedd20883c8bd25181076c4509da52df577dab1535235c088117a0df7"
+  },
+  "privateStorageJourney": {
+    "passed": true,
+    "checks": [
+      "no live worker: unavailable before insertion",
+      "HTTP request -> real BullMQ worker -> private S3 upload -> ready",
+      "unsigned object download denied",
+      "signed download yields a valid complete 26-section ZIP",
+      "real presigned URL expiry and endpoint expiry enforced",
+      "delete removes the private object",
+      "worker shutdown removes availability"
+    ]
+  }
+}

@@ -1,4 +1,6 @@
-.git
+# Do NOT add `.git` here: vercel.json's ignoreCommand runs `git diff`, which
+# needs the .git dir. Listing it deleted git before the build and errored every
+# deploy with "Not a git repository".
 .expo
 .claude
 .docs

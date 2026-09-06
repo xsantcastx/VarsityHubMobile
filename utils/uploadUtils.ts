@@ -2,8 +2,8 @@
  * File upload utilities for VarsityHub mobile app
  */
 
-import { uploadFile as uploadWithAuth, UploadOptions } from '../api/upload';
-import { getApiBaseUrl } from '../api/http';
+import { uploadFile as uploadWithAuth, UploadOptions } from '../apiclient/upload';
+import { getApiBaseUrl } from '../apiclient/http';
 
 export interface UploadResponse {
   url: string;

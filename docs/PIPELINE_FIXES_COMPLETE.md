@@ -30,9 +30,9 @@
 
 #### 4. **Verify Production Ready** (`verify-production-ready.yml`) ✅ FIXED
 
-- **Issue:** Script path incorrect (script moved to `scripts/moved-from-root/`)
-- **Fix:** Added fallback path checking with graceful error handling
-- **Status:** ✅ Working (disabled but functional when manually triggered)
+- **Issue:** Workflow previously depended on a moved shell script path
+- **Fix:** Runs the package entry point: `npm run verify:production-ready`
+- **Status:** ✅ Working when manually triggered or scheduled
 
 ## 📊 Complete Pipeline Status
 
@@ -115,26 +115,18 @@ continue-on-error: true
 
 - `.github/workflows/nightly-db-migrate.yml`
 
-### Fix 3: Verify Production Ready - Script Path
+### Fix 3: Verify Production Ready - Script Entry Point
 
 **Before:**
 
 ```yaml
-run: ./verify-production-ready.sh # ❌ Script moved to different location
+run: ./verify-production-ready.sh # ❌ root script path drifted
 ```
 
 **After:**
 
 ```yaml
-run: |
-  if [ -f "scripts/moved-from-root/verify-production-ready.sh" ]; then
-    bash scripts/moved-from-root/verify-production-ready.sh
-  elif [ -f "scripts/verify-production-ready.sh" ]; then
-    bash scripts/verify-production-ready.sh
-  else
-    echo "⚠️  verify-production-ready.sh not found, skipping"
-    echo "Production readiness check skipped" > verification-report.txt
-  fi
+run: npm run verify:production-ready
 ```
 
 **File Updated:**

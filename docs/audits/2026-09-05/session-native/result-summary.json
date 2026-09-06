@@ -1,0 +1,70 @@
+{
+  "at": "2026-09-05T19:57:29.400155+00:00",
+  "cases": {
+    "realEmailSignIn": "PASS",
+    "backgroundForeground": "PASS",
+    "terminateReopenPersistedSession": "PASS",
+    "foreground503IdentityPreserved": "PASS",
+    "coldStart503AutomaticRecovery": "PASS"
+  },
+  "loginRequests": 1,
+  "login200": 1,
+  "logoutRequests": 0,
+  "authenticatedMe200": 4,
+  "me503": 3,
+  "apiRestoredAt": "2026-09-05T19:55:04.388273+00:00",
+  "automaticAuthenticatedMeAt": "2026-09-05T19:55:17.730Z",
+  "recoverySeconds": 13.341727,
+  "paymentMutationsOrPushRegistration": [],
+  "localPaymentSummaryReads": 2,
+  "backendOutboundBlocks": 0,
+  "maestroReports": {
+    "lifecycle": {
+      "name": "Test Suite",
+      "device": "VarsityHub Session Audit 20260905 - iOS 26.2 - E8124F63-B5E4-49C0-ADB8-4E1850EC44D1",
+      "tests": "1",
+      "failures": "0",
+      "time": "14.0"
+    },
+    "offline": {
+      "name": "Test Suite",
+      "device": "VarsityHub Session Audit 20260905 - iOS 26.2 - E8124F63-B5E4-49C0-ADB8-4E1850EC44D1",
+      "tests": "1",
+      "failures": "0",
+      "time": "8.0"
+    },
+    "recovered": {
+      "name": "Test Suite",
+      "device": "VarsityHub Session Audit 20260905 - iOS 26.2 - E8124F63-B5E4-49C0-ADB8-4E1850EC44D1",
+      "tests": "1",
+      "failures": "0",
+      "time": "9.0"
+    },
+    "final-profile": {
+      "name": "Test Suite",
+      "device": "VarsityHub Session Audit 20260905 - iOS 26.2 - E8124F63-B5E4-49C0-ADB8-4E1850EC44D1",
+      "tests": "1",
+      "failures": "0",
+      "time": "2.0"
+    }
+  },
+  "limitations": [
+    "Simulator development binary plus current Metro JS; not physical/TestFlight/production OTA acceptance",
+    "Outage injected as HTTP503; no real network loss or iOS Keychain error injection",
+    "No elapsed-week or expired-access-token native exercise; weekly reported symptom remains unconfirmed",
+    "Early Maestro input/focus/developer-menu/save-password prompts were harness friction; final lifecycle/recovery assertions use real native UI and production auth code"
+  ],
+  "cleanup": {
+    "at": "2026-09-05T19:59:09.129698+00:00",
+    "newSimulatorDeleted": true,
+    "ownedPortsClosed": {
+      "4015": true,
+      "8095": true
+    },
+    "originalSimulatorState": "Shutdown",
+    "originalSimulatorLastBootedAt": "2026-09-01T19:28:52Z",
+    "originalPort4000Listener": ["node", "37686"],
+    "testDatabaseRetained": "Dedicated local fixture DB retained with evidence; no production data"
+  },
+  "primaryScreenshot": "10-final-profile.png"
+}

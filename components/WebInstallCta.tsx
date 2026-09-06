@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useHydrated } from '@/hooks/useHydrated';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
@@ -17,6 +18,7 @@ const MIN_FLOATING_WIDTH = 1200;
 export function WebInstallCta() {
   const colorScheme = useColorScheme() ?? 'light';
   const { width } = useWindowDimensions();
+  const hydrated = useHydrated();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export function WebInstallCta() {
 
   const palette = Colors[colorScheme];
 
-  if (width < MIN_FLOATING_WIDTH) {
+  if (!hydrated || width < MIN_FLOATING_WIDTH) {
     return (
       <View style={[styles.banner, { backgroundColor: palette.tint }]}>
         <Pressable

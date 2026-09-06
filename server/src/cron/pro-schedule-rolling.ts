@@ -1,3 +1,4 @@
+import { captureMessage } from '../lib/sentry.js';
 /**
  * Rolling pro-schedule ingest — all leagues, preseason-safe horizon.
  *
@@ -8,8 +9,9 @@
  * calendar advances. Offseason leagues simply return no games.
  *
  * Accuracy is per-game and enforced downstream in resolveFixture: a game
- * publishes only if both teams map to seeded refs AND its venue resolves to a
- * coordinate. Anything else is quarantined and reported, never published wrong.
+ * publishes only if both teams resolve to known provider refs AND its venue
+ * resolves to a coordinate. Anything else is quarantined and reported, never
+ * published wrong.
  *
  * Railway cron suggestion: daily (`0 8 * * *`) keeps the configured window fresh.
  * DRY RUN by default; pass --apply (or ROLLING_APPLY=1) to write.
@@ -17,7 +19,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { NO_ADAPTER_MESSAGE, resolveConfiguredAdapter } from '../lib/proSchedule/adapters.js';
-import { ingestLeague } from '../lib/proSchedule/ingest.js';
+import { ingestLeague, type IngestStats } from '../lib/proSchedule/ingest.js';
 import { getProScheduleWindowDays } from '../lib/proSchedule/window.js';
 
 export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): Promise<void> {
@@ -27,6 +29,7 @@ export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): 
   const adapter = resolveConfiguredAdapter();
   if (!adapter) {
     console.warn(NO_ADAPTER_MESSAGE);
+    if (apply) throw new Error('Scheduled import has no configured provider');
     return;
   }
 
@@ -39,23 +42,82 @@ export async function runRollingScheduleIngest(opts: { apply?: boolean } = {}): 
       `(${from.toISOString()} → ${to.toISOString()})`
   );
 
-  let totalFailures = 0;
+  const failedLeagues: string[] = [];
   for (const league of adapter.leagues) {
+    let runId: string | null = null;
+    let stats: IngestStats | null = null;
+    let failed = false;
     try {
-      const stats = await ingestLeague(adapter, league, from, to, { dryRun: !apply });
-      totalFailures += stats.failures.length;
+      if (apply) {
+        // intent: require a durable run record before importing so a recording
+        // outage cannot create an apparently healthy, untraceable schedule run.
+        const catalog = await prisma.sportsLeague.findUnique({
+          where: { slug: league },
+          select: { id: true },
+        });
+        const run = await prisma.sportsIngestRun.create({
+          data: {
+            sports_league_id: catalog?.id ?? null,
+            // File adapters include the input path in their diagnostic name.
+            // Store the provider identity without leaking paths or exceeding VARCHAR(60).
+            provider: adapter.name.startsWith('json:') ? 'json' : adapter.name.slice(0, 60),
+            status: 'running',
+            window_from: from,
+            window_to: to,
+            message: `league=${league}`,
+          },
+        });
+        runId = run.id;
+      }
+      stats = await ingestLeague(adapter, league, from, to, { dryRun: !apply });
+      failed = stats.failures.length > 0;
+      if (apply && stats.fetched === 0 && !failed) {
+        captureMessage('Schedule import empty; season coverage unverified', 'warning', {
+          context: 'schedule_empty_unverified',
+          source_id: league,
+          provider: adapter.name.startsWith('json:') ? 'json' : adapter.name.slice(0, 60),
+          run_id: runId,
+          window_from: from.toISOString(),
+          window_to: to.toISOString(),
+        });
+      }
     } catch (err) {
       // One league's provider failure must not abort the others.
-      totalFailures += 1;
+      failed = true;
       console.error(
         `[pro-schedule-rolling] ${league} failed:`,
         err instanceof Error ? err.message : err
       );
+    } finally {
+      if (runId) {
+        try {
+          await prisma.sportsIngestRun.update({
+            where: { id: runId },
+            data: {
+              status: stats ? (failed ? 'partial' : 'success') : 'failed',
+              fetched_count: stats?.fetched ?? 0,
+              created_count: stats?.created ?? 0,
+              updated_count: stats?.updated ?? 0,
+              skipped_count: stats?.skipped ?? 0,
+              failure_count: stats?.failures.length ?? 1,
+              finished_at: new Date(),
+            },
+          });
+        } catch (error) {
+          failed = true;
+          console.error(`[pro-schedule-rolling] ${league} run recording failed:`, error);
+        }
+      }
     }
+    if (failed) failedLeagues.push(league);
   }
 
   if (!apply) console.log('[pro-schedule-rolling] dry run — nothing written. Re-run with --apply.');
-  if (totalFailures > 0) process.exitCode = 1;
+  // BullMQ observes promise rejection, not the CLI's process.exitCode. Finish
+  // independent leagues first, then fail the job so monitoring/retries see it.
+  if (failedLeagues.length > 0) {
+    throw new Error(`Schedule ingest incomplete: ${failedLeagues.join(', ')}`);
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

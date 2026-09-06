@@ -17,7 +17,12 @@ import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { isAllowedAssetUrl, isAllowedAvatarUrl, isAllowedMediaUrl } from '../lib/mediaHosts.js';
+import {
+  isAllowedAssetUrl,
+  isAllowedAvatarUrl,
+  isAllowedMediaUrl,
+  isAllowedPostMediaUrl,
+} from '../lib/mediaHosts.js';
 
 const R2_BASE = 'https://pub-61f12b49067c403ca5f56fa57105b3ed.r2.dev';
 const R2_AVATAR = `${R2_BASE}/uploads/abc123.jpg`;
@@ -42,6 +47,7 @@ describe('R2-hosted media is accepted once R2_PUBLIC_BASE_URL is set', () => {
   it('accepts R2 for media and plain assets (stories, logos, banners)', () => {
     expect(isAllowedMediaUrl(R2_AVATAR)).toBe(true);
     expect(isAllowedAssetUrl(R2_AVATAR)).toBe(true);
+    expect(isAllowedPostMediaUrl(R2_AVATAR)).toBe(true);
   });
 
   it('still accepts the Cloudinary hosts it always did', () => {
@@ -84,6 +90,10 @@ describe('off-platform and lookalike hosts stay rejected', () => {
   it('rejects non-https and protocol-relative URLs', () => {
     expect(isAllowedAvatarUrl('http://res.cloudinary.com/a.jpg')).toBe(false);
     expect(isAllowedMediaUrl('//res.cloudinary.com/a.jpg')).toBe(false);
+    expect(isAllowedPostMediaUrl('http://res.cloudinary.com/dxb5oq4fs/image/upload/a.jpg')).toBe(
+      false
+    );
+    expect(isAllowedPostMediaUrl('//res.cloudinary.com/dxb5oq4fs/image/upload/a.jpg')).toBe(false);
   });
 });
 
@@ -101,6 +111,18 @@ describe('avatar vs media semantics stay distinct', () => {
     expect(isAllowedMediaUrl('/uploads/local.jpg')).toBe(true);
     expect(isAllowedAssetUrl('data:image/png;base64,iVBORw0KG')).toBe(false);
     expect(isAllowedAssetUrl('/uploads/local.jpg')).toBe(false);
+    expect(isAllowedPostMediaUrl('data:image/png;base64,iVBORw0KG')).toBe(false);
+    expect(isAllowedPostMediaUrl('/uploads/local.jpg')).toBe(false);
+  });
+
+  it('requires post media to be the configured Cloudinary account', () => {
+    process.env.CLOUDINARY_CLOUD_NAME = 'dxb5oq4fs';
+    expect(
+      isAllowedPostMediaUrl('https://res.cloudinary.com/dxb5oq4fs/image/upload/v1/abc123.jpg')
+    ).toBe(true);
+    expect(
+      isAllowedPostMediaUrl('https://res.cloudinary.com/other-cloud/image/upload/v1/abc123.jpg')
+    ).toBe(false);
   });
 });
 

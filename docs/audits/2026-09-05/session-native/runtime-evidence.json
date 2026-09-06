@@ -1,0 +1,24 @@
+{
+  "simulator": "iPhone 17 Pro",
+  "os": "iOS 26.2",
+  "disposableUDID": "E8124F63-B5E4-49C0-ADB8-4E1850EC44D1",
+  "bundleId": "com.varsithub.varsityhub-ios",
+  "version": "1.0.5",
+  "build": "59",
+  "runtime": "1.0.5",
+  "nativeBinaryPath": "/Users/varsityhub/Library/Developer/Xcode/DerivedData/VarsityHub-anzunywxtpiwixgntcqnietzqnap/Build/Products/Debug-iphonesimulator/VarsityHub.app",
+  "gitHeadAtNativeStartup": "2ef9d9773b78007144ffe10b6852a899fca76b3a",
+  "gitHeadAfterFreeze": "8b8543e30789d637c8a1960a95b8d3420f11b4ea",
+  "sourceSha256": {
+    "context/AuthProvider.tsx": "ae3cbac26225e9684ce38118a308ab6ae82f291a800611593349d40fe0e93eb2",
+    "apiclient/auth.ts": "5a75081d8a8a8b73b1266bf18182f61504b11aad945b6805ba92f66858b93593",
+    "apiclient/http.ts": "79dff671d365ea079b552564f3116d77cef5a70f990d696f9a2bddae3495175e",
+    "server/src/routes/auth.ts": "e38e6c2c4fc24839d97a05254f1d9017408544dc3213a4531ffccfbbe7354396"
+  },
+  "js": "Current Metro development bundle, not embedded or OTA bundle",
+  "api": "http://127.0.0.1:4015",
+  "metro": "http://127.0.0.1:8095",
+  "db": "varsityhub_audit_20260905_ios_session",
+  "finalGitHead": "8b8543e30789d637c8a1960a95b8d3420f11b4ea",
+  "frozenAuthSourceStillMatches": true
+}

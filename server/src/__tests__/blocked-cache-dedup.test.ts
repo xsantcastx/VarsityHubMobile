@@ -68,17 +68,14 @@ describe('getBlockedUserIds — request-scoped cache', () => {
     expect(b).toEqual(c);
   });
 
-  it('separate requests share the cross-request fallback within its TTL', async () => {
-    // Since the cross-request blocked-ids cache (perf: 0d544514), a second
-    // request for the same viewer inside the TTL reuses the in-process
-    // fallback instead of re-querying.
+  it('separate requests read fresh block state without a process TTL', async () => {
     const req1 = {} as { _blockedCache?: Map<string, Promise<string[]>> };
     const req2 = {} as { _blockedCache?: Map<string, Promise<string[]>> };
 
     await getBlockedUserIds('viewer-1', getRequestBlockedCache(req1));
     await getBlockedUserIds('viewer-1', getRequestBlockedCache(req2));
 
-    expect(findManyMock).toHaveBeenCalledTimes(1);
+    expect(findManyMock).toHaveBeenCalledTimes(2);
   });
 
   it('invalidation forces the next lookup back to the DB', async () => {

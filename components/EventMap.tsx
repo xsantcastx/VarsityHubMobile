@@ -24,11 +24,45 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { getMapProvider } from '@/utils/maps';
-import { clusterByCoordinate } from '@/utils/mapClustering';
+import { stableMapGroups, mapMarkerKey, isValidMapCoordinate } from '@/utils/mapClustering';
 
 import { EventMapData, EventMapProps } from './EventMap.types';
 
 export type { EventMapData, EventMapProps } from './EventMap.types';
+
+// Map pins use exactly the three categories shown in the legend — game,
+// sport/team, and multiple (cluster). Owner rule (2026-09): the old per-sport /
+// per-team-brand color system was dropped because it made the legend inaccurate
+// (30+ possible pin colors described by 3 swatches). A pin's color now derives
+// only from its category, so the legend is correct by construction.
+export const GAME_MARKER_COLOR = '#FF6B6B';
+export const SPORT_TEAM_MARKER_COLOR = '#2563EB';
+
+const SINGLE_EVENT_REGION_DELTA = 0.35;
+
+/**
+ * A single map pin's color, from its category alone (see the legend). A "game"
+ * fixture is one color; every other single pin (event pages, sport/team pages)
+ * is the sport/team color. Clusters of many pins are colored separately with the
+ * theme tint ("Multiple — tap to choose"). Custom marker_color, pro-team brand
+ * colors, and per-sport colors are intentionally NOT used here — that is what
+ * made the 3-swatch legend inaccurate.
+ */
+export function resolveMarkerColor(event: Pick<EventMapData, 'type'>): string {
+  return event.type === 'game' ? GAME_MARKER_COLOR : SPORT_TEAM_MARKER_COLOR;
+}
+
+function formatPreviewDate(date?: string | null): string | null {
+  if (!date) return null;
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 export default function EventMap({
   events,
@@ -36,7 +70,12 @@ export default function EventMap({
   initialRegion,
   showUserLocation = true,
   dataLoaded = true,
+  preventAutoCenterOnUser = false,
   onRefresh,
+  hideCenterOnUser = false,
+  onCalendarPress,
+  calendarActive = false,
+  autoFitPins = true,
 }: EventMapProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const mapRef = useRef<MapView>(null);
@@ -46,8 +85,10 @@ export default function EventMap({
   const [showEmptyState, setShowEmptyState] = useState(true);
   // The events sharing one map point when a cluster pin is tapped (picker list).
   const [selectedCluster, setSelectedCluster] = useState<EventMapData[] | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<EventMapData | null>(null);
   const isUserInteractionRef = useRef(false);
-  // Search box — filters the visible pins/clusters by title substring (case-insensitive).
+  // Search box — filters the loaded map event/game pins only. It deliberately
+  // does not call global user/team/post search.
   const [searchQuery, setSearchQuery] = useState('');
 
   // Use initialRegion if provided, otherwise default to USA-wide view
@@ -108,7 +149,7 @@ export default function EventMap({
             setUserLocation(location);
 
             // Auto-center on user location if no specific region was requested
-            if (!initialRegion) {
+            if (!initialRegion && !preventAutoCenterOnUser) {
               setTimeout(() => {
                 mapRef.current?.animateToRegion(
                   {
@@ -140,14 +181,30 @@ export default function EventMap({
     return () => {
       cancelled = true;
     };
-  }, [showUserLocation, initialRegion]);
+  }, [showUserLocation, initialRegion, preventAutoCenterOnUser]);
 
   // Search filter — applied before the coordinate filter so it also thins out
   // the cluster groups (a search match inside a cluster surfaces on its own).
+  // Match the event page's visible identity: matchup/title, venue/location,
+  // sport, and league metadata.
   const searchFilteredEvents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return events;
-    return events.filter(event => (event.title || '').toLowerCase().includes(query));
+    return events.filter(event =>
+      [
+        event.title,
+        event.location,
+        event.sport,
+        event.league_slug,
+        event.league_name,
+        event.league_level,
+        event.league_gender,
+      ].some(value =>
+        String(value ?? '')
+          .toLowerCase()
+          .includes(query)
+      )
+    );
   }, [events, searchQuery]);
 
   // Filter events that have coordinates (use != null so lat/lng of 0 are accepted).
@@ -156,7 +213,7 @@ export default function EventMap({
   // re-fire the "fit all pins" zoom on every state change (tapping a cluster
   // pin zoomed the map OUT to the continental view).
   const eventsWithCoordinates = useMemo(
-    () => searchFilteredEvents.filter(event => event.latitude != null && event.longitude != null),
+    () => searchFilteredEvents.filter(isValidMapCoordinate),
     [searchFilteredEvents]
   );
 
@@ -167,9 +224,28 @@ export default function EventMap({
   // picker. Pure JS (no native clustering module) → OTA-safe. Pinned by
   // __tests__/mapClustering.test.ts.
   const clusters: EventMapData[][] = useMemo(
-    () => clusterByCoordinate(eventsWithCoordinates),
+    () => stableMapGroups(eventsWithCoordinates),
     [eventsWithCoordinates]
   );
+
+  // A preview must obey the same current filters as the pins underneath it.
+  useEffect(() => {
+    setSelectedMarker(previous =>
+      previous
+        ? (eventsWithCoordinates.find(
+            item => item.id === previous.id && item.type === previous.type
+          ) ?? null)
+        : null
+    );
+    setSelectedCluster(previous => {
+      if (!previous?.length) return null;
+      return (
+        clusters.find(
+          group => group.length > 1 && mapMarkerKey(group) === mapMarkerKey(previous)
+        ) ?? null
+      );
+    });
+  }, [clusters, eventsWithCoordinates]);
 
   // Center map on all events
   const fitToEvents = useCallback(() => {
@@ -177,6 +253,20 @@ export default function EventMap({
     captureBreadcrumb('Map fit to events', 'map.navigation', {
       event_count: eventsWithCoordinates.length,
     });
+
+    if (eventsWithCoordinates.length === 1) {
+      const event = eventsWithCoordinates[0];
+      mapRef.current?.animateToRegion(
+        {
+          latitude: event.latitude!,
+          longitude: event.longitude!,
+          latitudeDelta: SINGLE_EVENT_REGION_DELTA,
+          longitudeDelta: SINGLE_EVENT_REGION_DELTA,
+        },
+        800
+      );
+      return;
+    }
 
     const coordinates = eventsWithCoordinates.map(event => ({
       latitude: event.latitude!,
@@ -195,13 +285,14 @@ export default function EventMap({
   // never do — re-firing here is what made the map zoom out on every tap.
   const lastAutoFitEventsRef = useRef<EventMapData[] | null>(null);
   useEffect(() => {
+    if (!autoFitPins) return;
     if (eventsWithCoordinates.length === 0 || !dataLoaded || loading) return;
     if (lastAutoFitEventsRef.current === eventsWithCoordinates) return;
     lastAutoFitEventsRef.current = eventsWithCoordinates;
     // Small delay to ensure map is fully mounted
     const timer = setTimeout(() => fitToEvents(), 500);
     return () => clearTimeout(timer);
-  }, [eventsWithCoordinates, dataLoaded, fitToEvents, loading]);
+  }, [eventsWithCoordinates, dataLoaded, fitToEvents, loading, autoFitPins]);
 
   // Center map on user location
   const centerOnUser = () => {
@@ -230,19 +321,7 @@ export default function EventMap({
     }, 1100);
   };
 
-  // Get marker color based on event type
-  const getMarkerColor = (type?: string) => {
-    switch (type) {
-      case 'game':
-        return '#FF6B6B'; // Red for games
-      case 'event':
-        return '#4ECDC4'; // Teal for events
-      case 'post':
-        return '#95E1D3'; // Light teal for posts
-      default:
-        return Colors[colorScheme].tint;
-    }
-  };
+  const getMarkerColor = (event: EventMapData) => resolveMarkerColor(event);
 
   const openEventFromMarker = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
     const now = Date.now();
@@ -294,13 +373,14 @@ export default function EventMap({
           if (group.length > 1) {
             return (
               <Marker
-                key={`cluster-${coordinate.latitude},${coordinate.longitude}`}
+                key={mapMarkerKey(group)}
                 coordinate={coordinate}
                 onPress={() => {
                   captureBreadcrumb('Map cluster pressed', 'map.navigation', {
                     cluster_size: group.length,
                   });
                   setSelectedCluster(group);
+                  setSelectedMarker(null);
                 }}
               >
                 <View style={[styles.clusterPin, { backgroundColor: Colors[colorScheme].tint }]}>
@@ -312,18 +392,15 @@ export default function EventMap({
 
           return (
             <Marker
-              key={lead.id}
+              key={mapMarkerKey(group)}
               coordinate={coordinate}
-              pinColor={getMarkerColor(lead.type)}
-              // v1.0.3: single-tap takes the user straight to the detail. The previous
-              // two-tap flow (callout preview → details) was rejected as "two pages."
-              // Keep onCalloutPress as a belt-and-braces fallback in case the native
-              // callout still surfaces on some platforms.
+              pinColor={getMarkerColor(lead)}
               onPress={() => {
                 captureBreadcrumb('Map marker pressed', 'map.navigation', {
                   event_type: lead.type || 'unknown',
                 });
-                openEventFromMarker(lead.id, lead.type);
+                setSelectedCluster(null);
+                setSelectedMarker(lead);
               }}
               onCalloutPress={() => {
                 captureBreadcrumb('Map marker callout pressed', 'map.navigation', {
@@ -348,8 +425,33 @@ export default function EventMap({
           </TouchableOpacity>
         )}
 
+        {/* Dates-tracker Button — replaces the middle "center on user" button on
+            the events map. Opens the parent's date picker so users can browse
+            games/events by date. */}
+        {onCalendarPress && (
+          <TouchableOpacity
+            style={[
+              styles.controlButton,
+              {
+                backgroundColor: calendarActive
+                  ? Colors[colorScheme].tint
+                  : Colors[colorScheme].background,
+              },
+            ]}
+            onPress={onCalendarPress}
+            accessibilityRole="button"
+            accessibilityLabel="Pick a date to view games and events"
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={24}
+              color={calendarActive ? '#FFFFFF' : Colors[colorScheme].tint}
+            />
+          </TouchableOpacity>
+        )}
+
         {/* Center on User Button */}
-        {showUserLocation && userLocation && (
+        {!hideCenterOnUser && showUserLocation && userLocation && (
           <TouchableOpacity
             style={[styles.controlButton, { backgroundColor: Colors[colorScheme].background }]}
             onPress={centerOnUser}
@@ -372,7 +474,7 @@ export default function EventMap({
         )}
       </View>
 
-      {/* Search Box — filters visible pins/clusters by title substring */}
+      {/* Search Box — filters the loaded event/game pins by title, venue, sport, or league */}
       <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background }]}>
         <Ionicons name="search" size={18} color={Colors[colorScheme].mutedText} />
         <TextInput
@@ -406,17 +508,19 @@ export default function EventMap({
       {eventsWithCoordinates.length > 0 && (
         <View style={[styles.legend, { backgroundColor: Colors[colorScheme].background }]}>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: getMarkerColor('game') }]} />
+            <View style={[styles.legendDot, { backgroundColor: GAME_MARKER_COLOR }]} />
             <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Game</Text>
           </View>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: getMarkerColor('event') }]} />
-            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>Event</Text>
+            <View style={[styles.legendDot, { backgroundColor: SPORT_TEAM_MARKER_COLOR }]} />
+            <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>
+              Sport/team
+            </Text>
           </View>
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: Colors[colorScheme].tint }]} />
             <Text style={[styles.legendLabel, { color: Colors[colorScheme].text }]}>
-              Multiple — tap to zoom
+              Multiple — tap to choose
             </Text>
           </View>
         </View>
@@ -432,17 +536,16 @@ export default function EventMap({
           >
             <Ionicons name="map-outline" size={48} color={Colors[colorScheme].tint} />
             <Text style={[styles.noEventsTitle, { color: Colors[colorScheme].text }]}>
-              No Games with Locations Yet
+              No matching events
             </Text>
             <Text style={[styles.noEventsDescription, { color: Colors[colorScheme].mutedText }]}>
-              Games will appear on the map once they have location data added. Teams can add
-              locations when creating games.
+              Try another date, sport, or league. Events need a location to appear on the map.
             </Text>
             <View style={styles.emptyStateHints}>
               <View style={styles.hint}>
                 <Ionicons name="information-circle" size={16} color={Colors[colorScheme].tint} />
                 <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>
-                  Create games with locations to see them on the map
+                  Add locations to see games and events on the map
                 </Text>
               </View>
             </View>
@@ -452,6 +555,58 @@ export default function EventMap({
           </TouchableOpacity>
         </View>
       )}
+
+      {selectedMarker ? (
+        <View style={styles.markerPreviewWrap} pointerEvents="box-none">
+          <View
+            style={[
+              styles.markerPreview,
+              {
+                backgroundColor: Colors[colorScheme].background,
+                borderColor: getMarkerColor(selectedMarker),
+              },
+            ]}
+          >
+            <View
+              style={[styles.previewAccent, { backgroundColor: getMarkerColor(selectedMarker) }]}
+            />
+            <TouchableOpacity
+              testID="map-marker-preview"
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${selectedMarker.title || 'event'} details`}
+              onPress={() => openEventFromMarker(selectedMarker.id, selectedMarker.type)}
+              style={styles.previewText}
+            >
+              <Text
+                style={[styles.previewTitle, { color: Colors[colorScheme].text }]}
+                numberOfLines={1}
+              >
+                {selectedMarker.title || (selectedMarker.type === 'game' ? 'Game' : 'Event')}
+              </Text>
+              <Text
+                style={[styles.previewMeta, { color: Colors[colorScheme].mutedText }]}
+                numberOfLines={1}
+              >
+                {[formatPreviewDate(selectedMarker.date), selectedMarker.location]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="map-marker-preview-close"
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Close event preview"
+              onPress={() => setSelectedMarker(null)}
+              style={styles.previewCloseButton}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={18} color={Colors[colorScheme].mutedText} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       {/* Cluster picker — tapping a numbered cluster pin lists the co-located events */}
       <Modal
@@ -482,9 +637,7 @@ export default function EventMap({
                     openEventFromMarker(item.id, item.type);
                   }}
                 >
-                  <View
-                    style={[styles.clusterDot, { backgroundColor: getMarkerColor(item.type) }]}
-                  />
+                  <View style={[styles.clusterDot, { backgroundColor: getMarkerColor(item) }]} />
                   <View style={styles.clusterRowText}>
                     <Text
                       style={[styles.clusterRowTitle, { color: Colors[colorScheme].text }]}
@@ -673,6 +826,53 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   legendLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  markerPreviewWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 92,
+    alignItems: 'center',
+  },
+  markerPreview: {
+    width: '100%',
+    maxWidth: 520,
+    minHeight: 64,
+    borderRadius: 12,
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  previewAccent: {
+    width: 6,
+    alignSelf: 'stretch',
+  },
+  previewText: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  previewCloseButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  previewTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  previewMeta: {
+    marginTop: 3,
     fontSize: 12,
     fontWeight: '500',
   },

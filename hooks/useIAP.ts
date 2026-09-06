@@ -61,6 +61,7 @@ export function useVHubIAP() {
 
   const { connected, subscriptions, fetchProducts, requestPurchase, finishTransaction } = useRNIAP({
     onPurchaseSuccess: async (purchase: Purchase) => {
+      if (!Object.values(PLAN_SKUS).some(ids => ids.includes(purchase.productId ?? ''))) return;
       captureBreadcrumb('Subscription store purchase received', 'payments.subscription', {
         platform: isIOS ? 'ios' : isAndroid ? 'android' : Platform.OS,
         product_id: purchase?.productId,

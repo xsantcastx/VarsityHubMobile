@@ -7,6 +7,9 @@ describe('normalizeSportSlug', () => {
   it('maps a human label to its slug', () => {
     expect(normalizeSportSlug('Ice Hockey')).toBe('ice_hockey');
     expect(normalizeSportSlug('Football')).toBe('football');
+    expect(normalizeSportSlug('Mixed Martial Arts')).toBe('mma');
+    expect(normalizeSportSlug('Beach Volleyball')).toBe('beach_volleyball');
+    expect(normalizeSportSlug('Water Polo')).toBe('water_polo');
   });
   it('is case- and separator-insensitive', () => {
     expect(normalizeSportSlug('  TRACK & FIELD ')).toBe('track_field');
@@ -22,6 +25,8 @@ describe('sportEmoji', () => {
   it('resolves an emoji for labels and slugs', () => {
     expect(sportEmoji('basketball')).toBe('🏀');
     expect(sportEmoji('Ice Hockey')).toBe('🏒');
+    expect(sportEmoji('mma')).toBe('🥊');
+    expect(sportEmoji('auto_racing')).toBe('🏎️');
   });
   it('returns null when the sport is unknown', () => {
     expect(sportEmoji('quidditch')).toBeNull();

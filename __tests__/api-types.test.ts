@@ -13,7 +13,7 @@ import type {
   CreatePostPayload,
   CreateEventPayload,
   CreateAdPayload,
-} from '../api/types';
+} from '../apiclient/types';
 
 describe('API type contracts', () => {
   describe('User payloads', () => {

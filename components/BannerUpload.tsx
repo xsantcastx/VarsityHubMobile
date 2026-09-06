@@ -319,8 +319,7 @@ export function BannerUpload({
             {/* Visual nudge hint */}
             {showHint && (
               <Animated.View
-                pointerEvents="none"
-                style={[styles.hintPill, { opacity: hintOpacity }]}
+                style={[styles.hintPill, { opacity: hintOpacity, pointerEvents: 'none' }]}
               >
                 <MaterialIcons name="aspect-ratio" size={16} color={theme.text} />
                 <Text style={[styles.hintText, { color: theme.text }]}>Pinch to crop</Text>

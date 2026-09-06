@@ -33,6 +33,7 @@ Features must compose with these single patterns, never stack a parallel mechani
 
 - **Outbound third-party calls → `runWithBreaker(name, fn)`** (`server/src/lib/circuitBreaker.ts`) for SendGrid / Cloudinary / Google Play / Apple. Stripe is the lone exception: SDK `timeout` + `maxNetworkRetries` (all 5 client constructions) — do not also breaker-wrap Stripe. No ad-hoc retry loops around external calls.
 - **Screen data → react-query, the single `lib/queryClient.ts`.** Gate spinners on `isPending`, never `isFetching`. Never add a second QueryClient or parallel fetch cache. `PostCacheContext` is cross-screen post sharing, NOT a fetch cache — don't duplicate roles.
+- **Public event discovery (2026-09-06)**: feed and map use `/event-discovery?paginated=true`, sharing a 14-day upcoming horizon plus live-event lookback via `shared/runtime/discoveryPolicy.js`. Candidate pages can be empty with a continuation; clients must follow `next_cursor`. Cursors are encrypted, viewer/filter-bound and expire after 15 minutes. Historical pages retain media-only visibility and authorized-upload exceptions; the following calendar keeps its separate one-year scope. Other means levels outside major/minor/college, including missing league metadata. Deploy the server contract before publishing the client.
 - **Realtime → the single `server/src/realtime/socketServer.ts`** (JWT handshake, per-conversation room auth, Redis adapter, websocket-only). Polling stays as the fallback, not removed.
 - **Startup-once work → `runClusterOnce`** (`distributedLock.ts`) so it runs on one replica only; the scheduler worker still runs on all. Don't invent new leader election.
 - **Everything cross-replica coordinates via Redis** (rate limit DB 1, BullMQ DB 0, cache DB 2, locks, socket adapter). No in-process shared state — it breaks under `numReplicas>1` (`railway.toml`).
@@ -87,6 +88,7 @@ Check env vars, Railway logs, and build configs — not just source code.
 
 - Role escalation: owner role blocked on all generic membership/invite endpoints
 - Ad booking horizon: 56-day max from today
+- Ad inventory uses the single `server/src/lib/adInventory.ts` adapter: `AdReservation` stores paid dates, `AdSlotHold` stores expiring purchase-scoped holds, and settlement/refund/cancellation match purchase references. Run Again must preserve existing paid delivery. The September 5 migration requires an explicit old-writer stop before the new adapter starts; rollback must retain compatibility with live holds.
 - Checkout holds: fatal on failure — no partial bookings
 - Team creation enforced inside `$transaction` (race-condition safe)
 - Rate limiting requires `DISABLE_RATE_LIMITING=1` to disable (never set in Railway)
@@ -126,7 +128,7 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Any native module added after the current App Store binary MUST be dynamically imported with try-catch (see `OfflineBanner.tsx` pattern for `@react-native-community/netinfo`)
 - `fallbackToCacheTimeout: 0` means updates download in background, apply on next cold start — users need two app opens to see changes
 - Always verify the App Store binary's runtime version matches what `eas update` is publishing
-- **A code fix is NOT live until `eas update` is run.** Committing and pushing to main deploys the server (Railway auto-deploys) but does NOT update the client app. Every client-side fix requires an explicit `eas update --branch production` to reach users. Always remind the user to run this after any client fix.
+- **Don't assume a code fix is live.** Pushing to `main` deploys the server only (Railway). Publish client fixes with `npm run update:production`, which guards the clean tree, validates the production client environment, runs `eas update --branch production` and uploads source maps. Static web export uses the same production environment launcher. If publication is not already authorized and completed, remind the user to run the guarded command.
 
 ## Post-mapper Consistency Rule
 
@@ -209,6 +211,7 @@ npm run audit:navigation        # classify all router.replace calls; flag REVIEW
 - Server geocoding depends on Railway `GOOGLE_MAPS_API_KEY`; mobile map rendering depends on EAS `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`
 - Poll voting now hits the API for all events including those without a linked `gameId` (uses `eventId` as fallback). Previously event-only pages silently discarded votes.
 - Signup email send is fire-and-forget — `POST /register` does not await SendGrid before responding.
+- Email delivery uses `EmailService` → `SendGridProvider` with existing retries/breaker. The legacy BullMQ email queue has no consumer; do not enqueue email jobs into it (`server/src/jobs/queues.ts`).
 
 ## Code Rules
 
@@ -235,6 +238,10 @@ Team/org authorization is split into two tiers by `server/src/lib/teamAuthorizat
 New team/org mutation endpoints must pick the correct tier explicitly — don't default to the older undifferentiated `canManageTeam` for anything beyond event/game approvals.
 
 ## Security Invariants (Do Not Break)
+
+- **Backup preservation:** API startup must not run destructive backup schema convergence (`prisma db push --accept-data-loss`). Apply reviewed backup schema repairs separately and rehearse them on an isolated restore first. Atomic refresh requires PostgreSQL object parity (including enum order, indexes, functions, policies and RLS), copies migration history in the same data transaction, and refuses incomplete source migrations or unsupported sequences. A scheduled restore drill must pass migration startup without applying repairs. Scheduler failures must propagate to job monitoring.
+
+- **Private data exports:** use only dedicated private `DATA_EXPORT_S3_*` storage, never the public media bucket. All ZIP sections must succeed. Request/worker transitions are atomic; cancellation is terminal; signed URLs cannot outlive archive expiry. Failed deletion retains its key for scheduled retry. The BullMQ scheduler owns cleanup; do not also start the legacy cron wrapper.
 
 - **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
 - **Backend validation is law** — frontend validation is UX only; never rely on client-side checks for security
@@ -445,3 +452,7 @@ Thin routes, logic one layer down · Backend validation is law, frontend is guid
 - Don't refactor or clean up code beyond what was asked
 - Fix real bugs, not theoretical issues
 - When the fix is in one file, don't touch five
+
+### Apple ad purchase durability
+
+- Apple ad checkout (2026-09-06): create an account-bound `AdPurchaseIntent` before StoreKit; pass its UUID as `appAccountToken`. Persist each verified receipt before `finishTransaction`. Inventory, receipt claims, completed ledger and intent completion share one Serializable transaction through `finalizeAppleAdPurchase(..., tx)`. The existing scheduler and root `AdPurchaseProvider` reconcile interrupted fulfillment; re-login never silently charges unpaid parts. Preserve legacy queues and needs-action records. Apple signed payloads use the official verifier pinned to the actual G3 certificate, never issuer-name trust.

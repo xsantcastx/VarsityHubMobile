@@ -17,7 +17,9 @@ describe('PDF regression — standalone event creator persists banner images', (
   });
 
   it('keeps the custom-photo affordance visible on create-fan-event', () => {
-    expect(createFanEventSrc).toMatch(/Upload Custom Photo/);
+    expect(createFanEventSrc).toMatch(
+      /<EventPreviewImageField[\s\S]*?value=\{bannerUrl\}[\s\S]*?onChange=\{setBannerUrl\}/
+    );
     // The in-form appearance/style picker was removed (commit a3789416); the
     // generated banner now falls back to a fixed 'classic' appearance, and the
     // custom-photo upload affordance remains the primary override.
@@ -28,7 +30,9 @@ describe('PDF regression — standalone event creator persists banner images', (
 describe('PDF regression — team trip creator still supports custom banners', () => {
   it('retains the shared quick-add custom banner flow used by team trips', () => {
     expect(quickAddGameModalSrc).toMatch(/eventType === 'team_trip'/);
-    expect(quickAddGameModalSrc).toMatch(/Upload Custom/);
+    expect(quickAddGameModalSrc).toMatch(
+      /<EventPreviewImageField[\s\S]*?value=\{bannerUrl\}[\s\S]*?onChange=\{setBannerUrl\}/
+    );
     expect(quickAddGameModalSrc).toMatch(/finalData\.banner_url = bannerUrl/);
   });
 });

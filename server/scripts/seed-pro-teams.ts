@@ -122,7 +122,7 @@ async function main() {
   // touring promotion (its events carry their own coordinates) and a bug for a
   // franchise, so surface the distinction rather than letting it pass silently.
   const missingVenue = seed.filter(
-    t => t.league !== 'wwe' && (t.venue_lat === null || t.venue_lng === null)
+    t => !['wwe', 'ufc'].includes(t.league) && (t.venue_lat === null || t.venue_lng === null)
   );
   if (missingVenue.length > 0) {
     console.warn(

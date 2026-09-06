@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import { prisma } from '../lib/prisma.js';
 import {
   makeFakeStorage,
@@ -41,9 +42,6 @@ jest.unstable_mockModule('../lib/accountDeletion.js', () => ({
 const { runDataExportCleanupSweep } = await import('../cron/overnightTasks.js');
 
 const PASSWORD = 'TestPassword123!';
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
 
 describeDb('GDPR data export — cleanup cron', () => {
   const { getUserId } = setupDataExportUserLifecycle({

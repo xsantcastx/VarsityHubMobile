@@ -1,0 +1,12 @@
+{
+  "service": "api",
+  "environment": "production",
+  "configPresence": {
+    "DATA_EXPORT_S3_BUCKET": false,
+    "DATA_EXPORT_S3_REGION": false,
+    "DATA_EXPORT_S3_ACCESS_KEY_ID": false,
+    "DATA_EXPORT_S3_SECRET_ACCESS_KEY": false,
+    "DATA_EXPORT_S3_ENDPOINT": false,
+    "REDIS_URL": true
+  }
+}

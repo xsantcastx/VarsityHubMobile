@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
-import { MEDIA_URL_MESSAGE, isAllowedMediaUrl } from '../lib/mediaHosts.js';
+import { MEDIA_URL_MESSAGE, isAllowedPostMediaUrl } from '../lib/mediaHosts.js';
 import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import {
   serializePoll,
@@ -13,12 +13,15 @@ import {
 } from '../lib/feedPostSerializer.js';
 import { prisma } from '../lib/prisma.js';
 import {
+  buildPrivateTeamPostVisibilityWhere,
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
   getExcludedPrivateTeamIds,
   getRequestBlockedCache,
   isAuthorHiddenFromViewer,
+  isPostHiddenFromViewer,
   isTeamHiddenFromViewer,
+  mergeAndWhere,
 } from '../lib/privacyUtils.js';
 import {
   canManageAnyTeam,
@@ -32,7 +35,7 @@ import {
   postCreationLimiter,
 } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requireAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -417,17 +420,16 @@ postsRouter.get(
           ...(typeof where.author_id === 'object' ? where.author_id : {}),
           notIn: excludedIds,
         };
-      // Also exclude posts attached to private teams the viewer can't see.
-      const excludedTeamIds = await getExcludedPrivateTeamIds(currentUserId);
-      if (excludedTeamIds.length) {
-        where.AND = [
-          ...(Array.isArray(where.AND) ? where.AND : []),
-          // notIn alone would drop null-team posts (NOT IN is NULL for NULL) —
-          // explicitly keep non-team posts.
-          { OR: [{ team_id: null }, { team_id: { notIn: excludedTeamIds } }] },
-        ];
-      }
     }
+    // Always exclude posts attached to private teams the viewer can't see,
+    // including user/game/event-scoped lists where the author itself is visible.
+    const listViewerIsAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+    mergeAndWhere(
+      where,
+      buildPrivateTeamPostVisibilityWhere(
+        listViewerIsAdmin ? [] : await getExcludedPrivateTeamIds(currentUserId)
+      )
+    );
 
     // Block filtering: hide posts from users the viewer has blocked or been blocked by
     const blockedIds = await getBlockedUserIds(currentUserId, getRequestBlockedCache(req));
@@ -690,8 +692,9 @@ const locationSchema = z
   })
   .optional();
 
-const isAllowedPostMediaUrl = isAllowedMediaUrl;
 const mediaUrlMessage = MEDIA_URL_MESSAGE;
+const POST_MAX_DURATION_S = 90;
+const MAX_VIDEO_SIZE_BYTES = 150 * 1024 * 1024;
 
 const createPostSchema = z
   .object({
@@ -711,8 +714,8 @@ const createPostSchema = z
       .optional(),
     media_width: z.number().int().positive().max(100000).optional(),
     media_height: z.number().int().positive().max(100000).optional(),
-    media_duration_s: z.number().nonnegative().max(86400).optional(),
-    media_bytes: z.number().int().nonnegative().max(5_000_000_000).optional(),
+    media_duration_s: z.number().nonnegative().max(POST_MAX_DURATION_S).optional(),
+    media_bytes: z.number().int().nonnegative().max(MAX_VIDEO_SIZE_BYTES).optional(),
     game_id: z.string().optional(),
     team_id: z.string().optional(), // Associate post with team page (coach-only)
     event_id: z.string().optional(), // For event-specific posts
@@ -735,7 +738,6 @@ import { verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyMentions } from '../lib/mentionNotifications.js';
 import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
 
 postsRouter.post(
@@ -1298,7 +1300,17 @@ postsRouter.get(
         where: { id, deleted_at: null },
         include: {
           author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-          game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
+          game: {
+            select: {
+              id: true,
+              title: true,
+              home_team: true,
+              away_team: true,
+              date: true,
+              home_team_id: true,
+              away_team_id: true,
+            },
+          },
           event: { select: { id: true, title: true, date: true, location: true, game_id: true } },
           _count: { select: { comments: true, bookmarks: true } },
           poll: { include: { options: true } },
@@ -1314,7 +1326,17 @@ postsRouter.get(
         where: { id, deleted_at: null },
         include: {
           author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-          game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
+          game: {
+            select: {
+              id: true,
+              title: true,
+              home_team: true,
+              away_team: true,
+              date: true,
+              home_team_id: true,
+              away_team_id: true,
+            },
+          },
           event: { select: { id: true, title: true, date: true, location: true, game_id: true } },
           _count: { select: { comments: true, bookmarks: true } },
         },
@@ -1323,16 +1345,8 @@ postsRouter.get(
 
     if (!post) return res.status(404).json({ error: 'Not found' });
 
-    // Privacy: hide posts from private-profile authors the viewer doesn't follow
-    if (post.author_id) {
-      const hidden = await isAuthorHiddenFromViewer(post.author_id, currentUserId);
-      if (hidden) return res.status(404).json({ error: 'Not found' });
-    }
-
-    // Block filtering: hide posts from blocked users
-    if (post.author_id && currentUserId) {
-      const blockedIds = await getBlockedUserIds(currentUserId, getRequestBlockedCache(req));
-      if (blockedIds.includes(post.author_id)) return res.status(404).json({ error: 'Not found' });
+    if (await isPostHiddenFromViewer(post, currentUserId, getRequestBlockedCache(req))) {
+      return res.status(404).json({ error: 'Not found' });
     }
 
     let has_upvoted = false;
@@ -1421,13 +1435,16 @@ postsRouter.get(
     const { id } = req.params;
     const post = await prisma.post.findFirst({
       where: { id, deleted_at: null },
-      select: { id: true, author_id: true },
+      select: {
+        id: true,
+        author_id: true,
+        team_id: true,
+        game: { select: { home_team_id: true, away_team_id: true } },
+      },
     });
     if (!post) return res.status(404).json({ error: 'Post not found' });
-    // Privacy: block comments on private-profile authors' posts for non-followers
-    if (post.author_id) {
-      const hidden = await isAuthorHiddenFromViewer(post.author_id, req.user?.id ?? null);
-      if (hidden) return res.status(404).json({ error: 'Post not found' });
+    if (await isPostHiddenFromViewer(post, req.user?.id ?? null, getRequestBlockedCache(req))) {
+      return res.status(404).json({ error: 'Post not found' });
     }
     const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50));
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
@@ -1482,16 +1499,19 @@ postsRouter.post(
 
     const post = await prisma.post.findFirst({
       where: { id, deleted_at: null },
-      select: { id: true, author_id: true, author: { select: { id: true, preferences: true } } },
+      select: {
+        id: true,
+        author_id: true,
+        team_id: true,
+        game: { select: { home_team_id: true, away_team_id: true } },
+        author: { select: { id: true, preferences: true } },
+      },
     });
     if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    // Block interaction with hidden/blocked authors' posts
-    const isHidden = await isAuthorHiddenFromViewer(post.author_id, req.user!.id);
-    if (isHidden) return res.status(404).json({ error: 'Post not found' });
-    const blockedIds = await getBlockedUserIds(req.user!.id, getRequestBlockedCache(req));
-    if (blockedIds.includes(post.author_id))
+    if (await isPostHiddenFromViewer(post, req.user!.id, getRequestBlockedCache(req))) {
       return res.status(404).json({ error: 'Post not found' });
+    }
 
     // Enforce comment_permission: everyone | following | none (post author's preference)
     const prefs = ((post as any).author?.preferences || {}) as any;
@@ -1655,14 +1675,17 @@ postsRouter.post(
 
       const postExists = await prisma.post.findFirst({
         where: { id: postId, deleted_at: null },
-        select: { id: true, author_id: true },
+        select: {
+          id: true,
+          author_id: true,
+          team_id: true,
+          game: { select: { home_team_id: true, away_team_id: true } },
+        },
       });
       if (!postExists) return res.status(404).json({ error: 'Post not found' });
-      const upvoteHidden = await isAuthorHiddenFromViewer(postExists.author_id, userId);
-      if (upvoteHidden) return res.status(404).json({ error: 'Post not found' });
-      const upvoteBlocked = await getBlockedUserIds(userId, getRequestBlockedCache(req));
-      if (upvoteBlocked.includes(postExists.author_id))
+      if (await isPostHiddenFromViewer(postExists, userId, getRequestBlockedCache(req))) {
         return res.status(404).json({ error: 'Post not found' });
+      }
 
       // Atomic upvote toggle — check + mutate inside one Serializable transaction to prevent race conditions
       const result = await prisma.$transaction(
@@ -1776,14 +1799,17 @@ postsRouter.post(
 
     const postExists = await prisma.post.findFirst({
       where: { id: postId, deleted_at: null },
-      select: { id: true, author_id: true },
+      select: {
+        id: true,
+        author_id: true,
+        team_id: true,
+        game: { select: { home_team_id: true, away_team_id: true } },
+      },
     });
     if (!postExists) return res.status(404).json({ error: 'Post not found' });
-    const bmHidden = await isAuthorHiddenFromViewer(postExists.author_id, userId);
-    if (bmHidden) return res.status(404).json({ error: 'Post not found' });
-    const bmBlocked = await getBlockedUserIds(userId, getRequestBlockedCache(req));
-    if (bmBlocked.includes(postExists.author_id))
+    if (await isPostHiddenFromViewer(postExists, userId, getRequestBlockedCache(req))) {
       return res.status(404).json({ error: 'Post not found' });
+    }
 
     const existing = await prisma.postBookmark.findUnique({
       where: { post_id_user_id: { post_id: postId, user_id: userId } },
@@ -1821,14 +1847,18 @@ postsRouter.post(
 
     const post = await prisma.post.findFirst({
       where: { id: postId, deleted_at: null },
-      select: { id: true, author_id: true, author: { select: { display_name: true } } },
+      select: {
+        id: true,
+        author_id: true,
+        team_id: true,
+        game: { select: { home_team_id: true, away_team_id: true } },
+        author: { select: { display_name: true } },
+      },
     });
     if (!post) return res.status(404).json({ error: 'Post not found' });
-    const shareHidden = await isAuthorHiddenFromViewer(post.author_id, userId);
-    if (shareHidden) return res.status(404).json({ error: 'Post not found' });
-    const shareBlocked = await getBlockedUserIds(userId, getRequestBlockedCache(req));
-    if (shareBlocked.includes(post.author_id))
+    if (await isPostHiddenFromViewer(post, userId, getRequestBlockedCache(req))) {
       return res.status(404).json({ error: 'Post not found' });
+    }
 
     const postAuthorId = post.author_id;
     if (postAuthorId && postAuthorId !== userId) {

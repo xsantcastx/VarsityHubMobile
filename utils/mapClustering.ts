@@ -16,6 +16,37 @@ export interface Coordinated {
 
 export const DEFAULT_CLUSTER_PRECISION = 4;
 
+type IdentifiedCoordinate = Coordinated & { id: string; type?: string };
+export function mapMarkerKey(group: IdentifiedCoordinate[]): string {
+  const lead = group[0];
+  return group.length > 1
+    ? `cluster:${lead.latitude!.toFixed(DEFAULT_CLUSTER_PRECISION)},${lead.longitude!.toFixed(DEFAULT_CLUSTER_PRECISION)}`
+    : `${lead.type ?? 'event'}:${lead.id}`;
+}
+
+/** Preserve native sibling order when an API refresh merely reorders records. */
+export function stableMapGroups<T extends IdentifiedCoordinate>(markers: T[]): T[][] {
+  return clusterByCoordinate(markers)
+    .map(group => [...group].sort((a, b) => `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`)))
+    .sort((a, b) => mapMarkerKey(a).localeCompare(mapMarkerKey(b)));
+}
+
+export function isValidMapCoordinate(marker: Coordinated): marker is Coordinated & {
+  latitude: number;
+  longitude: number;
+} {
+  return (
+    typeof marker.latitude === 'number' &&
+    typeof marker.longitude === 'number' &&
+    Number.isFinite(marker.latitude) &&
+    Number.isFinite(marker.longitude) &&
+    marker.latitude >= -90 &&
+    marker.latitude <= 90 &&
+    marker.longitude >= -180 &&
+    marker.longitude <= 180
+  );
+}
+
 /**
  * Returns groups of markers keyed by rounded coordinate. Markers missing a
  * latitude or longitude are dropped (they can't be placed). Each returned group
@@ -28,7 +59,7 @@ export function clusterByCoordinate<T extends Coordinated>(
 ): T[][] {
   const groups = new Map<string, T[]>();
   for (const m of markers) {
-    if (m.latitude == null || m.longitude == null) continue;
+    if (!isValidMapCoordinate(m)) continue;
     const key = `${m.latitude.toFixed(precision)},${m.longitude.toFixed(precision)}`;
     const existing = groups.get(key);
     if (existing) existing.push(m);

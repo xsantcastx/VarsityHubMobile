@@ -1,0 +1,134 @@
+{
+  "checkedAt": "2026-09-05T21:19:55.601844+00:00",
+  "baselineCommit": "3334afd9e53e4da6b2a881752fc1309412a01aae",
+  "publication": "API, OTA and website verified",
+  "before": {
+    "unavailableStatus": 202,
+    "expiredDownloadStatus": 200,
+    "deleteFailureRetainsKey": false,
+    "domainsFailed": [
+      "profile.json",
+      "teams_owned.json",
+      "team_memberships.json",
+      "organization_memberships.json",
+      "comments.json",
+      "group_chat_memberships.json",
+      "event_rsvps.json",
+      "parental_consent_history.json"
+    ]
+  },
+  "productionBacklog": {
+    "rows": 0,
+    "readOnly": true
+  },
+  "privateStorage": {
+    "passed": true,
+    "checks": [
+      "no live worker: unavailable before insertion",
+      "HTTP request -> real BullMQ worker -> private S3 upload -> ready",
+      "unsigned object download denied",
+      "signed download yields a valid complete 26-section ZIP",
+      "real presigned URL expiry and endpoint expiry enforced",
+      "delete removes the private object",
+      "worker shutdown removes availability"
+    ]
+  },
+  "serverFocused": {
+    "numTotalTestSuites": 7,
+    "numPassedTestSuites": 7,
+    "numFailedTestSuites": 0,
+    "numTotalTests": 26,
+    "numPassedTests": 26,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "serverChildCases": {
+    "data-export-lifecycle": 10,
+    "data-export-endpoints": 15,
+    "api-data-export": 7
+  },
+  "serverAdjacent": {
+    "numTotalTestSuites": 3,
+    "numPassedTestSuites": 3,
+    "numFailedTestSuites": 0,
+    "numTotalTests": 13,
+    "numPassedTests": 13,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "clientFullFirstRun": {
+    "numTotalTestSuites": 218,
+    "numPassedTestSuites": 216,
+    "numFailedTestSuites": 2,
+    "numTotalTests": 1539,
+    "numPassedTests": 1537,
+    "numFailedTests": 2,
+    "numPendingTests": 0,
+    "success": false
+  },
+  "clientTimeoutReruns": {
+    "numTotalTestSuites": 2,
+    "numPassedTestSuites": 2,
+    "numFailedTestSuites": 0,
+    "numTotalTests": 11,
+    "numPassedTests": 11,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "clientExportFinal": {
+    "numTotalTestSuites": 1,
+    "numPassedTestSuites": 1,
+    "numFailedTestSuites": 0,
+    "numTotalTests": 7,
+    "numPassedTests": 7,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "typechecks": {
+    "client": {
+      "exitCode": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "server": {
+      "exitCode": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "gates": {
+    "local": {
+      "exitCode": 0,
+      "logSha256": "bc86f72277dc6739c50838fcfa15125cbf53eb774a281cefc4366c6cb0762a80",
+      "isolatedDatabase": "varsityhub_audit_20260905_export",
+      "api": "http://127.0.0.1:4028"
+    },
+    "build": {
+      "exitCode": 0,
+      "logSha256": "8e5cb30f55f4a6b2aeaec3c8145ee0abf8f22b6fbe2a12da07d5b5d69d994373"
+    }
+  },
+  "limitations": [
+    "Production private export storage unconfigured; R2 bucket administration denied for existing key.",
+    "No physical iPhone archive save/open acceptance.",
+    "No complete new full-server sweep in this step.",
+    "Full client first run had two timeouts; both affected suites passed targeted reruns. Final export screen has seven passing cases.",
+    "Three moderate server dependency audit entries remain outside the XML-parser fix."
+  ],
+  "sourceCommit": "cab5b1339feadf4db5c06466fb4022f53e23912d",
+  "runtimeGate": {
+    "exitCode": 0,
+    "evidence": "data-export-api-verification.json"
+  },
+  "deliveredSourceCommit": "cab5b1339feadf4db5c06466fb4022f53e23912d",
+  "otaGroup": "7e09e4a5-4dd3-4437-bf3b-a32535ab96e1",
+  "webDeployment": "dpl_3b6PfEGQVob7BzvTGE9ziFe3Zh1F",
+  "serverFollowup": {
+    "sourceCommit": "e7f38857fd5964dcc897d4807d90a0b6ad48c6a9",
+    "evidence": "data-export-preferences-verification.json",
+    "runtimeEvidence": "data-export-api-verification.json",
+    "clientUnchangedSince": "cab5b1339feadf4db5c06466fb4022f53e23912d"
+  }
+}

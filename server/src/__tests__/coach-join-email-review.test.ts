@@ -17,6 +17,7 @@ describe('Coach join request email-token review routes', () => {
   let coachId = '';
   let orgId = '';
   let requestId = '';
+  let requestCreatedAt = '';
 
   beforeAll(async () => {
     ({ app } = await import('../testApp.js'));
@@ -79,9 +80,10 @@ describe('Coach join request email-token review routes', () => {
         user_id: coach.id,
         status: 'pending',
       },
-      select: { id: true },
+      select: { id: true, created_at: true },
     });
     requestId = joinRequest.id;
+    requestCreatedAt = joinRequest.created_at.toISOString();
   });
 
   afterAll(async () => {
@@ -118,7 +120,13 @@ describe('Coach join request email-token review routes', () => {
 
   it('rejects requests with a token whose organization binding does not match the join request', async () => {
     const wrongOrgToken = signReviewToken(
-      { requestId, orgId: 'org_other', action: 'approve_join_request' },
+      {
+        requestId,
+        orgId: 'org_other',
+        reviewerUserId: ownerId,
+        requestCreatedAt,
+        action: 'approve_join_request',
+      },
       '48h'
     );
     const res = await request(app).get(
@@ -129,7 +137,16 @@ describe('Coach join request email-token review routes', () => {
   });
 
   it('approves the coach directly on GET with a valid approve token (no confirmation form)', async () => {
-    const token = signReviewToken({ requestId, orgId, action: 'approve_join_request' }, '48h');
+    const token = signReviewToken(
+      {
+        requestId,
+        orgId,
+        reviewerUserId: ownerId,
+        requestCreatedAt,
+        action: 'approve_join_request',
+      },
+      '48h'
+    );
     const res = await request(app).get(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
@@ -154,7 +171,16 @@ describe('Coach join request email-token review routes', () => {
   it('shows an "already reviewed" page when the join request is no longer pending', async () => {
     // The previous test already approved this request, so a new token now lands
     // on the request-status guard rather than executing again.
-    const token = signReviewToken({ requestId, orgId, action: 'approve_join_request' }, '48h');
+    const token = signReviewToken(
+      {
+        requestId,
+        orgId,
+        reviewerUserId: ownerId,
+        requestCreatedAt,
+        action: 'approve_join_request',
+      },
+      '48h'
+    );
     const res = await request(app).get(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
@@ -171,6 +197,7 @@ describe('Join-request approval stamps agreement fields (email-link path)', () =
   let coachId2 = '';
   let orgId2 = '';
   let requestId2 = '';
+  let requestCreatedAt2 = '';
 
   beforeAll(async () => {
     const hash = await bcrypt.hash('TestPassword123!', 10);
@@ -218,6 +245,7 @@ describe('Join-request approval stamps agreement fields (email-link path)', () =
       data: { organization_id: orgId2, user_id: coachId2, status: 'pending' },
     });
     requestId2 = jr.id;
+    requestCreatedAt2 = jr.created_at.toISOString();
   });
 
   afterAll(async () => {
@@ -237,7 +265,13 @@ describe('Join-request approval stamps agreement fields (email-link path)', () =
 
   it('sets coach_agreement_accepted_at and coach_agreement_version via email-link approval', async () => {
     const token = signReviewToken(
-      { requestId: requestId2, orgId: orgId2, action: 'approve_join_request' },
+      {
+        requestId: requestId2,
+        orgId: orgId2,
+        reviewerUserId: ownerId2,
+        requestCreatedAt: requestCreatedAt2,
+        action: 'approve_join_request',
+      },
       '48h'
     );
     const res = await request(app).get(

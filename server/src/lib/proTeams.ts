@@ -1908,10 +1908,10 @@ const WNBA: ProTeamSeed[] = [
 ];
 
 /**
- * WWE is a touring promotion, not a league of franchises: there is no home
- * venue and no two-team matchup. It gets one followable row so fans can follow
- * "WWE" and see every show; each show is an Event carrying its own venue and
- * coordinates, with both pro team ids left null.
+ * Touring promotions are not leagues of franchises: there is no home venue and
+ * no two-team matchup. Each gets one followable row so fans can follow the
+ * promotion and see every show; each show is an Event carrying its own venue
+ * and coordinates, with both matchup ids left null.
  */
 const WWE: ProTeamSeed[] = [
   {
@@ -1933,7 +1933,27 @@ const WWE: ProTeamSeed[] = [
   },
 ];
 
-export const PRO_TEAM_SEED: ProTeamSeed[] = [...NFL, ...NBA, ...MLB, ...WNBA, ...WWE];
+const UFC: ProTeamSeed[] = [
+  {
+    external_ref: 'ufc:ufc',
+    league: 'ufc',
+    name: 'UFC',
+    short_name: 'UFC',
+    abbreviation: 'UFC',
+    city: null,
+    state: null,
+    conference: null,
+    division: null,
+    venue_name: null,
+    venue_address: null,
+    venue_lat: null,
+    venue_lng: null,
+    timezone: null,
+    primary_color: '#D20A0A',
+  },
+];
+
+export const PRO_TEAM_SEED: ProTeamSeed[] = [...NFL, ...NBA, ...MLB, ...WNBA, ...WWE, ...UFC];
 
 export const PRO_TEAM_SEED_COUNTS: Record<ProLeague, number> = {
   nfl: NFL.length,
@@ -1941,4 +1961,12 @@ export const PRO_TEAM_SEED_COUNTS: Record<ProLeague, number> = {
   mlb: MLB.length,
   wnba: WNBA.length,
   wwe: WWE.length,
+  ufc: UFC.length,
+  atp: 0,
+  wta: 0,
+  ncaaf: 0,
+  ncaamb: 0,
+  ncaawb: 0,
+  ncaabaseball: 0,
+  ncaamhockey: 0,
 };

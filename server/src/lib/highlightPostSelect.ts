@@ -24,3 +24,8 @@ export const highlightPostSelect = {
   country_code: true,
   _count: { select: { comments: true, bookmarks: true } },
 } as const;
+
+export const feedHighlightPostSelect = {
+  ...highlightPostSelect,
+  _count: { select: { comments: true } },
+} as const;

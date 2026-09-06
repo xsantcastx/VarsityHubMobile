@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-09-05T16:12:32.826441+00:00",
+  "runtime": "1.0.5",
+  "channel": "production",
+  "updates": [
+    {
+      "platform": "ios",
+      "id": "01a07255-c29d-7b29-9a28-32767fa38ac9",
+      "runtimeVersion": "1.0.5",
+      "httpStatus": 200,
+      "productionMode": true,
+      "stripeMatchesProductionApi": true,
+      "sentryConfigured": true,
+      "mapsConfigured": true
+    },
+    {
+      "platform": "android",
+      "id": "01a07255-c29d-708f-a826-9996c3c7b9b7",
+      "runtimeVersion": "1.0.5",
+      "httpStatus": 200,
+      "productionMode": true,
+      "stripeMatchesProductionApi": true,
+      "sentryConfigured": true,
+      "mapsConfigured": true
+    }
+  ]
+}

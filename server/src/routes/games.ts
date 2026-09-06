@@ -1,3 +1,9 @@
+import { Prisma } from '@prisma/client';
+import {
+  canViewGameRecord,
+  GAME_VISIBILITY_SELECT,
+  type GameVisibilityRecord,
+} from '../lib/entityVisibility.js';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
@@ -20,19 +26,23 @@ import { sendError } from '../lib/http/sendError.js';
 import { detectMediaType, resolvePreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
+  buildPrivateTeamGameVisibilityWhere,
   getBlockedUserIds,
   getExcludedPrivateAuthorIds,
+  getExcludedPrivateTeamIds,
   getRequestBlockedCache,
+  mergeAndWhere,
 } from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { GAME_SUMMARY_SELECT } from '../lib/serializeGame.js';
 import { venuePhotoFor } from '../lib/proSchedule/venuePhotos.js';
+import { creatorSideTeamIds, deriveGameApproval } from '../lib/gameApproval.js';
 import {
-  creatorSideTeamIds,
-  deriveGameApproval,
-  isGamePubliclyVisible,
-} from '../lib/gameApproval.js';
+  assertGameCreationOrganizationApproved,
+  assertPendingGameCapacity,
+  gameEventStatus,
+} from '../lib/gameCreation.js';
 import { formatEventTime } from '../lib/formatEventTime.js';
 import {
   canManageAnyTeam,
@@ -40,6 +50,7 @@ import {
   ORG_ADMIN_ROLES,
   TEAM_STAFF_ROLES,
 } from '../lib/teamAuthorization.js';
+import { buildBinaryVoteSummary } from '../lib/voteSummary.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
 import {
@@ -180,50 +191,10 @@ async function canViewGameMedia(
     } as any,
   });
   if (!game) return { allowed: false, exists: false };
-  // Opponent-pending/declined UPCOMING games are not public media — fall through
-  // to the privileged-viewer checks below (creator/admin/team/org staff).
-  if (isGamePubliclyVisible(game as any)) return { allowed: true, exists: true };
-
-  const viewerId = req.user?.id ?? null;
-  if (!viewerId) return { allowed: false, exists: true };
-  if ((game as any).created_by_id && (game as any).created_by_id === viewerId)
-    return { allowed: true, exists: true };
-  if (await getIsAdmin(req as any)) return { allowed: true, exists: true };
-
-  const teamIds = [(game as any).home_team_id, (game as any).away_team_id].filter(
-    Boolean
-  ) as string[];
-  if (teamIds.length === 0) return { allowed: false, exists: true };
-
-  const teamMembership = await prismaClient.teamMembership.findFirst({
-    where: {
-      user_id: viewerId,
-      team_id: { in: teamIds },
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  if (teamMembership) return { allowed: true, exists: true };
-
-  const teams = await prismaClient.team.findMany({
-    where: { id: { in: teamIds } },
-    select: { organization_id: true },
-    take: teamIds.length,
-  });
-  const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
-  if (organizationIds.length === 0) return { allowed: false, exists: true };
-
-  const orgMembership = await prismaClient.organizationMembership.findFirst({
-    where: {
-      user_id: viewerId,
-      organization_id: { in: organizationIds },
-      role: { in: ['owner', 'manager'] },
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  return { allowed: !!orgMembership, exists: true };
+  return {
+    allowed: await canViewGameRecord(game as GameVisibilityRecord, req.user?.id ?? null),
+    exists: true,
+  };
 }
 
 // Exported for tests: the prisma dependency is already injected, so the story
@@ -231,10 +202,19 @@ async function canViewGameMedia(
 export const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
   asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
+    let excludedAuthorIds: string[] = [];
+    const storyNow = new Date();
     try {
       const visibility = await canViewGameMedia(p, id, req as AuthedRequest);
       if (!visibility.exists) return res.status(404).json({ error: 'Not found' });
       if (!visibility.allowed) return res.status(404).json({ error: 'Not found' });
+
+      const viewerId = (req as AuthedRequest).user?.id ?? null;
+      const [privateIds, blockedIds] = await Promise.all([
+        getExcludedPrivateAuthorIds(viewerId),
+        getBlockedUserIds(viewerId, getRequestBlockedCache(req)),
+      ]);
+      excludedAuthorIds = [...new Set([...privateIds, ...blockedIds])];
 
       void (async () => {
         try {
@@ -276,7 +256,13 @@ export const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
       // a game with >50 stories still returns the most recent 50, not the
       // oldest 50.
       const items = await p.story.findMany({
-        where: { game_id: id },
+        where: {
+          game_id: id,
+          AND: [
+            { OR: [{ expires_at: null }, { expires_at: { gt: storyNow } }] },
+            { OR: [{ user_id: null }, { user_id: { notIn: excludedAuthorIds } }] },
+          ],
+        },
         orderBy: { created_at: 'desc' },
         take: 50,
         select: {
@@ -313,6 +299,8 @@ export const makeListMediaHandler = ({ prisma: p }: StoryDeps) =>
             SELECT "id", "media_url", "created_at", "caption", "user_id"
             FROM "Story"
             WHERE "game_id" = ${id}
+              AND ("expires_at" IS NULL OR "expires_at" > ${storyNow})
+              ${excludedAuthorIds.length ? Prisma.sql`AND ("user_id" IS NULL OR "user_id" NOT IN (${Prisma.join(excludedAuthorIds)}))` : Prisma.empty}
             ORDER BY "created_at" DESC
             LIMIT 50
           `;
@@ -477,6 +465,7 @@ registerIdValidation(gamesRouter);
 // Team-id changes are allowed here but re-trigger opponent consent in PUT /:id.
 const GAME_COACH_EDITABLE_FIELDS: string[] = [
   'date',
+  'live_window_hours_after_start',
   'location',
   'latitude',
   'longitude',
@@ -929,12 +918,13 @@ const isCompetitivePollEventType = (eventType?: string | null) => {
   return String(eventType).trim().toLowerCase() === 'game';
 };
 
-const getPollEligibility = async (gameId: string) => {
+const getPollEligibility = async (gameId: string, viewerId: string | null = null) => {
   const game = await prisma.game.findUnique({
     where: { id: gameId },
-    select: { id: true, event_type: true },
+    select: { ...GAME_VISIBILITY_SELECT, event_type: true },
   });
-  if (!game) return { ok: false as const, status: 404, body: { error: 'Not found' } };
+  if (!game || !(await canViewGameRecord(game, viewerId)))
+    return { ok: false as const, status: 404, body: { error: 'Not found' } };
   if (!isCompetitivePollEventType(game.event_type)) {
     return {
       ok: false as const,
@@ -958,78 +948,8 @@ const summarizeVotes = async (gameId: string, userId?: string | null) => {
         })
       : Promise.resolve(null),
   ]);
-  const total = teamA + teamB;
-  const pctA = total ? Math.round((teamA / total) * 100) : 0;
-  const pctB = total ? 100 - pctA : 0;
-  return { teamA, teamB, total, pctA, pctB, userVote: mine?.team ?? null };
+  return buildBinaryVoteSummary(teamA, teamB, mine?.team);
 };
-
-type GameVisibilityRecord = {
-  id?: string | null;
-  date?: Date | string | null;
-  approval_status?: string | null;
-  opponent_approval_status?: string | null;
-  created_by_id?: string | null;
-  home_team_id?: string | null;
-  away_team_id?: string | null;
-};
-
-async function canViewGameRecord(
-  record: GameVisibilityRecord,
-  viewerId?: string | null
-): Promise<boolean> {
-  // Public-visibility rule lives in the shared isGamePubliclyVisible helper so
-  // every public surface (og, share-landing, events list/search, media, feed)
-  // gates identically. Past approved games stay public regardless of an
-  // opponent-consent re-flip; upcoming games need non-blocking opponent consent.
-  if (isGamePubliclyVisible(record)) return true;
-  if (!viewerId) return false;
-  if (record.created_by_id && record.created_by_id === viewerId) return true;
-
-  if (await isVerifiedAdminUser(viewerId)) return true;
-
-  const teamIds = [record.home_team_id, record.away_team_id].filter(Boolean) as string[];
-  if (teamIds.length > 0) {
-    const teamMembership = await prisma.teamMembership.findFirst({
-      where: {
-        user_id: viewerId,
-        team_id: { in: teamIds },
-        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-        status: 'active',
-      },
-      select: { id: true },
-    });
-    if (teamMembership) return true;
-
-    const teams = await prisma.team.findMany({
-      where: { id: { in: teamIds } },
-      select: { organization_id: true },
-      take: teamIds.length,
-    });
-    const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
-    if (organizationIds.length > 0) {
-      const orgMembership = await prisma.organizationMembership.findFirst({
-        where: {
-          user_id: viewerId,
-          organization_id: { in: organizationIds },
-          role: { in: ['owner', 'manager'] },
-          status: 'active',
-        },
-        select: { id: true },
-      });
-      if (orgMembership) return true;
-    }
-  }
-
-  // Additive permanent fallback: a contributor who posted to this game can
-  // always view it, even while it's an upcoming game still awaiting opponent
-  // consent (owner rule: viewing never expires). Read-only.
-  if (record.id) {
-    return viewerHasPostedOnEntity({ userId: viewerId, gameId: record.id });
-  }
-
-  return false;
-}
 
 gamesRouter.get(
   '/',
@@ -1051,6 +971,7 @@ gamesRouter.get(
       const lngRaw = Number.parseFloat(String(req.query.lng ?? ''));
       let viewerLat: number | null = Number.isFinite(latRaw) ? latRaw : null;
       let viewerLng: number | null = Number.isFinite(lngRaw) ? lngRaw : null;
+      const showAll = String(req.query.show_all || '').toLowerCase() === 'true';
       const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
       const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
 
@@ -1077,7 +998,28 @@ gamesRouter.get(
 
       if (shouldUseGamesCache) {
         const cachedGames = await cacheGet(gameCacheKey);
-        if (cachedGames) return res.json(cachedGames);
+        if (Array.isArray(cachedGames)) {
+          // Cached payloads never authorize a read. Recheck current approval and
+          // team access in one bounded query, including after follow removal.
+          const currentWhere = {
+            id: { in: cachedGames.map(game => game.id) },
+            approval_status: 'approved',
+            opponent_approval_status: { in: ['not_required', 'approved'] },
+          } as Prisma.GameWhereInput;
+          mergeAndWhere(
+            currentWhere,
+            buildPrivateTeamGameVisibilityWhere(
+              await getExcludedPrivateTeamIds(authedReq.user?.id ?? null)
+            )
+          );
+          const visible = await prisma.game.findMany({
+            where: currentWhere,
+            select: { id: true },
+            take: cachedGames.length,
+          });
+          const visibleIds = new Set(visible.map(game => game.id));
+          return res.json(cachedGames.filter(game => visibleIds.has(game.id)));
+        }
       }
 
       let canViewNonApproved = false;
@@ -1149,6 +1091,13 @@ gamesRouter.get(
         whereClause.opponent_approval_status = { in: ['not_required', 'approved'] };
       }
 
+      if (!wantsNonApproved) {
+        const privateTeamWhere = buildPrivateTeamGameVisibilityWhere(
+          await getExcludedPrivateTeamIds(authedReq.user?.id ?? null)
+        );
+        mergeAndWhere(whereClause, privateTeamWhere);
+      }
+
       // Scope non-approved games to the coach's managed teams/orgs (prevent data leak).
       // Admins see all; regular coaches only see pending games for their teams.
       if (wantsNonApproved && canViewNonApproved && authedReq.user?.id) {
@@ -1211,6 +1160,25 @@ gamesRouter.get(
         });
       }
 
+      // Organization page needs a single bounded calendar query. Without this
+      // filter the client had to issue one /games request per team, which made
+      // coach org pages scale linearly with the number of teams.
+      const organizationIdFilter =
+        typeof req.query.organization_id === 'string'
+          ? req.query.organization_id.trim()
+          : typeof req.query.org_id === 'string'
+            ? req.query.org_id.trim()
+            : null;
+      if (organizationIdFilter) {
+        if (!whereClause.AND) whereClause.AND = [];
+        whereClause.AND.push({
+          OR: [
+            { homeTeam: { organization_id: organizationIdFilter } },
+            { awayTeam: { organization_id: organizationIdFilter } },
+          ],
+        });
+      }
+
       // teamless=true: curated/marquee events (festivals, one-off watch parties)
       // created without a real team matchup. Used by the feed to fetch these
       // separately so they can't be paginated out by a flood of routine
@@ -1256,28 +1224,30 @@ gamesRouter.get(
         }
       }
 
-      // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
-      // Test note: once a game is in the past it should drop off the map. Map should only
-      // reflect games the week of in real time. This filter is opt-in so list views still work as before.
+      // map_view=true restricts to the rolling map window (today through +14 days).
+      // Widened from +7 to +14 (2026-08) so the map and feed cover the same 2-week
+      // window and stay in sync (mirror of utils/feedGameQueries.ts FEED_UPCOMING_WINDOW_MS).
+      // Test note: once a game is in the past it should drop off the map. This filter is
+      // opt-in so list views still work as before.
       const isMapView = req.query.map_view === 'true' || req.query.map_view === '1';
       if (isMapView) {
         const now = new Date();
-        const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksFromNow = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
         const liveLookback = new Date(now.getTime() - 18 * 60 * 60 * 1000);
-        // Regular games are current-week only — a game drops off the map once
-        // it's in the past (by design). Marquee/teamless events (festivals) also
-        // stay pinned during their live window (started within 18h), so an
+        // Regular games are limited to the next two weeks — a game drops off the
+        // map once it's in the past (by design). Marquee/teamless events (festivals)
+        // also stay pinned during their live window (started within 18h), so an
         // all-day fest happening right now doesn't slide off the map at its
         // start time. Matched on null team columns so it holds regardless of
         // whether the map query flags teamless.
         if (!whereClause.AND) whereClause.AND = [];
         whereClause.AND.push({
           OR: [
-            { date: { gte: now, lte: weekFromNow } },
+            { date: { gte: now, lte: twoWeeksFromNow } },
             {
               home_team_id: null,
               away_team_id: null,
-              date: { gte: liveLookback, lte: weekFromNow },
+              date: { gte: liveLookback, lte: twoWeeksFromNow },
             },
           ],
         });
@@ -1303,8 +1273,10 @@ gamesRouter.get(
       // and the followed-teams calendar (following) stay strictly date-ordered.
       if (
         viewerLat === null &&
+        !showAll &&
         authedReq.user?.id &&
         !teamIdFilter &&
+        !organizationIdFilter &&
         !following &&
         !wantsNonApproved
       ) {
@@ -1502,6 +1474,7 @@ gamesRouter.post(
       away_team_name: z.string().trim().optional(), // Manual opponent name if not in system
       date: z.string().datetime().optional(),
       location: z.string().trim().min(1, 'Location is required'),
+      live_window_hours_after_start: z.union([z.literal(5), z.literal(12)]).optional(),
       description: z.string().trim().optional(),
       cover_image_url: z.string().url().optional(),
       banner_url: z.string().url().optional(),
@@ -1667,30 +1640,6 @@ gamesRouter.post(
       isCoach = approvalDecision.isCoach;
       managedTeamId = approvalDecision.managedTeamId;
 
-      // Verify the caller's managed team's org is admin-approved (coach path only)
-      if (isCoach && !isAdmin && managedTeamId) {
-        const team = await prisma.team.findUnique({
-          where: { id: managedTeamId },
-          select: { organization_id: true },
-        });
-        if (team?.organization_id) {
-          const org = await prisma.organization.findUnique({
-            where: { id: team.organization_id },
-            select: { admin_approved: true },
-          });
-          if (org && !org.admin_approved) {
-            return res.status(403).json({
-              error: 'Your organization must be approved before creating games.',
-              code: 'ORG_NOT_APPROVED',
-            });
-          }
-        }
-      } else if (isAdmin) {
-        debugLog(
-          `✅ Admin ${currentUser?.email} creating event for team ${managedTeamId || 'N/A'}`
-        );
-      }
-
       const associatedTeamId =
         managedTeamId || parsed.data.home_team_id || parsed.data.away_team_id || null;
 
@@ -1699,59 +1648,52 @@ gamesRouter.post(
       gameData.approval_status = approvalDecision.approvalStatus;
       gameData.created_by_id = req.user.id;
 
-      // Enforce fan pending event limit (matches POST /events limit of 3)
-      if (gameData.approval_status === 'pending') {
-        const pendingCount = await prisma.game.count({
-          where: { created_by_id: req.user.id, approval_status: 'pending' },
-        });
-        if (pendingCount >= 3) {
-          return res.status(403).json({
-            error: 'Event limit reached',
-            message:
-              "You've reached your limit of 3 pending events. Wait for one to be approved or rejected before submitting another.",
-            code: 'EVENT_LIMIT_EXCEEDED',
-            limit: 3,
-            current: pendingCount,
-          });
-        }
-      }
-
       if (isCoach || isAdmin) {
         gameData.approved_by_id = req.user.id;
         gameData.approved_at = new Date();
       }
 
-      const game = (await (prisma.game.create as any)({
-        data: gameData,
-        include: {
-          events: { orderBy: { date: 'asc' }, take: 1 },
-          homeTeam: { select: { id: true, name: true, venue_address: true } },
-          awayTeam: { select: { id: true, name: true, venue_address: true } },
-        },
-      })) as any;
+      const { game, event } = await prisma.$transaction(
+        async tx => {
+          await assertGameCreationOrganizationApproved(tx, [approvalDecision], isAdmin);
+          await assertPendingGameCapacity(tx, req.user!.id, [approvalDecision]);
+          const game = (await (tx.game.create as any)({
+            data: gameData,
+            include: {
+              events: { orderBy: { date: 'asc' }, take: 1 },
+              homeTeam: { select: { id: true, name: true, venue_address: true } },
+              awayTeam: { select: { id: true, name: true, venue_address: true } },
+            },
+          })) as any;
 
-      // Automatically create an associated Event for RSVP functionality
-      // Copy venue coordinates from game so geofencing can enforce location-based posting
-      const eventLat = game.venue_lat ?? game.latitude ?? null;
-      const eventLng = game.venue_lng ?? game.longitude ?? null;
-      const event = await prisma.event.create({
-        data: {
-          title: game.title,
-          date: game.date,
-          timezone: game.timezone ?? null,
-          location: game.location || null,
-          latitude: eventLat,
-          longitude: eventLng,
-          game_id: game.id,
-          team_id: associatedTeamId,
-          status: gameData.approval_status || 'pending',
-          approval_status: gameData.approval_status || 'pending',
-          creator_id: req.user!.id,
-          creator_role: isCoach ? 'coach' : 'fan',
-          event_type: parsed.data.event_type || 'game',
-          capacity: null,
-        } as any,
-      });
+          // Automatically create an associated Event for RSVP functionality
+          // Copy venue coordinates from game so geofencing can enforce location-based posting
+          const eventLat = game.venue_lat ?? game.latitude ?? null;
+          const eventLng = game.venue_lng ?? game.longitude ?? null;
+          const event = await tx.event.create({
+            data: {
+              title: game.title,
+              date: game.date,
+              timezone: game.timezone ?? null,
+              location: game.location || null,
+              latitude: eventLat,
+              longitude: eventLng,
+              game_id: game.id,
+              team_id: associatedTeamId,
+              status: gameEventStatus(gameData.approval_status),
+              approval_status: gameData.approval_status || 'pending',
+              creator_id: req.user!.id,
+              creator_role: isCoach ? 'coach' : 'fan',
+              event_type: parsed.data.event_type || 'game',
+              live_window_hours_after_start: parsed.data.live_window_hours_after_start,
+              capacity: null,
+            } as any,
+          });
+
+          return { game, event };
+        },
+        { isolationLevel: 'Serializable' }
+      );
 
       if (currentUser?.email) {
         sendEventSubmissionReceivedEmail({
@@ -1883,7 +1825,13 @@ gamesRouter.post(
 
       await invalidateGamesListCache();
       res.status(201).json(response);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === 'P2034')
+        return sendError(res, 409, 'The schedule changed. Please retry.', {
+          code: 'GAME_CREATION_CONFLICT',
+        });
+      if (error?.statusCode === 403)
+        return sendError(res, 403, error.message, { code: error.code });
       console.error('Error creating game:', error);
       sendError(res, 500, 'Failed to create game');
     }
@@ -1901,6 +1849,7 @@ const bulkGameSchema = z.object({
   away_team_id: z.string().trim().optional(),
   date: z.string().datetime(),
   location: z.string().trim().min(1),
+  live_window_hours_after_start: z.union([z.literal(5), z.literal(12)]).optional(),
   description: z.string().trim().optional(),
   event_type: z
     .enum([
@@ -1936,7 +1885,7 @@ gamesRouter.post(
     const userId = req.user!.id;
     const isAdmin = await isVerifiedAdminUser(userId);
 
-    if (!isAdmin && parsed.data.games.every(g => !g.home_team_id && !g.away_team_id)) {
+    if (!isAdmin && parsed.data.games.some(g => !g.home_team_id && !g.away_team_id)) {
       return sendError(res, 400, 'Each game must reference a home_team_id or away_team_id.');
     }
 
@@ -1953,55 +1902,61 @@ gamesRouter.post(
       const opponentTeamIdByIndex = decisionByIndex.map(d => d.opponentApprovalTeamId);
 
       // All-or-nothing: one failure rolls back the whole batch.
-      const created = await prisma.$transaction(async tx => {
-        const rows: any[] = [];
-        for (let i = 0; i < parsed.data.games.length; i++) {
-          const g = parsed.data.games[i];
-          const decision = decisionByIndex[i];
-          const associatedTeamId =
-            decision.managedTeamId || g.home_team_id || g.away_team_id || null;
-          const row = await tx.game.create({
-            data: {
-              title: stripHtml(g.title),
-              date: new Date(g.date),
-              location: stripHtml(g.location),
-              description: g.description ? stripHtml(g.description) : null,
-              home_team: g.home_team ?? null,
-              away_team: g.away_team ?? null,
-              home_team_id: g.home_team_id ?? null,
-              away_team_id: g.away_team_id ?? null,
-              event_type: g.event_type ?? 'game',
-              is_neutral: g.is_neutral ?? false,
-              created_by_id: userId,
-              approval_status: decision.approvalStatus as any,
-              approved_by_id: decision.isCoach ? userId : null,
-              approved_at: decision.isCoach ? new Date() : null,
-              opponent_approval_status: decision.opponentApprovalStatus as any,
-              opponent_approval_team_id: decision.opponentApprovalTeamId,
-            },
-            select: { id: true, title: true, date: true, location: true },
-          });
-          // Mirror single-create: every game gets a linked Event so RSVP +
-          // geofencing work. Without this, bulk games had no RSVP surface.
-          await tx.event.create({
-            data: {
-              title: row.title,
-              date: row.date,
-              location: row.location || null,
-              game_id: row.id,
-              team_id: associatedTeamId,
-              status: decision.approvalStatus,
-              approval_status: decision.approvalStatus,
-              creator_id: userId,
-              creator_role: decision.isCoach ? 'coach' : 'fan',
-              event_type: g.event_type ?? 'game',
-              capacity: null,
-            } as any,
-          });
-          rows.push(row);
-        }
-        return rows;
-      });
+      const created = await prisma.$transaction(
+        async tx => {
+          await assertGameCreationOrganizationApproved(tx, decisionByIndex, isAdmin);
+          await assertPendingGameCapacity(tx, userId, decisionByIndex);
+          const rows: any[] = [];
+          for (let i = 0; i < parsed.data.games.length; i++) {
+            const g = parsed.data.games[i];
+            const decision = decisionByIndex[i];
+            const associatedTeamId =
+              decision.managedTeamId || g.home_team_id || g.away_team_id || null;
+            const row = await tx.game.create({
+              data: {
+                title: stripHtml(g.title),
+                date: new Date(g.date),
+                location: stripHtml(g.location),
+                description: g.description ? stripHtml(g.description) : null,
+                home_team: g.home_team ?? null,
+                away_team: g.away_team ?? null,
+                home_team_id: g.home_team_id ?? null,
+                away_team_id: g.away_team_id ?? null,
+                event_type: g.event_type ?? 'game',
+                is_neutral: g.is_neutral ?? false,
+                created_by_id: userId,
+                approval_status: decision.approvalStatus as any,
+                approved_by_id: decision.isCoach ? userId : null,
+                approved_at: decision.isCoach ? new Date() : null,
+                opponent_approval_status: decision.opponentApprovalStatus as any,
+                opponent_approval_team_id: decision.opponentApprovalTeamId,
+              },
+              select: { id: true, title: true, date: true, location: true },
+            });
+            // Mirror single-create: every game gets a linked Event so RSVP +
+            // geofencing work. Without this, bulk games had no RSVP surface.
+            await tx.event.create({
+              data: {
+                title: row.title,
+                date: row.date,
+                location: row.location || null,
+                game_id: row.id,
+                team_id: associatedTeamId,
+                status: gameEventStatus(decision.approvalStatus),
+                approval_status: decision.approvalStatus,
+                creator_id: userId,
+                creator_role: decision.isCoach ? 'coach' : 'fan',
+                event_type: g.event_type ?? 'game',
+                live_window_hours_after_start: g.live_window_hours_after_start,
+                capacity: null,
+              } as any,
+            });
+            rows.push(row);
+          }
+          return rows;
+        },
+        { isolationLevel: 'Serializable' }
+      );
 
       const triggeredOpponents = created
         .map((row, i) => ({ row, teamId: opponentTeamIdByIndex[i] }))
@@ -2047,6 +2002,11 @@ gamesRouter.post(
       await invalidateGamesListCache();
       return res.status(201).json({ ok: true, created_count: created.length, games: created });
     } catch (err: any) {
+      if (err?.code === 'P2034')
+        return sendError(res, 409, 'The schedule changed. Please retry.', {
+          code: 'GAME_CREATION_CONFLICT',
+        });
+      if (err?.statusCode === 403) return sendError(res, 403, err.message, { code: err.code });
       console.error('[games/bulk] failed — rolled back:', err?.message || err);
       return res.status(500).json({
         error: 'Bulk game creation failed and was rolled back.',
@@ -2173,10 +2133,15 @@ gamesRouter.get(
           id: { in: ids },
           OR: [{ event_type: null }, { event_type: 'game' }],
         },
-        select: { id: true },
+        select: GAME_VISIBILITY_SELECT,
         take: ids.length,
       });
-      const eligibleIds = eligibleGames.map(game => game.id);
+      const visibility = await Promise.all(
+        eligibleGames.map(game => canViewGameRecord(game, userId))
+      );
+      const eligibleIds = eligibleGames
+        .filter((_, index) => visibility[index])
+        .map(game => game.id);
       if (eligibleIds.length === 0) return res.json({});
 
       // Batch: 1 groupBy query for all vote counts + 1 query for user votes (instead of 3N queries)
@@ -2208,17 +2173,7 @@ gamesRouter.get(
       const result: Record<string, Awaited<ReturnType<typeof summarizeVotes>>> = {};
       for (const id of eligibleIds) {
         const counts = countMap.get(id) || { A: 0, B: 0 };
-        const total = counts.A + counts.B;
-        const pctA = total ? Math.round((counts.A / total) * 100) : 0;
-        const pctB = total ? 100 - pctA : 0;
-        result[id] = {
-          teamA: counts.A,
-          teamB: counts.B,
-          total,
-          pctA,
-          pctB,
-          userVote: userVoteMap.get(id) ?? null,
-        };
+        result[id] = buildBinaryVoteSummary(counts.A, counts.B, userVoteMap.get(id));
       }
       return res.json(result);
     } catch (err) {
@@ -2478,7 +2433,7 @@ gamesRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const gameId = String(req.params.id);
-      const eligibility = await getPollEligibility(gameId);
+      const eligibility = await getPollEligibility(gameId, req.user?.id ?? null);
       if (!eligibility.ok) {
         return res.status(eligibility.status).json(eligibility.body);
       }
@@ -2499,7 +2454,7 @@ gamesRouter.post(
     try {
       if (!req.user) return sendError(res, 401, 'Unauthorized');
       const gameId = String(req.params.id);
-      const eligibility = await getPollEligibility(gameId);
+      const eligibility = await getPollEligibility(gameId, req.user?.id ?? null);
       if (!eligibility.ok) {
         return res.status(eligibility.status).json(eligibility.body);
       }
@@ -2532,7 +2487,7 @@ gamesRouter.delete(
     try {
       if (!req.user) return sendError(res, 401, 'Unauthorized');
       const gameId = String(req.params.id);
-      const eligibility = await getPollEligibility(gameId);
+      const eligibility = await getPollEligibility(gameId, req.user?.id ?? null);
       if (!eligibility.ok) {
         return res.status(eligibility.status).json(eligibility.body);
       }
@@ -2723,6 +2678,9 @@ gamesRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const id = String(req.params.id);
+      const game = await prisma.game.findUnique({ where: { id }, select: GAME_VISIBILITY_SELECT });
+      if (!game || !(await canViewGameRecord(game, req.user?.id ?? null)))
+        return sendError(res, 404, 'Not found');
       const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100));
       // Privacy: exclude posts from private-profile authors the viewer doesn't
       // follow AND from blocked users — parity with the other content reads
@@ -3005,7 +2963,8 @@ gamesRouter.put(
       away_team_id: z.string().trim().optional().nullable(),
       away_team_name: z.string().trim().optional().nullable(),
       date: z.string().datetime().optional(),
-      location: z.string().trim().optional().nullable(),
+      location: z.string().trim().min(1, 'Location is required').optional(),
+      live_window_hours_after_start: z.union([z.literal(5), z.literal(12)]).optional(),
       description: z.string().trim().optional().nullable(),
       cover_image_url: z.string().url().optional().nullable(),
       banner_url: z.string().url().optional().nullable(),
@@ -3192,6 +3151,8 @@ gamesRouter.put(
         if (d.date !== undefined) eventUpdate.date = new Date(d.date);
         if (d.title !== undefined) eventUpdate.title = d.title;
         if (d.location !== undefined) eventUpdate.location = d.location;
+        if (d.live_window_hours_after_start !== undefined)
+          eventUpdate.live_window_hours_after_start = d.live_window_hours_after_start;
         if (Object.keys(eventUpdate).length > 0) {
           await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
         }

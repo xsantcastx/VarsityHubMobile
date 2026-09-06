@@ -296,11 +296,16 @@ function record(
   opts: {
     coachOnly?: boolean; // Fan should NOT get GRANTED
     veteranOnly?: boolean; // Rookie should NOT get GRANTED
+    hiddenFromRoles?: Array<'fan' | 'rookie' | 'veteran'>; // Existing fixture intentionally hidden by privacy
   } = {}
 ) {
-  const fv = classify(fan.status, fan.body);
-  const rv = classify(rookie.status, rookie.body);
-  const vv = classify(veteran.status, veteran.body);
+  const verdict = (role: 'fan' | 'rookie' | 'veteran', response: { status: number; body: any }) =>
+    response.status === 404 && opts.hiddenFromRoles?.includes(role)
+      ? ('DENIED' as const)
+      : classify(response.status, response.body);
+  const fv = verdict('fan', fan);
+  const rv = verdict('rookie', rookie);
+  const vv = verdict('veteran', veteran);
 
   const flags: string[] = [];
 
@@ -318,6 +323,12 @@ function record(
   if (fv === 'CRASHED') flags.push('FLAG_CRASH_FAN');
   if (rv === 'CRASHED') flags.push('FLAG_CRASH_ROOKIE');
   if (vv === 'CRASHED') flags.push('FLAG_CRASH_VETERAN');
+
+  // Flag: audited route drift. A 404 in the matrix usually means the client or
+  // test is hitting a stale path, which is exactly how tab workflows break.
+  if (fv === 'NOT_FOUND') flags.push('FLAG_ROUTE_MISSING_FAN');
+  if (rv === 'NOT_FOUND') flags.push('FLAG_ROUTE_MISSING_ROOKIE');
+  if (vv === 'NOT_FOUND') flags.push('FLAG_ROUTE_MISSING_VETERAN');
 
   // Flag: denial without clean error message
   if (fv === 'DENIED' && !fan.body?.error && !fan.body?.message) flags.push('FLAG_BAD_DENIAL_FAN');
@@ -437,11 +448,11 @@ describe('Access Matrix — Full Feature Scan', () => {
 
     it('POST /teams/:id/invites — invite to team (owner only)', async () => {
       if (!rookieTeamId) return;
-      const { fan, rookie, veteran } = await hitAll('post', `/teams/${rookieTeamId}/invites`, {
+      const { fan, rookie, veteran } = await hitAll('post', `/teams/${rookieTeamId}/invite`, {
         email: `invite-test-${ts}@example.com`,
         role: 'coach',
       });
-      record('Invite to team', 'POST /teams/:id/invites', fan, rookie, veteran, {
+      record('Invite to team', 'POST /teams/:id/invite', fan, rookie, veteran, {
         coachOnly: true,
       });
       // Fan should be denied (not team owner)
@@ -601,7 +612,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Fan Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
           }),
         request(fullApp)
           .post('/events')
@@ -610,7 +621,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Rookie Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
             home_team_id: rookieTeamId,
           }),
         request(fullApp)
@@ -620,7 +631,7 @@ describe('Access Matrix — Full Feature Scan', () => {
             title: `AccessTest Veteran Event ${ts}`,
             date: futureDate,
             location: 'Test Stadium',
-            event_type: 'game',
+            event_type: 'other',
             home_team_id: veteranTeamId,
           }),
       ]);
@@ -637,13 +648,23 @@ describe('Access Matrix — Full Feature Scan', () => {
       // Access matrix only verifies role access here; approval details vary by selected team scope.
     });
 
-    it('POST /events/:id/rsvp — RSVP to event', async () => {
-      if (!testEventId) return;
+    it('POST /events/:id/rsvp — pending event stays hidden and cannot receive RSVPs', async () => {
+      expect(testEventId).toBeTruthy();
+      const existing = await prisma.event.findUnique({ where: { id: testEventId } });
+      expect(existing).toMatchObject({ creator_id: veteranId, approval_status: 'pending' });
       const { fan, rookie, veteran } = await hitAll('post', `/events/${testEventId}/rsvp`, {
         status: 'going',
       });
-      record('RSVP to event', 'POST /events/:id/rsvp', fan, rookie, veteran);
-      expect(fan.status).toBeLessThan(500);
+      // This exact fixture exists; the creator reaches its pending-state gate.
+      // These two 404s are deliberate privacy denials, not missing Express routes.
+      record('RSVP to pending event', 'POST /events/:id/rsvp', fan, rookie, veteran, {
+        hiddenFromRoles: ['fan', 'rookie'],
+      });
+      expect(fan.status).toBe(404);
+      expect(rookie.status).toBe(404);
+      expect(veteran.status).toBe(400);
+      expect(veteran.body.error).toBe('Event not available');
+      expect(await prisma.eventRsvp.count({ where: { event_id: testEventId } })).toBe(0);
     });
 
     it('GET /events/pending — view pending events (coach/admin only)', async () => {
@@ -972,10 +993,12 @@ describe('Access Matrix — Full Feature Scan', () => {
       const crashes = allFlags.filter(f => f.startsWith('FLAG_CRASH'));
       const fanCoach = allFlags.filter(f => f === 'FLAG_FAN_COACH');
       const rookieVet = allFlags.filter(f => f === 'FLAG_ROOKIE_VETERAN');
+      const missingRoutes = allFlags.filter(f => f.startsWith('FLAG_ROUTE_MISSING'));
       const badDenial = allFlags.filter(f => f.startsWith('FLAG_BAD_DENIAL'));
 
       console.log('\n─── FLAG SUMMARY ───');
       console.log(`  Crashes (5xx):                   ${crashes.length}`);
+      console.log(`  Missing audited routes (404):    ${missingRoutes.length}`);
       console.log(`  Fan accessing coach features:    ${fanCoach.length}`);
       console.log(`  Rookie accessing vet features:   ${rookieVet.length}`);
       console.log(`  Denials without clean message:   ${badDenial.length}`);
@@ -1014,6 +1037,7 @@ describe('Access Matrix — Full Feature Scan', () => {
       lines.push('');
       lines.push('FLAG SUMMARY');
       lines.push(`  Crashes (5xx):                   ${crashes.length}`);
+      lines.push(`  Missing audited routes (404):    ${missingRoutes.length}`);
       lines.push(`  Fan accessing coach features:    ${fanCoach.length}`);
       lines.push(`  Rookie accessing vet features:   ${rookieVet.length}`);
       lines.push(`  Denials without clean message:   ${badDenial.length}`);
@@ -1034,6 +1058,8 @@ describe('Access Matrix — Full Feature Scan', () => {
 
       // ASSERT: no crashes
       expect(crashes).toEqual([]);
+      // ASSERT: audited routes still exist
+      expect(missingRoutes).toEqual([]);
       // ASSERT: no fan accessing coach features
       expect(fanCoach).toEqual([]);
       // ASSERT: no rookie accessing veteran features

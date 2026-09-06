@@ -52,7 +52,7 @@ export function evaluateFreshness(
   const missing = perTable.filter(r => r.backup === null).map(r => r.table);
   const primaryTotal = perTable.reduce((sum, r) => sum + r.primary, 0);
   const backupTotal = perTable.reduce((sum, r) => sum + (r.backup ?? 0), 0);
-  const deficit = primaryTotal - backupTotal;
+  const deficit = perTable.reduce((sum, r) => sum + Math.max(0, r.primary - (r.backup ?? 0)), 0);
   const driftPct = primaryTotal === 0 ? 0 : (deficit / primaryTotal) * 100;
   const base = { perTable, missing, primaryTotal, backupTotal, deficit, driftPct, maxDriftPct };
 
@@ -63,6 +63,13 @@ export function evaluateFreshness(
       ...base,
     };
   }
+  const emptied = perTable.filter(r => r.primary > 0 && r.backup === 0);
+  if (emptied.length)
+    return {
+      ...base,
+      ok: false,
+      reason: `Backup has empty populated table(s): ${emptied.map(r => r.table).join(', ')}`,
+    };
   if (driftPct > maxDriftPct) {
     return {
       ok: false,
@@ -75,7 +82,7 @@ export function evaluateFreshness(
     reason:
       deficit > 0
         ? `Backup current within budget — trails by ${deficit} row(s) (${driftPct.toFixed(2)}%), expected between 6-hourly syncs`
-        : 'Backup byte-for-byte current with the primary — 0 row drift',
+        : 'Backup has no row-count deficit; content equality and restore readiness are not verified',
     ...base,
   };
 }

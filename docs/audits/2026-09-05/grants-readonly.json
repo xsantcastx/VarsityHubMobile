@@ -1,0 +1,67 @@
+{
+  "database_service": "Postgres-TnGR",
+  "matched_live_api_database": true,
+  "query_read_only": true,
+  "grants": [
+    {
+      "username": "nico",
+      "user_id": "cmpcxcqiw0004plf9r0nj5xng",
+      "event_id": "cmsgoygmd00rnf6nixj1os096",
+      "title": "Red Sox at Yankees",
+      "event_date": "2026-08-29T23:15:00",
+      "game_id": null,
+      "unlocked_at": "2026-09-05T07:22:46.435",
+      "expires_at": "2026-09-12T07:22:46.435",
+      "active_now": true,
+      "story_marker": true,
+      "story_marker_created_at": "2026-08-30T16:47:19.375"
+    },
+    {
+      "username": "nico",
+      "user_id": "cmpcxcqiw0004plf9r0nj5xng",
+      "event_id": "cmsgoyfva00qzf6niwaz4axpf",
+      "title": "Red Sox at Yankees",
+      "event_date": "2026-08-29T17:05:00",
+      "game_id": null,
+      "unlocked_at": "2026-09-05T07:22:43.568",
+      "expires_at": "2026-09-12T07:22:43.568",
+      "active_now": true,
+      "story_marker": true,
+      "story_marker_created_at": "2026-08-30T16:47:19.025"
+    },
+    {
+      "username": "superfan",
+      "user_id": "cmrligddn0003bd59wx2ya4hh",
+      "event_id": "cmsgoxrtw007bf6nioxe8yllz",
+      "title": "Giants at Jets",
+      "event_date": "2026-08-28T23:30:00",
+      "game_id": null,
+      "unlocked_at": "2026-09-05T07:22:41.037",
+      "expires_at": "2026-09-12T07:22:41.037",
+      "active_now": true,
+      "story_marker": true,
+      "story_marker_created_at": "2026-08-30T16:47:19.025"
+    }
+  ],
+  "observed_at_utc": "2026-09-05T07:34:07.850378+00:00",
+  "dry_runs": [
+    {
+      "username": "nico",
+      "event_id": "cmsgoygmd00rnf6nixj1os096",
+      "exit_code": 0,
+      "output": "Grant event post access\nAction     : GRANT 7-day post + story access\nUser       : @nico Nico (cmpcxcqiw0004plf9r0nj5xng)\nEvent      : Red Sox at Yankees (cmsgoygmd00rnf6nixj1os096)\nEvent date : 2026-08-29T23:15:00.000Z\nLocation   : Yankee Stadium, Bronx, New York\nGame id    : -\nUnlock row : 2026-09-05T07:22:46.435Z\nStory mark : 2026-08-30T16:47:19.375Z created_by=-\nUnlock at  : 2026-09-05T07:22:46.435Z\nExpires    : 2026-09-12T07:22:46.435Z\nStories    : granted for the same 7-day window\n\nDRY RUN - no rows written. Re-run with --yes and without --dry-run to apply.\n"
+    },
+    {
+      "username": "nico",
+      "event_id": "cmsgoyfva00qzf6niwaz4axpf",
+      "exit_code": 0,
+      "output": "Grant event post access\nAction     : GRANT 7-day post + story access\nUser       : @nico Nico (cmpcxcqiw0004plf9r0nj5xng)\nEvent      : Red Sox at Yankees (cmsgoyfva00qzf6niwaz4axpf)\nEvent date : 2026-08-29T17:05:00.000Z\nLocation   : Yankee Stadium, 1 E 161st St, Bronx, NY 10451\nGame id    : -\nUnlock row : 2026-09-05T07:22:43.568Z\nStory mark : 2026-08-30T16:47:19.025Z created_by=-\nUnlock at  : 2026-09-05T07:22:43.568Z\nExpires    : 2026-09-12T07:22:43.568Z\nStories    : granted for the same 7-day window\n\nDRY RUN - no rows written. Re-run with --yes and without --dry-run to apply.\n"
+    },
+    {
+      "username": "superfan",
+      "event_id": "cmsgoxrtw007bf6nioxe8yllz",
+      "exit_code": 0,
+      "output": "Grant event post access\nAction     : GRANT 7-day post + story access\nUser       : @superfan  (cmrligddn0003bd59wx2ya4hh)\nEvent      : Giants at Jets (cmsgoxrtw007bf6nioxe8yllz)\nEvent date : 2026-08-28T23:30:00.000Z\nLocation   : MetLife Stadium, 1 MetLife Stadium Dr, East Rutherford, NJ 07073\nGame id    : -\nUnlock row : 2026-09-05T07:22:41.037Z\nStory mark : 2026-08-30T16:47:19.025Z created_by=-\nUnlock at  : 2026-09-05T07:22:41.037Z\nExpires    : 2026-09-12T07:22:41.037Z\nStories    : granted for the same 7-day window\n\nDRY RUN - no rows written. Re-run with --yes and without --dry-run to apply.\n"
+    }
+  ]
+}

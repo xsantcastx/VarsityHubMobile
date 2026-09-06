@@ -18,6 +18,7 @@ import { sendError } from './lib/http/sendError.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
+import { redactSerializedRequest } from './lib/httpLogRedaction.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requestLogging } from './middleware/logging.js';
 import {
@@ -35,6 +36,7 @@ import { ogRouter } from './routes/og.js';
 import { authRouter } from './routes/auth.js';
 import { consentRouter, handleConsentResend } from './routes/consent.js';
 import { dataExportRouter } from './routes/dataExport.js';
+import { eventDiscoveryRouter } from './routes/eventDiscovery.js';
 import { eventsRouter } from './routes/events.js';
 import { feedRouter } from './routes/feed.js';
 import { followsRouter } from './routes/follows.js';
@@ -133,28 +135,30 @@ const pinoMiddleware =
 // can wrap the default `req` serializer instead of replacing it.
 const pinoStdSerializers =
   (pinoHttp as any).stdSerializers || (pinoHttp as any).default?.stdSerializers;
-// Strip token/access_token values from a logged URL (value only, shape kept).
-const redactUrlTokens = (url: string): string =>
-  url.replace(
-    /(^|[?&#])(access_token|token)=[^&#\s]*/gi,
-    (_match, prefix, key) => `${prefix}${key}=[redacted]`
-  );
 // Production log hardening: never log the Authorization/Cookie request headers,
-// the Set-Cookie response header, or the `?token=` query param. Dev keeps
-// pino-pretty. method/status/responseTime logging is unaffected — only the
-// `req` serializer is wrapped and the res serializer stays the default.
+// sensitive operational headers, the Set-Cookie response header, or the
+// `?token=` query param. Dev keeps pino-pretty. method/status/responseTime
+// logging is unaffected — only the `req` serializer is wrapped and the res
+// serializer stays the default.
 const prodPinoOptions = {
   redact: {
-    paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+    paths: [
+      'req.headers.authorization',
+      'req.headers.cookie',
+      'req.headers.proxy-authorization',
+      'req.headers.stripe-signature',
+      'req.headers.x-health-check-secret',
+      'req.headers.x-idempotency-key',
+      'req.headers.x-sendgrid-event-webhook-signature',
+      'req.headers.x-sendgrid-event-webhook-timestamp',
+      'res.headers["set-cookie"]',
+    ],
     censor: '[redacted]',
   },
   serializers: {
     req(req: any) {
       const serialized = pinoStdSerializers?.req ? pinoStdSerializers.req(req) : req;
-      if (serialized && typeof serialized.url === 'string') {
-        serialized.url = redactUrlTokens(serialized.url);
-      }
-      return serialized;
+      return redactSerializedRequest(serialized);
     },
   },
 };
@@ -275,7 +279,12 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 
 // Stripe + SendGrid webhooks must be registered before body parsing so we can
 // verify signatures over the exact raw bytes.
-const rawBodyPaths = ['/payments/webhook', '/webhooks/sendgrid'];
+const rawBodyPaths = [
+  '/payments/webhook',
+  '/v1/payments/webhook',
+  '/webhooks/sendgrid',
+  '/v1/webhooks/sendgrid',
+];
 rawBodyPaths.forEach(path => {
   app.use(path, express.raw({ type: 'application/json', limit: '5mb' }));
 });
@@ -418,6 +427,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/games', gamesRouter);
   parent.use('/posts', postsRouter);
   parent.use('/notifications', noStore, notificationsRouter);
+  parent.use('/event-discovery', eventDiscoveryRouter);
   parent.use('/events', eventsRouter);
   parent.use('/feed', noStore, feedRouter);
   parent.use('/messages', noStore, messagesRouter);
@@ -488,7 +498,8 @@ if (!isTest) {
  *  - startStripeSubscriptionReconciliation — can cancel/downgrade live subs.
  *  - startPostUpvoteReconciliation — rewrites denormalized upvote counts.
  *  - startRefreshTokenCleanup / startNotificationCleanup — bulk deletes.
- *  - startDataExportCleanup — reaps export jobs + their stored artifacts.
+ *  - startDataExportCleanup — legacy cron wrapper; the reviewed export sweep
+ *    is now scheduled through the existing BullMQ scheduler (2026-09-05).
  *
  * Listed (not deleted) so cron-wiring.test.ts still fails for any NEW starter
  * that is neither wired nor consciously deferred. Owner decision pending.

@@ -63,7 +63,7 @@ After pushing, verify pipelines are working:
 **Check Verify Production Ready (if manually triggered):**
 
 - Manually trigger: Actions → Verify Production Ready → Run workflow
-- Should find script at `scripts/moved-from-root/verify-production-ready.sh`
+- Should run `npm run verify:production-ready`, which writes `verification-report.txt`
 
 ### 3. Expected Results
 
@@ -98,7 +98,7 @@ yamllint .github/workflows/*.yml
 ls -la scripts/railway-health-check.sh
 ls -la scripts/check-env-alignment.js
 ls -la server/prisma/seed.ts
-ls -la scripts/moved-from-root/verify-production-ready.sh
+npm run verify:production-ready
 ```
 
 ## 📝 Documentation

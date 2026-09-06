@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { passwordRequirement } from '../validators/authSchemas.js';
 
 /**
  * [AUDIT] Validation-parity guard.
@@ -63,12 +64,11 @@ describe('validation parity (frontend ↔ backend)', () => {
   });
 
   describe('password', () => {
-    const serverAuth = read('server/src/routes/auth.ts');
-
-    it('server Zod enforces min length + letter & number', () => {
-      expect(serverAuth).toContain(`.min(${CANONICAL.passwordMin})`);
-      expect(serverAuth).toContain('/[a-zA-Z]/.test(val)');
-      expect(serverAuth).toContain('/[0-9]/.test(val)');
+    it('server schema enforces eight characters and both a letter and number', () => {
+      for (const password of ['Abcdef1', 'abcdefgh', '12345678']) {
+        expect(passwordRequirement.safeParse(password).success).toBe(false);
+      }
+      expect(passwordRequirement.safeParse('Abcdefg1').success).toBe(true);
     });
 
     it('client enforces the same min length', () => {

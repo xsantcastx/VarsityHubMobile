@@ -119,8 +119,16 @@ jest.unstable_mockModule('../middleware/rateLimiters.js', () => {
 
 jest.unstable_mockModule('../lib/privacyUtils.js', () => ({
   getExcludedPrivateAuthorIds: jest.fn(async () => []),
+  getExcludedPrivateTeamIds: jest.fn(async () => []),
   getBlockedUserIds: jest.fn(async () => []),
   getRequestBlockedCache: jest.fn(() => new Map()),
+  buildPrivateTeamGameVisibilityWhere: jest.fn(() => null),
+  buildPrivateTeamEventVisibilityWhere: jest.fn(() => null),
+  mergeAndWhere: jest.fn((where: any, clause: any) => {
+    if (!clause) return where;
+    where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), clause];
+    return where;
+  }),
 }));
 
 jest.unstable_mockModule('../lib/notifications.js', () => ({

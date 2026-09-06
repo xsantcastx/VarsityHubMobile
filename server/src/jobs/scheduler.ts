@@ -93,6 +93,16 @@ function withJobTags(jobName: string, context: Record<string, any> = {}) {
 
 const SCHEDULED_JOBS: ScheduledJob[] = [
   {
+    name: 'data-export-cleanup',
+    cron: '*/15 * * * *',
+    description: 'Expire private export archives, retry deletion and reap abandoned builds',
+    handler: async () => {
+      const { runDataExportCleanupSweep } = await import('../lib/dataExport/cleanup.js');
+      const result = await runDataExportCleanupSweep();
+      console.log('[data-export-cleanup]', result);
+    },
+  },
+  {
     name: 'game-reminders-12hr',
     cron: '0 * * * *', // Every hour at minute 0
     description: 'Send 12-hour game reminders',
@@ -167,6 +177,16 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
   },
   // Event reminder email job removed — non-mandatory engagement email
   {
+    name: 'ad-purchase-reconciliation',
+    cron: '*/5 * * * *',
+    description: 'Reconcile durably received Apple ad purchases',
+    handler: async () => {
+      const { reconcileReadyAdPurchases } = await import('../lib/adPurchaseIntents.js');
+      const result = await reconcileReadyAdPurchases();
+      console.log(`[Scheduler] Reconciled ${result.reconciled} ready ad purchase intents`);
+    },
+  },
+  {
     name: 'db-backup-sync',
     cron: '0 */6 * * *', // Every 6 hours
     description: 'Sync primary database to backup Postgres instance',
@@ -181,10 +201,11 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
         } else if (result.error?.includes('not configured')) {
           // Silent skip — no backup URL set
         } else {
-          console.error('[Scheduler] DB backup sync failed:', result.error);
+          throw new Error(`DB backup sync failed: ${result.error || 'unknown failure'}`);
         }
       } catch (error) {
-        console.error('[Scheduler] DB backup sync error:', error);
+        // Let the scheduler worker record failure and report it through Sentry.
+        throw error;
       }
     },
   },

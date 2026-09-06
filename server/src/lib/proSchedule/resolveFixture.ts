@@ -58,6 +58,19 @@ function joinLocation(name: string | null, address: string | null): string | nul
   return name ?? address ?? null;
 }
 
+function isValidVenueCoordinate(latitude: number | null, longitude: number | null): boolean {
+  return (
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
 export function resolveFixture(
   fixture: ProFixture,
   teamsByRef: ReadonlyMap<string, ProTeamVenue>
@@ -114,7 +127,7 @@ export function resolveFixture(
   // Without coordinates the geofence can never pass, so the event page would be
   // permanently unpostable. Better to skip and report than to publish a page
   // that silently rejects everyone who shows up.
-  if (latitude === null || longitude === null) {
+  if (!isValidVenueCoordinate(latitude, longitude)) {
     return { ok: false, error: { code: 'NO_VENUE_COORDS' } };
   }
 
@@ -148,16 +161,16 @@ export function liveWindowFor(league: ProLeague): number {
  * Leagues that tour instead of fielding franchises. Their fixtures have a venue
  * and no matchup.
  */
-export const TOURING_LEAGUES: ReadonlySet<ProLeague> = new Set<ProLeague>(['wwe']);
+export const TOURING_LEAGUES: ReadonlySet<ProLeague> = new Set<ProLeague>(['wwe', 'ufc']);
 
 /**
  * Attaches a touring promotion to its own fixtures.
  *
- * A WWE show has no home or away team, so without this it links to no ProTeam
- * at all — and the WWE page, which queries events by team id, would sit
- * permanently empty while the events existed. Pinning the promotion as the
- * "home" side keeps one query shape for every pro page and makes "every pro
- * event references at least one ProTeam" a real invariant.
+ * A touring show has no home or away team, so without this it links to no
+ * ProTeam at all — and the promotion page, which queries events by team id,
+ * would sit permanently empty while the events existed. Pinning the promotion
+ * as the "home" side keeps one query shape for every pro page and makes "every
+ * pro event references at least one ProTeam" a real invariant.
  *
  * Only applies when the fixture names no teams; a feed that does supply them is
  * left alone.

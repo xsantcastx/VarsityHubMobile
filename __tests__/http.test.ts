@@ -109,6 +109,37 @@ beforeEach(() => {
 });
 
 describe('api/http — auth refresh', () => {
+  it('does not retry a queued preferences write after its session changes during refresh', async () => {
+    let finishRefresh!: (value: any) => void;
+    let currentSession = true;
+    mockRefreshToken.mockReturnValue(
+      new Promise(resolve => {
+        finishRefresh = resolve;
+      })
+    );
+    const fetchMock = jest
+      .fn<FetchFn>()
+      .mockResolvedValueOnce(mkJsonResponse(401, { error: 'expired' }))
+      .mockResolvedValueOnce(mkJsonResponse(200, { preferences: { profile_private: true } }));
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('account-a');
+    const save = http.httpPatch('/me/preferences', { profile_private: true }, {
+      isSessionCurrent: () => currentSession,
+    } as any);
+    const outcome = save.then(
+      () => 'saved',
+      () => 'cancelled'
+    );
+    while (!mockRefreshToken.mock.calls.length)
+      await new Promise(resolve => setTimeout(resolve, 0));
+    currentSession = false;
+    http.clearAuthToken();
+    http.setAuthToken('account-b');
+    finishRefresh({ accessToken: 'account-b', reason: 'success' });
+    expect(await outcome).toBe('cancelled');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('hydrates the auth header from persisted storage when memory cache is empty', async () => {
     const fetchMock = jest
       .fn<(input: any, init?: any) => Promise<any>>()
@@ -411,6 +442,113 @@ describe('api/http — timeout', () => {
     await expect(http.httpGet('/slow', {}, 100, 0)).rejects.toMatchObject({
       status: 408,
       message: 'Request timeout - server did not respond',
+    });
+  });
+});
+
+describe('api/http — Sentry reporting boundaries', () => {
+  it('reports a terminal 503 once without query parameters', async () => {
+    const fetchMock = jest
+      .fn<FetchFn>()
+      .mockResolvedValue(mkJsonResponse(503, { error: 'Unavailable' }));
+    const http = freshHttp(fetchMock);
+    const { captureException } = require('@/utils/sentry');
+    await expect(
+      http.httpGet('/event-discovery?lat=40&lng=-74', {}, undefined, 0)
+    ).rejects.toMatchObject({ status: 503 });
+    expect(captureException).toHaveBeenCalledTimes(1);
+    expect(captureException.mock.calls[0][1]).toMatchObject({
+      tags: { terminal_transport: 'true', endpoint: '/event-discovery' },
+    });
+    expect(JSON.stringify(captureException.mock.calls[0][1])).not.toContain('lat=');
+  });
+
+  it('does not report a recovered 502 but reports only the terminal failed attempt', async () => {
+    jest.useFakeTimers();
+    try {
+      const fetchMock = jest
+        .fn<FetchFn>()
+        .mockResolvedValueOnce(mkJsonResponse(502, { error: 'Unavailable' }))
+        .mockResolvedValueOnce(mkJsonResponse(200, { ok: true }));
+      const http = freshHttp(fetchMock);
+      const { captureException } = require('@/utils/sentry');
+      const recovered = http.httpGet('/event-discovery', {}, undefined, 1);
+      await jest.runAllTimersAsync();
+      await expect(recovered).resolves.toEqual({ ok: true });
+      expect(captureException).not.toHaveBeenCalled();
+      fetchMock.mockResolvedValue(mkJsonResponse(502, { error: 'Unavailable' }));
+      const failed = expect(
+        http.httpGet('/event-discovery', {}, undefined, 1)
+      ).rejects.toMatchObject({ status: 502 });
+      await jest.runAllTimersAsync();
+      await failed;
+      expect(captureException).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not retry or report a caller-cancelled request', async () => {
+    const fetchMock = jest.fn<FetchFn>().mockImplementation(
+      (_url, options) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () =>
+            reject(Object.assign(new Error('cancelled'), { name: 'AbortError' }))
+          );
+        })
+    );
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('tok');
+    const { captureException } = require('@/utils/sentry');
+    const controller = new AbortController();
+    const result = http.httpGet('/cancelled', { signal: controller.signal });
+    const assertion = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    controller.abort();
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+  it('does not capture handled 4xx responses such as the non-admin seed endpoint', async () => {
+    const fetchMock = jest
+      .fn<(input: any, init?: any) => Promise<any>>()
+      .mockResolvedValue(mkJsonResponse(403, { error: 'Admin only' }));
+
+    const http = freshHttp(fetchMock);
+    const { captureException } = require('@/utils/sentry') as {
+      captureException: jest.MockedFunction<
+        (error: unknown, context?: Record<string, unknown>) => void
+      >;
+    };
+
+    await expect(http.httpPost('/games/seed-samples', {})).rejects.toMatchObject({
+      status: 403,
+      message: 'Admin only',
+    });
+
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it('still captures server-side 5xx responses exactly once', async () => {
+    const fetchMock = jest
+      .fn<(input: any, init?: any) => Promise<any>>()
+      .mockResolvedValue(mkJsonResponse(500, { error: 'Internal server error' }));
+
+    const http = freshHttp(fetchMock);
+    const { captureException } = require('@/utils/sentry') as {
+      captureException: jest.MockedFunction<
+        (error: unknown, context?: Record<string, unknown>) => void
+      >;
+    };
+
+    await expect(http.httpGet('/feed', {}, undefined, 0)).rejects.toMatchObject({
+      status: 500,
+      message: 'Internal server error',
+    });
+
+    expect(captureException).toHaveBeenCalledTimes(1);
+    expect(captureException.mock.calls[0]?.[1]).toMatchObject({
+      tags: { component: 'http-client', endpoint: '/feed' },
     });
   });
 });

@@ -1,0 +1,12 @@
+{
+  "numTotalTestSuites": 215,
+  "numPassedTestSuites": 215,
+  "numFailedTestSuites": 0,
+  "numTotalTests": 1511,
+  "numPassedTests": 1511,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "method": "One complete client Jest invocation after final production-config, Stripe fallback, hydration/theme/auth-entry and read-only empty-feed fixes.",
+  "generated_at": "2026-09-05T16:07:17.095447+00:00"
+}

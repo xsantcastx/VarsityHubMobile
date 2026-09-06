@@ -49,8 +49,8 @@ const probeTo = process.env.EMAIL_PROBE_TO;
 const probeMode = (process.env.EMAIL_PROBE_MODE || 'verification').trim().toLowerCase();
 
 console.log(`Environment:        ${NODE_ENV}`);
-console.log(`SENDGRID_API_KEY:   ${SENDGRID_API_KEY ? `set (${SENDGRID_API_KEY.substring(0, 5)}...)` : '❌ MISSING'}`);
-console.log(`Key fingerprint:    ${getSendGridApiKeyFingerprint(SENDGRID_API_KEY)}`);
+console.log(`SENDGRID_API_KEY:   ${SENDGRID_API_KEY ? 'set (value redacted)' : '❌ MISSING'}`);
+console.log(`Key fingerprint:    ${SENDGRID_API_KEY ? 'redacted' : '(none)'}`);
 console.log(
   `Key status:         ${
     !SENDGRID_API_KEY
@@ -103,7 +103,9 @@ for (const [label, diag] of Object.entries(baseUrlDiagnostics)) {
 }
 
 if (missingCriticalTemplates.length > 0) {
-  console.error('\n❌ Missing critical template IDs — production startup should fail, and template-based emails will not work.');
+  console.error(
+    '\n❌ Missing critical template IDs — production startup should fail, and template-based emails will not work.'
+  );
 }
 
 // ─── 3. SendGrid API connectivity ───────────────────────────────
@@ -112,7 +114,9 @@ console.log('\n── Delivery Probe ──');
 if (!probeTo) {
   console.log('ℹ️  No EMAIL_PROBE_TO set — skipping live send test.');
   console.log('   To send a test email, re-run with: EMAIL_PROBE_TO=you@example.com');
-  console.log('   Optional: EMAIL_PROBE_MODE=verification|password_reset|team_invite|org_invite|core');
+  console.log(
+    '   Optional: EMAIL_PROBE_MODE=verification|password_reset|team_invite|org_invite|core'
+  );
   console.log('\n═══ Diagnostics complete (config-only mode) ═══\n');
   process.exit(missingCriticalTemplates.length > 0 ? 1 : 0);
 }
@@ -177,12 +181,16 @@ try {
 
   const sent = await runProbe(probeMode);
   if (!sent) {
-    throw new Error('Email sender returned false — inspect Railway logs for SendGrid/template errors');
+    throw new Error(
+      'Email sender returned false — inspect Railway logs for SendGrid/template errors'
+    );
   }
 
   console.log('✅ Probe email accepted by the configured sender');
   console.log('\n   Check inbox (and spam) for the probe email.');
-  console.log('   If it doesn\'t arrive within 2 minutes, the issue is likely downstream of app code:');
+  console.log(
+    "   If it doesn't arrive within 2 minutes, the issue is likely downstream of app code:"
+  );
   console.log('   - Sender domain authentication (SPF/DKIM) in SendGrid');
   console.log('   - SendGrid account suspension or sending limits');
   console.log('   - Inbox-side filtering');
@@ -201,11 +209,17 @@ try {
   // Common diagnoses
   const status = err?.code ?? err?.response?.statusCode;
   if (status === 401) {
-    console.error('\n   → SENDGRID_API_KEY is invalid or revoked. Generate a new one in SendGrid console.');
+    console.error(
+      '\n   → SENDGRID_API_KEY is invalid or revoked. Generate a new one in SendGrid console.'
+    );
   } else if (status === 403) {
-    console.error('\n   → Sender identity not verified, or account restricted. Check SendGrid Sender Authentication.');
+    console.error(
+      '\n   → Sender identity not verified, or account restricted. Check SendGrid Sender Authentication.'
+    );
   } else if (status === 400) {
-    console.error('\n   → Bad request — likely a template payload/template ID/sender verification issue.');
+    console.error(
+      '\n   → Bad request — likely a template payload/template ID/sender verification issue.'
+    );
   }
 
   process.exit(1);

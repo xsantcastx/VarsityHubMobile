@@ -15,6 +15,11 @@ const posthogCreatePersonProfile = jest.fn();
 const posthogSetPersonProperties = jest.fn();
 const posthogReset = jest.fn();
 const posthogScreen = jest.fn();
+jest.mock('expo-updates', () => ({
+  updateId: 'audit-ota',
+  channel: 'production',
+  runtimeVersion: '1.0.5',
+}));
 
 jest.mock('@sentry/react-native', () => ({
   __esModule: true,
@@ -100,6 +105,8 @@ describe('observability payload scrubbing', () => {
     const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
 
     sentry.initSentry();
+    expect(sentryMock.setTag).toHaveBeenCalledWith('ota_update_id', 'audit-ota');
+    expect(sentryMock.setTag).toHaveBeenCalledWith('app_runtime', '1.0.5');
     sentry.captureException(new Error('boom'), {
       token: 'secret-token',
       nested: { email: 'coach@example.com', keep: 'ok' },
@@ -251,5 +258,22 @@ describe('observability payload scrubbing', () => {
       }
     );
     expect(result).toBeNull();
+  });
+
+  it('does not send expected auth UX errors to Sentry or analytics exception capture', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
+
+    sentry.initSentry();
+    sentry.captureException(
+      Object.assign(new Error('Token already used'), {
+        status: 400,
+        data: { error: 'TOKEN_ALREADY_USED' },
+      }),
+      { tags: { context: 'password_reset_submit' } }
+    );
+
+    expect(sentryMock.captureException).not.toHaveBeenCalled();
+    expect(posthogCapture).not.toHaveBeenCalled();
   });
 });

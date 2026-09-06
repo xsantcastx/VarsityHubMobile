@@ -29,6 +29,10 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 export const healthRouter = Router();
 const isDatabaseHealthy = () => runDatabaseHealthcheck(() => prisma.$queryRaw`SELECT 1`);
 
+healthRouter.head('/', (_req, res) => {
+  res.status(200).end();
+});
+
 /**
  * Health check endpoint
  * GET /health

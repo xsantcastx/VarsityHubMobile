@@ -45,7 +45,7 @@ fi
 cd "$ROOT_DIR"
 
 echo "Exporting static web bundle..."
-npx expo export --platform web
+node scripts/with-production-client-env.js npx expo export --platform web
 
 echo "Preparing static-only Vercel deployment..."
 mkdir -p "$DEPLOY_DIR/.vercel"
@@ -84,7 +84,29 @@ fs.writeFileSync(process.argv[2], JSON.stringify(cfg, null, 2) + "\n");
 cd "$DEPLOY_DIR"
 
 echo "Deploying static bundle to Vercel..."
-DEPLOY_URL="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"
+if [[ ${#VERCEL_ARGS[@]} -gt 0 ]]; then
+  if ! DEPLOY_OUTPUT="$(npx vercel --prod --yes "${VERCEL_ARGS[@]}")"; then
+    printf '%s\n' "$DEPLOY_OUTPUT" >&2
+    echo "Vercel deployment failed before aliasing custom domains." >&2
+    exit 1
+  fi
+else
+  if ! DEPLOY_OUTPUT="$(npx vercel --prod --yes)"; then
+    printf '%s\n' "$DEPLOY_OUTPUT" >&2
+    echo "Vercel deployment failed before aliasing custom domains." >&2
+    exit 1
+  fi
+fi
+echo "$DEPLOY_OUTPUT"
+DEPLOY_URL="$(DEPLOY_OUTPUT="$DEPLOY_OUTPUT" node -e '
+const output = process.env.DEPLOY_OUTPUT || "";
+const matches = output.match(/https:\/\/[^\s"]+\.vercel\.app/g) || [];
+const deploymentUrl = matches.find((url) => !url.includes("vercel.com/"));
+if (!deploymentUrl) {
+  process.exit(1);
+}
+console.log(deploymentUrl);
+')"
 echo "Deployed: $DEPLOY_URL"
 
 # `vercel --prod` creates a new deployment but does NOT move existing custom
@@ -93,5 +115,9 @@ echo "Deployed: $DEPLOY_URL"
 # Without this step, the site silently keeps serving the old build forever.
 for domain in "${CUSTOM_DOMAINS[@]}"; do
   echo "Aliasing $domain -> $DEPLOY_URL"
-  npx vercel alias set "$DEPLOY_URL" "$domain" "${VERCEL_ARGS[@]}"
+  if [[ ${#VERCEL_ARGS[@]} -gt 0 ]]; then
+    npx vercel alias set "$DEPLOY_URL" "$domain" "${VERCEL_ARGS[@]}"
+  else
+    npx vercel alias set "$DEPLOY_URL" "$domain"
+  fi
 done

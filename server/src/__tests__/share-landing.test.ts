@@ -142,6 +142,31 @@ describe('share-landing — OG metadata enrichment', () => {
     expect(res.text).toContain('at Westhill HS');
   });
 
+  it('uses the actual venue for a public game preview without a banner', async () => {
+    gameFindUnique.mockResolvedValueOnce({
+      title: 'Giants at Jets',
+      location: 'MetLife Stadium, East Rutherford, NJ',
+      date: new Date('2026-08-28T23:30:00Z'),
+      approval_status: 'approved',
+    } as any);
+    const res = await request(makeApp()).get('/games/g1').set('Accept', 'text/html');
+    expect(res.text).toContain('og:image');
+    expect(res.text).toContain('MetLife');
+    expect(res.text).toContain('summary_large_image');
+  });
+
+  it('never exposes a venue photo for a pending game', async () => {
+    gameFindUnique.mockResolvedValueOnce({
+      title: 'Secret game',
+      location: 'MetLife Stadium',
+      date: new Date('2026-08-28T23:30:00Z'),
+      approval_status: 'pending',
+    } as any);
+    const res = await request(makeApp()).get('/games/g1').set('Accept', 'text/html');
+    expect(res.text).not.toContain('MetLife');
+    expect(res.text).not.toContain('Secret game');
+  });
+
   it('team landing pulls team metadata for the OG tags', async () => {
     teamFindUnique.mockResolvedValueOnce({
       name: 'Westhill Wildcats',

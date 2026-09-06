@@ -1,3 +1,9 @@
+import {
+  getAdSlotCounts,
+  getAdSlotCountsForZips,
+  getFullAdSlotDates,
+  slotFullError,
+} from '../lib/adInventory.js';
 import escapeHtml from 'escape-html';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
@@ -17,6 +23,7 @@ import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { prisma } from '../lib/prisma.js';
+import { sendError } from '../lib/http/sendError.js';
 import {
   consumeReviewToken,
   getReviewTokenReplayState,
@@ -765,7 +772,53 @@ adsRouter.put(
         ' Ad removed from feed pending re-approval.';
     }
 
-    let updated = await prisma.ad.update({ where: { id }, data });
+    let updated;
+    try {
+      updated = await prisma.$transaction(
+        async tx => {
+          const current = await tx.ad.findUniqueOrThrow({ where: { id } });
+          if ('target_zip_code' in data && data.target_zip_code !== current.target_zip_code) {
+            const reservations = await tx.adReservation.findMany({
+              where: { ad_id: id },
+              select: { date: true },
+              take: 10000,
+            });
+            const holds = await tx.adSlotHold.findMany({
+              where: { ad_id: id, expires_at: { gt: new Date() } },
+              select: { date: true },
+              take: 10000,
+            });
+            if (reservations.length === 10000 || holds.length === 10000) {
+              return null; // Fail closed if a legacy campaign exceeds the bounded scan.
+            }
+            const dates = [
+              ...new Set(
+                [...reservations, ...holds].map(row => row.date.toISOString().slice(0, 10))
+              ),
+            ];
+            const full = await getFullAdSlotDates(tx, {
+              adId: id,
+              targetZipCode: data.target_zip_code,
+              isoDates: dates,
+            });
+            if (full.length) throw slotFullError(full);
+          }
+          return tx.ad.update({ where: { id }, data });
+        },
+        { isolationLevel: 'Serializable' }
+      );
+    } catch (error: any) {
+      if (error.slotFull || error.code === 'P2034')
+        return sendError(
+          res,
+          409,
+          'Selected ZIP capacity changed. Please select available dates or try again.',
+          { extraFields: { dates: error.dates || [] } }
+        );
+      throw error;
+    }
+    if (!updated)
+      return sendError(res, 409, 'Campaign inventory requires review before retargeting');
     const shouldModerateBannerNow = bannerChanged && !!updated.banner_url && requiresReapproval;
     if (shouldModerateBannerNow) {
       const { moderateAndStoreAdBanner } = await loadAdImageModeration();
@@ -986,47 +1039,20 @@ adsRouter.get(
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
-    // Get all ads for this zip code (paid, hold, pending_approval all hold slots)
-    // Optionally exclude a specific ad (so editing an ad doesn't block its own dates)
-    const adsInZip = await prisma.ad.findMany({
-      where: {
-        target_zip_code: zipCode,
-        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-        ...(excludeAdId ? { id: { not: excludeAdId } } : {}),
-      },
-      select: { id: true },
-      take: 500,
+    const dayCount = Math.floor((toDate.getTime() - fromDate.getTime()) / 86400000) + 1;
+    if (dayCount < 1 || dayCount > 366)
+      return sendError(res, 400, 'Date range must be between 1 and 366 days');
+    const isoDates = Array.from({ length: dayCount }, (_, offset) =>
+      new Date(fromDate.getTime() + offset * 86400000).toISOString().slice(0, 10)
+    );
+    const counts = await getAdSlotCounts(prisma, {
+      targetZipCode: zipCode,
+      isoDates,
+      adId: excludeAdId,
     });
-
-    const adIds = adsInZip.map(a => a.id);
-
-    // Get all reservations for these ads in the date range
-    const reservations = await prisma.adReservation.findMany({
-      where: {
-        ad_id: { in: adIds },
-        date: {
-          gte: fromDate,
-          lte: toDate,
-        },
-      },
-      select: {
-        date: true,
-        ad_id: true,
-      },
-      take: Math.max(
-        adIds.length *
-          (Math.floor((toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000)) + 1),
-        1
-      ),
-    });
-
-    // Count ads per date
-    const adCountByDate: Record<string, number> = {};
-
-    reservations.forEach(r => {
-      const dateISO = r.date.toISOString().slice(0, 10);
-      adCountByDate[dateISO] = (adCountByDate[dateISO] || 0) + 1;
-    });
+    const adCountByDate: Record<string, number> = Object.fromEntries(
+      counts.map(row => [row.date.toISOString().slice(0, 10), Number(row.count)])
+    );
 
     // Generate all dates in range and check availability
     const availability: Record<
@@ -1155,50 +1181,16 @@ adsRouter.get(
       }
     }
 
-    // Batch query: fetch all ads in nearby zips in a single query (avoids N+1)
-    const nearbyZips = Array.from(zipDistances.keys());
-    const allNearbyAds =
-      nearbyZips.length > 0
-        ? await prisma.ad.findMany({
-            where: {
-              target_zip_code: { in: nearbyZips },
-              payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-            },
-            select: {
-              id: true,
-              target_zip_code: true,
-            },
-            take: 200,
-          })
-        : [];
-
-    const nearbyAdIds = allNearbyAds.map(ad => ad.id);
-    const requestedDateObjects = dateList.map(date => new Date(`${date}T00:00:00.000Z`));
-    const reservations =
-      nearbyAdIds.length > 0
-        ? await prisma.adReservation.findMany({
-            where: {
-              ad_id: { in: nearbyAdIds },
-              date: { in: requestedDateObjects },
-            },
-            select: {
-              ad_id: true,
-              date: true,
-            },
-            take: Math.max(nearbyAdIds.length * requestedDateObjects.length, 1),
-          })
-        : [];
-
-    const zipByAdId = new Map(allNearbyAds.map(ad => [ad.id, ad.target_zip_code || '']));
     const reservationCountsByZipDate = new Map<string, number>();
-
-    for (const reservation of reservations) {
-      const zip = zipByAdId.get(reservation.ad_id);
-      if (!zip) continue;
-      const dateIso = reservation.date.toISOString().slice(0, 10);
-      const key = `${zip}:${dateIso}`;
-      reservationCountsByZipDate.set(key, (reservationCountsByZipDate.get(key) || 0) + 1);
-    }
+    const counts = await getAdSlotCountsForZips(prisma, {
+      targetZipCodes: [...zipDistances.keys()],
+      isoDates: dateList,
+    });
+    for (const row of counts)
+      reservationCountsByZipDate.set(
+        `${row.target_zip_code}:${row.date.toISOString().slice(0, 10)}`,
+        Number(row.count)
+      );
 
     // Check availability for each nearby zip
     const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];

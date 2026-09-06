@@ -13,7 +13,16 @@
  * is replayed chronologically.
  */
 import { describe, expect, it, jest } from '@jest/globals';
-import { makeListMediaHandler } from '../routes/games.js';
+const excludedAuthors = jest.fn(async () => [] as string[]);
+jest.unstable_mockModule('../lib/privacyUtils.js', () => ({
+  getExcludedPrivateAuthorIds: excludedAuthors,
+  getBlockedUserIds: jest.fn(async () => []),
+  getExcludedPrivateTeamIds: jest.fn(async () => []),
+  getRequestBlockedCache: jest.fn(() => new Map()),
+  buildPrivateTeamGameVisibilityWhere: jest.fn(() => null),
+  mergeAndWhere: jest.fn(),
+}));
+const { makeListMediaHandler } = await import('../routes/games.js');
 
 const day = (hour: number) => new Date(`2026-07-16T${String(hour).padStart(2, '0')}:00:00.000Z`);
 
@@ -32,8 +41,8 @@ const makeStubPrisma = (rows: any[]) => ({
       opponent_approval_status: 'not_required',
       date: day(12),
       created_by_id: 'u1',
-      home_team_id: 't1',
-      away_team_id: 't2',
+      home_team_id: null,
+      away_team_id: null,
     })),
   },
   story: {
@@ -82,5 +91,25 @@ describe('game stories list order', () => {
     const pageQuery = (prismaStub.story.findMany as any).mock.calls[1][0];
     expect(pageQuery.orderBy).toEqual({ created_at: 'desc' });
     expect(pageQuery.take).toBe(50);
+  });
+  it('applies the same private-author and expiry predicates in the legacy SQL fallback', async () => {
+    excludedAuthors.mockResolvedValueOnce(['hidden-author']);
+    const stub: any = makeStubPrisma(storyRows);
+    stub.story.findMany = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce({ code: 'P2022', meta: { modelName: 'Story', column: 'Story.lat' } });
+    stub.$queryRaw = jest.fn(async () => storyRows.slice());
+    const result = await runHandler(stub);
+    expect(result.map(row => row.id)).toEqual(['morning', 'afternoon', 'evening']);
+    const call = stub.$queryRaw.mock.calls[0];
+    const sql = call[0].join(' ');
+    expect(sql).toContain('"expires_at" >');
+    const filter = call.find(
+      (value: any) => Array.isArray(value?.values) && value.values.includes('hidden-author')
+    );
+    expect(filter).toBeDefined();
+    expect(filter.strings.join(' ')).toContain('"user_id" NOT IN');
+    expect(sql.indexOf('"expires_at"')).toBeLessThan(sql.indexOf('LIMIT 50'));
   });
 });

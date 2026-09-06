@@ -1,7 +1,7 @@
 /**
  * GDPR / right-to-access data export endpoints.
  *
- *   POST   /me/data-export              → 202 { export_id, status }
+ *   POST   /me/data-export              → 202 { id, status }
  *   GET    /me/data-exports             → 200 [exports]
  *   GET    /me/data-export/:id          → 200 { export }
  *   GET    /me/data-export/:id/download → 200 { url, expires_at }
@@ -22,6 +22,7 @@
  */
 
 import { Router } from 'express';
+import type { DataExport } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -31,15 +32,21 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { getObjectStorageAdapter, ObjectStorageNotConfiguredError } from '../lib/objectStorage.js';
 import { captureException } from '../lib/sentry.js';
 
+import { sendError } from '../lib/http/sendError.js';
+import {
+  createExportRequest,
+  deleteExportObject,
+  exportHasExpired,
+  exportDownloadTtl,
+  EXPORT_RATE_WINDOW_MS,
+  EXPORT_RETENTION_DAYS,
+} from '../lib/dataExport/lifecycle.js';
+
 export const dataExportRouter = Router();
-
-const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 1 successful export per 24h
-
-// Prisma client types are regenerated post-migration; in older sandbox
-// copies the DataExport model may not be on the typed surface yet. All
-// access goes through this aliased any-client, matching the pattern used
-// for parental consent fields in requireOnboarded.ts.
-const p = prisma as any;
+dataExportRouter.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'private, no-store');
+  next();
+});
 
 async function queueDataExportJob(args: { exportId: string; userId: string }) {
   const { queueDataExport } = await import('../jobs/queues.js');
@@ -47,10 +54,15 @@ async function queueDataExportJob(args: { exportId: string; userId: string }) {
 }
 
 /** Shape returned to clients. Never includes storage_key (internal). */
-function serializeExport(row: any) {
+function serializeExport(row: DataExport) {
   return {
     id: row.id,
-    status: row.status as 'pending' | 'building' | 'ready' | 'expired' | 'failed',
+    status: (exportHasExpired(row) ? 'expired' : row.status) as
+      | 'pending'
+      | 'building'
+      | 'ready'
+      | 'expired'
+      | 'failed',
     requested_at: row.requested_at,
     started_at: row.started_at,
     completed_at: row.completed_at,
@@ -67,7 +79,7 @@ function parseExportId(params: unknown) {
 }
 
 async function findOwnedExport(userId: string, exportId: string) {
-  return p.dataExport.findFirst({
+  return prisma.dataExport.findFirst({
     where: { id: exportId, user_id: userId },
   });
 }
@@ -90,6 +102,21 @@ async function resolveOwnedExportRequest(req: AuthedRequest) {
   return { row } as const;
 }
 
+async function exportAvailability() {
+  const { isDataExportWorkerAvailable } = await import('../jobs/queues.js');
+  return {
+    available: getObjectStorageAdapter().isConfigured() && (await isDataExportWorkerAvailable()),
+    retention_days: EXPORT_RETENTION_DAYS,
+  };
+}
+
+dataExportRouter.get(
+  '/me/data-export-availability',
+  requireAuth,
+  requireVerified,
+  asyncHandler(async (_req, res) => res.json(await exportAvailability()))
+);
+
 // ─── POST /me/data-export ────────────────────────────────────────────────────
 
 dataExportRouter.post(
@@ -100,64 +127,35 @@ dataExportRouter.post(
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const userId = req.user.id;
 
-    // Max 1 in-flight per user. If there's already a pending or building
-    // export, return 409 and point the client at its status endpoint.
-    const inFlight = await p.dataExport.findFirst({
-      where: {
-        user_id: userId,
-        status: { in: ['pending', 'building'] },
-      },
-      orderBy: { requested_at: 'desc' },
-    });
-    if (inFlight) {
-      return res.status(409).json({
-        error: 'EXPORT_IN_FLIGHT',
-        message: 'You already have an export being built. Wait for it to complete.',
-        export_id: inFlight.id,
-        status: inFlight.status,
+    if (!(await exportAvailability()).available) {
+      return sendError(res, 503, 'EXPORT_UNAVAILABLE', {
+        message: 'Data exports are temporarily unavailable. Please try again later.',
       });
     }
-
-    // 1 successful export per 24h. If the last ready row is still inside
-    // the window, reject with retry-after. Expired/failed rows don't count.
-    const recentReady = await p.dataExport.findFirst({
-      where: {
-        user_id: userId,
-        status: 'ready',
-        requested_at: { gt: new Date(Date.now() - RATE_LIMIT_WINDOW_MS) },
-      },
-      orderBy: { requested_at: 'desc' },
-    });
-    if (recentReady) {
+    const result = await createExportRequest(userId);
+    const { row } = result;
+    if (result.kind === 'in_flight') {
+      return sendError(res, 409, 'EXPORT_IN_FLIGHT', {
+        message: 'You already have an export being built.',
+        extraFields: { export_id: row.id, status: row.status },
+      });
+    }
+    if (result.kind === 'rate_limited') {
       const retryAfterSeconds = Math.max(
         1,
-        Math.ceil(
-          (new Date(recentReady.requested_at).getTime() + RATE_LIMIT_WINDOW_MS - Date.now()) / 1000
-        )
+        Math.ceil((row.requested_at.getTime() + EXPORT_RATE_WINDOW_MS - Date.now()) / 1000)
       );
       res.setHeader('Retry-After', String(retryAfterSeconds));
-      return res.status(429).json({
-        error: 'EXPORT_RATE_LIMITED',
-        message:
-          'You can request one export every 24 hours. Use your existing archive or wait for the window to pass.',
-        retry_after_seconds: retryAfterSeconds,
-        existing_export_id: recentReady.id,
+      return sendError(res, 429, 'EXPORT_RATE_LIMITED', {
+        message: 'You can request one export every 24 hours.',
+        extraFields: { retry_after_seconds: retryAfterSeconds, existing_export_id: row.id },
       });
     }
-
-    // Create the row first, then enqueue. If enqueue fails, we flip the
-    // row to 'failed' so the user isn't left with a zombie 'pending' row.
-    const row = await p.dataExport.create({
-      data: {
-        user_id: userId,
-        status: 'pending',
-      },
-    });
 
     const jobId = await queueDataExportJob({ exportId: row.id, userId });
     if (!jobId) {
-      await p.dataExport.update({
-        where: { id: row.id },
+      await prisma.dataExport.updateMany({
+        where: { id: row.id, status: 'pending' },
         data: { status: 'failed', error_category: 'queue_unavailable' },
       });
       // Ops alert: a user requested an export and we couldn't even enqueue.
@@ -191,7 +189,7 @@ dataExportRouter.get(
   requireVerified,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const rows = await p.dataExport.findMany({
+    const rows = await prisma.dataExport.findMany({
       where: { user_id: req.user.id },
       orderBy: { requested_at: 'desc' },
       take: 50,
@@ -226,7 +224,10 @@ dataExportRouter.get(
     if (resolved.error) return res.status(resolved.error.status).json(resolved.error.body);
     const { row } = resolved;
 
-    if (row.status === 'expired') {
+    if (
+      exportHasExpired(row) ||
+      (row.status === 'ready' && row.expires_at && exportDownloadTtl(row.expires_at) === 0)
+    ) {
       return res.status(410).json({
         error: 'EXPORT_EXPIRED',
         message: 'This archive has expired. Request a new export to download your data.',
@@ -253,10 +254,11 @@ dataExportRouter.get(
     // bump below.
     let url: string;
     let ttlSeconds: number;
+    const signingTime = Date.now();
     try {
       const storage = getObjectStorageAdapter();
-      ttlSeconds = Number(process.env.DATA_EXPORT_SIGNED_URL_TTL_SECONDS) || 300;
-      url = await storage.getSignedDownloadUrl(row.storage_key, ttlSeconds);
+      ttlSeconds = exportDownloadTtl(row.expires_at!, signingTime);
+      url = await storage.getSignedDownloadUrl(row.storage_key, ttlSeconds, new Date(signingTime));
     } catch (err) {
       if (err instanceof ObjectStorageNotConfiguredError) {
         return res.status(503).json({
@@ -272,7 +274,7 @@ dataExportRouter.get(
 
     // Count the download. We don't store the signed URL or IP — just the
     // bump so the user/ops can see whether an archive was consumed.
-    await p.dataExport
+    await prisma.dataExport
       .update({
         where: { id: row.id },
         data: {
@@ -287,7 +289,7 @@ dataExportRouter.get(
         });
       });
 
-    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+    const expiresAt = new Date(signingTime + ttlSeconds * 1000).toISOString();
     return res.json({ url, expires_at: expiresAt });
   })
 );
@@ -303,34 +305,19 @@ dataExportRouter.delete(
     if (resolved.error) return res.status(resolved.error.status).json(resolved.error.body);
     const { row } = resolved;
 
-    // Best-effort storage delete. If the object's already gone (or the
-    // backend is unhappy), mark the row expired anyway — the user asked to
-    // get rid of it and the archive's TTL would have caught up regardless.
-    if (row.storage_key) {
-      try {
-        const storage = getObjectStorageAdapter();
-        if (storage.isConfigured()) {
-          await storage.deleteObject(row.storage_key);
-        }
-      } catch (err) {
-        captureException(err instanceof Error ? err : new Error(String(err)), {
-          extra: { context: 'data_export_delete_storage_failed' },
-        });
-      }
-    }
-
-    // Preserve the row as a metadata-only audit record (matches the
-    // cleanup cron's behavior). Flip status to 'expired' and clear
-    // storage_key + size_bytes so we don't keep references to objects
-    // that no longer exist.
-    await p.dataExport.update({
+    // Revoke first. A worker can only publish while still building, so a
+    // concurrent cancellation cannot be resurrected after its upload finishes.
+    const revoked = await prisma.dataExport.update({
       where: { id: row.id },
-      data: {
-        status: 'expired',
-        storage_key: null,
-        size_bytes: null,
-      },
+      data: { status: 'expired', expires_at: new Date() },
     });
+    const uploadMayStillBeRunning =
+      revoked.started_at &&
+      !revoked.completed_at &&
+      revoked.started_at.getTime() > Date.now() - 2 * 60 * 60 * 1000;
+    if (revoked.storage_key && !uploadMayStillBeRunning) {
+      await deleteExportObject(row.id, revoked.storage_key);
+    }
 
     return res.status(204).send();
   })

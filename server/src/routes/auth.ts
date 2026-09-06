@@ -6,6 +6,7 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import { getBearerToken, revokeAccessToken } from '../lib/accessTokenRevocation.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -84,11 +85,25 @@ import {
   authLimiter,
   oauthLimiter,
   passwordResetLimiter,
+  profileUpdateLimiter,
   refreshTokenLimiter,
   verificationConfirmLimiter,
 } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import {
+  appleAuthSchema,
+  CURRENT_TERMS_VERSION,
+  deleteAccountSchema,
+  googleAuthSchema,
+  loginSchema,
+  passwordChangeSchema,
+  passwordResetRequestSchema,
+  passwordResetSchema,
+  refreshSchema,
+  registerSchema,
+  upgradeToCoachSchema,
+} from '../validators/authSchemas.js';
 
 export const authRouter = Router();
 
@@ -588,27 +603,6 @@ function resolveEffectiveDob(
   });
 }
 
-const passwordRequirement = z
-  .string()
-  .min(8)
-  .refine(val => /[a-zA-Z]/.test(val) && /[0-9]/.test(val), {
-    message: 'Password must contain at least one letter and one number',
-  });
-
-// Current Terms of Service version. Stamped onto User.terms_version at
-// registration; bump when the ToS (app/settings/terms-of-service.tsx) changes
-// materially so we can tell which users accepted which version.
-const CURRENT_TERMS_VERSION = 1;
-
-const registerSchema = z.object({
-  email: z.string().trim().email(),
-  password: passwordRequirement,
-  display_name: z.string().optional(),
-  // Rookie is a coach plan, not a role
-  role: z.enum(['fan', 'coach']).optional(),
-  dob: z.string().optional(), // COPPA: reject if under 13
-});
-
 authRouter.post(
   '/register',
   asyncHandler(async (req, res) => {
@@ -814,8 +808,6 @@ authRouter.post(
   })
 );
 
-const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
-
 authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
@@ -903,8 +895,8 @@ authRouter.post(
  *       double-refresh that lost the rotation race, OR
  *   (b) genuine reuse/theft: a stolen, already-rotated token replayed later or
  *       from a different device.
- * Within the grace window AND from the same device we treat it as (a): mint a
- * fresh pair, do NOT revoke. Outside the window or from a different device we
+ * Within the grace window and without an enforced device mismatch, treat it
+ * as (a): mint a fresh pair, do NOT revoke. Outside the window or from a different device we
  * treat it as (b): revoke every session (theft response) and return
  * TOKEN_REUSED. The superseded row is left intact so repeated retries inside
  * the window keep working.
@@ -935,7 +927,7 @@ async function serveRotatedTokenOrRevoke(
   const withinGrace = Date.now() - rotatedAtMs <= REFRESH_ROTATION_GRACE_MS;
   const fingerprint = verifyStoredSessionFingerprint(stored.device_info, req);
 
-  if (withinGrace && fingerprint.matches) {
+  if (withinGrace && (fingerprint.matches || !fingerprint.enforce)) {
     // Slow/aborted refresh (or concurrent race loser) retrying — reissue a
     // fresh pair against the user's current epoch. No revoke.
     const { raw: newRawRefresh, keyId: newKeyId, secret: newSecret } = generateRefreshTokenV2();
@@ -948,7 +940,10 @@ async function serveRotatedTokenOrRevoke(
         hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
         user_id: user.id,
         expires_at: newExpiry,
-        device_info: buildSessionFingerprint(req),
+        device_info:
+          fingerprint.reason === 'device_id_missing'
+            ? stored.device_info
+            : buildSessionFingerprint(req),
       },
     });
     const access_token = signAccessTokenForSession(user.id, (user as any).session_epoch ?? 0);
@@ -978,8 +973,6 @@ async function serveRotatedTokenOrRevoke(
  * The old refresh token is superseded (rotation prevents reuse) but honored for
  * a short same-device grace window so a slow/aborted refresh can retry.
  */
-const refreshSchema = z.object({ refresh_token: z.string().min(32) });
-
 authRouter.post(
   '/refresh',
   refreshTokenLimiter,
@@ -1152,18 +1145,31 @@ authRouter.post(
           hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
           user_id: user.id,
           expires_at: newExpiry,
-          device_info: buildSessionFingerprint(req),
+          device_info:
+            fingerprintCheck.reason === 'device_id_missing'
+              ? stored.device_info
+              : buildSessionFingerprint(req),
         },
       });
 
       // Refresh rotates tokens WITHIN an existing session — it doesn't start a
       // new one — so we don't bump session_epoch here. Mint the new access
-      // token against the user's current epoch so it stays valid until the
-      // user logs in again on any device (which is what bumps the epoch).
+      // token against the user's current epoch. Explicit security revocation
+      // bumps that epoch; signing in on another device preserves it.
       const access_token = signAccessTokenForSession(user.id, (user as any).session_epoch ?? 0);
       return res.json({ access_token, refresh_token: newRawRefresh });
     } catch (err) {
-      return res.status(401).json({ error: 'Invalid refresh token' });
+      // Explicit credential failures above remain 401. An unavailable DB or
+      // failed rotation must not tell clients to erase a valid refresh token.
+      const error = err instanceof Error ? err : new Error('Unexpected refresh failure');
+      console.error('[auth] Refresh temporarily unavailable', {
+        name: error.name,
+        code: typeof (err as any)?.code === 'string' ? (err as any).code : undefined,
+      });
+      captureException(error, { context: 'auth_refresh_failed' });
+      return sendError(res, 503, 'Service temporarily unavailable. Please try again.', {
+        code: 'AUTH_REFRESH_UNAVAILABLE',
+      });
     }
   })
 );
@@ -1191,6 +1197,15 @@ authRouter.post(
 authRouter.post(
   '/logout',
   asyncHandler(async (req, res) => {
+    const bearerToken = getBearerToken(req.header('Authorization'));
+    if (bearerToken) {
+      await revokeAccessToken(bearerToken).catch((err: unknown) => {
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          context: 'logout_access_token_revoke_failed',
+        });
+      });
+    }
+
     const { refresh_token } = req.body || {};
     if (refresh_token && typeof refresh_token === 'string') {
       // Look up the row by whichever index matches the token shape — v2
@@ -1327,10 +1342,6 @@ authRouter.post(
  *
  * Response: 200 { ok: true, deleted_at, already_deleted?: true }
  */
-const deleteAccountSchema = z.object({
-  password: z.string().optional(),
-  delete_confirmation: z.string().optional(),
-});
 authRouter.post(
   '/account/delete',
   requireAuth as any,
@@ -1417,10 +1428,6 @@ authRouter.post(
     });
   })
 );
-
-const googleAuthSchema = z.object({
-  id_token: z.string().min(10),
-});
 
 authRouter.post(
   '/google',
@@ -1611,10 +1618,6 @@ authRouter.post(
     }
   })
 );
-
-const appleAuthSchema = z.object({
-  identity_token: z.string().min(1),
-});
 
 authRouter.post(
   '/apple',
@@ -1899,8 +1902,6 @@ authRouter.post(
   })
 );
 
-const passwordResetRequestSchema = z.object({ email: z.string().email() });
-
 authRouter.post(
   '/password/forgot',
   passwordResetLimiter as any,
@@ -1963,12 +1964,6 @@ authRouter.post(
     return res.json(payload);
   })
 );
-
-const passwordResetSchema = z.object({
-  email: z.string().email(),
-  code: z.string().length(6),
-  password: passwordRequirement,
-});
 
 authRouter.post(
   '/password/reset',
@@ -2058,11 +2053,6 @@ authRouter.post(
   })
 );
 
-const passwordChangeSchema = z.object({
-  current_password: z.string().min(1),
-  new_password: passwordRequirement,
-});
-
 authRouter.post(
   '/password/change',
   authLimiter,
@@ -2104,10 +2094,6 @@ authRouter.post(
 );
 
 // Upgrade a fan account to coach
-const upgradeToCoachSchema = z.object({
-  plan: z.enum(['rookie', 'veteran', 'legend']),
-});
-
 // v1.0.2: 48hr cooldown for rejected coach/org applications.
 const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
 
@@ -2997,6 +2983,7 @@ async function handleUpdateMe(req: AuthedRequest, res: Response) {
 
 authRouter.put(
   '/me',
+  profileUpdateLimiter,
   requireAuth as any,
   requireVerified as any,
   asyncHandler((req: AuthedRequest, res) => handleUpdateMe(req, res))
@@ -3006,6 +2993,7 @@ authRouter.put(
 // ensuring @mention rewrites are applied consistently on username changes.
 authRouter.patch(
   '/me',
+  profileUpdateLimiter,
   requireAuth as any,
   requireVerified as any,
   asyncHandler((req: AuthedRequest, res) => handleUpdateMe(req, res))
@@ -3753,14 +3741,18 @@ authRouter.post(
     updateData.preferences = mergeAuthStateIntoPreferences(merged, onboardingAuthPatch);
     Object.assign(updateData, buildAuthStateColumns(onboardingAuthPatch));
 
-    // SECURITY: If completing onboarding as coach, ensure approval_status is PENDING
-    // This prevents a fan from completing onboarding with role='coach' and retaining APPROVED status
-    // v1.0.2: Also guard against overwriting an already-APPROVED status from a stale client call
-    if (
-      finalRole === 'coach' &&
-      currentAuthState.role !== 'coach' &&
-      current?.approval_status !== 'APPROVED'
-    ) {
+    const hasReviewedCoachContext =
+      current?.approval_status === 'APPROVED' &&
+      currentAuthState.onboarding_completed === true &&
+      Boolean(currentAuthState.organization_id);
+
+    // SECURITY: Any fresh fan-to-coach onboarding transition must enter review.
+    // New fan rows default to APPROVED for normal app access, so that default
+    // cannot be trusted as coach approval. However, some legacy/retry rows have
+    // split role state while already carrying an explicit APPROVED, completed,
+    // org-bound coach context; onboarding replay must preserve that reviewed
+    // status instead of demoting.
+    if (finalRole === 'coach' && currentAuthState.role !== 'coach' && !hasReviewedCoachContext) {
       updateData.approval_status = 'PENDING';
     }
 

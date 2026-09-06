@@ -1,22 +1,26 @@
+import EventPreviewImageField from '@/components/EventPreviewImageField';
+import EventLiveWindowPicker from '@/components/EventLiveWindowPicker';
+import {
+  EVENT_BANNER_ASPECT_RATIO,
+  type EventLiveWindowHours,
+} from '@/constants/eventPresentation';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useLocationAutocomplete } from '@/hooks/useLocationAutocomplete';
 import { APP_ROUTES } from '@/utils/appRoutes';
 import { getAuthSnapshot } from '@/utils/authState';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -29,15 +33,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Game, Team as TeamAPI } from '@/api/entities';
-import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { sanitizeText } from '@/utils/formUtils';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { buildOpponentLink } from '@/utils/gameOpponent';
-import { pickerMediaTypesProp } from '@/utils/picker';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { AppearancePreset } from './components/AppearancePicker';
@@ -104,6 +105,7 @@ type GameCreatePayload = {
   venue_place_id?: string;
   description?: string;
   event_type: 'game';
+  live_window_hours_after_start: EventLiveWindowHours;
   banner_url: string;
   cover_image_url: string;
   appearance: AppearancePreset;
@@ -121,6 +123,7 @@ type EventCreatePayload = {
   venue_address: string;
   venue_place_id?: string;
   date: string;
+  live_window_hours_after_start: EventLiveWindowHours;
   banner_url: string;
   cover_image_url: string;
   appearance: AppearancePreset;
@@ -197,24 +200,31 @@ function CreateFanEventScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [eventType, setEventType] = useState<string>('game');
-  const [location, setLocation] = useState('');
-  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [locationQuerying, setLocationQuerying] = useState(false);
-  const [locationTouched, setLocationTouched] = useState(false);
-  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
-  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const locationAbortRef = useRef<AbortController | null>(null);
   const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const {
+    location,
+    setLocation,
+    locationSuggestions,
+    locationQuerying,
+    locationTouched,
+    setLocationTouched,
+    selectedPlace,
+    setSelectedPlace,
+    handleLocationChange,
+    handleSelectLocation,
+  } = useLocationAutocomplete({ onClearLocationError: setErrors });
   const bannerCaptureRef = useRef<ViewShot | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   // Banner appearance is fixed to the default; the in-form style picker was
   // removed (device-testing feedback) — users just upload a custom photo.
   const [appearance] = useState<AppearancePreset>('classic');
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [liveWindowHours, setLiveWindowHours] = useState<EventLiveWindowHours>(5);
+  const [bannerWidth, setBannerWidth] = useState(320);
 
   // Team selection for fan event pitches (must be tied to a team)
   const [pitchTeamId, setPitchTeamId] = useState('');
@@ -298,74 +308,6 @@ function CreateFanEventScreen() {
     title,
   ]);
 
-  // Google Maps location autocomplete
-  const requestLocationSuggestions = useCallback((text: string) => {
-    if (locationTimerRef.current) {
-      clearTimeout(locationTimerRef.current);
-      locationTimerRef.current = null;
-    }
-    // Cancel any in-flight request so stale results are ignored
-    if (locationAbortRef.current) {
-      locationAbortRef.current.abort();
-    }
-
-    if (text.length < 3) {
-      setLocationSuggestions([]);
-      setLocationQuerying(false);
-      return;
-    }
-
-    setLocationQuerying(true);
-    locationTimerRef.current = setTimeout(async () => {
-      const controller = new AbortController();
-      locationAbortRef.current = controller;
-      try {
-        const suggestions = await autocompleteLocations(text, 6);
-        if (controller.signal.aborted) return;
-        setLocationSuggestions(suggestions);
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        if (__DEV__) console.warn('Location autocomplete failed:', error);
-        setLocationSuggestions([]);
-      } finally {
-        if (!controller.signal.aborted) setLocationQuerying(false);
-      }
-    }, 300);
-  }, []);
-
-  const handleLocationChange = useCallback(
-    (text: string) => {
-      setLocation(text);
-      setLocationTouched(true);
-      setSelectedPlace(null);
-      setErrors(prev => ({ ...prev, location: '' }));
-
-      if (text.length >= 3) {
-        requestLocationSuggestions(text);
-      } else {
-        setLocationSuggestions([]);
-      }
-    },
-    [requestLocationSuggestions]
-  );
-
-  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
-    setLocation(suggestion.description);
-    setSelectedPlace(suggestion);
-    setLocationSuggestions([]);
-    setLocationQuerying(false);
-    setLocationTouched(true);
-    setErrors(prev => ({ ...prev, location: '' }));
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (locationTimerRef.current) {
-        clearTimeout(locationTimerRef.current);
-      }
-    };
-  }, []);
-
   // Pre-fill venue when Home Game is selected and a team with a saved venue is chosen
   useEffect(() => {
     if (!selectedTeamId || eventType !== 'game') return;
@@ -420,107 +362,6 @@ function CreateFanEventScreen() {
       if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
     };
   }, []);
-
-  const uploadBannerFromUri = useCallback(async (uri: string) => {
-    setUploadingBanner(true);
-    try {
-      const localUri = await materializeICloudAssetIfNeeded(uri);
-      const manipulatedImage = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 1600 } }],
-        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      const uploadResult = await uploadFile(
-        getApiBaseUrl(),
-        manipulatedImage.uri,
-        'event-banner.jpg',
-        'image/jpeg'
-      );
-      const nextUrl = uploadResult?.url || uploadResult?.path;
-      if (!nextUrl) {
-        throw new Error('Upload failed - no URL returned');
-      }
-      setBannerUrl(nextUrl);
-    } finally {
-      setUploadingBanner(false);
-    }
-  }, []);
-
-  const pickBannerFromLibrary = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission required',
-        'Photo library permission is needed to upload an event photo.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        ]
-      );
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      ...pickerMediaTypesProp(),
-      allowsEditing: true,
-      // Event cards render banners at 4:5 (app/feed.tsx FullBleedCardImage) —
-      // crop at the displayed ratio so uploads aren't re-cropped at render time.
-      aspect: [4, 5],
-      quality: 0.9,
-      exif: false,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      try {
-        await uploadBannerFromUri(result.assets[0].uri);
-      } catch (error: unknown) {
-        const uploadError = error as CreateEventError;
-        Alert.alert(
-          'Upload Failed',
-          uploadError?.message || 'Failed to upload event photo. Please try again.'
-        );
-      }
-    }
-  }, [uploadBannerFromUri]);
-
-  const takeBannerPhoto = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Camera permission is needed to take an event photo.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      ...pickerMediaTypesProp(),
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.9,
-      exif: false,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      try {
-        await uploadBannerFromUri(result.assets[0].uri);
-      } catch (error: unknown) {
-        const uploadError = error as CreateEventError;
-        Alert.alert(
-          'Upload Failed',
-          uploadError?.message || 'Failed to upload event photo. Please try again.'
-        );
-      }
-    }
-  }, [uploadBannerFromUri]);
-
-  const showBannerOptions = useCallback(() => {
-    Alert.alert('Event Photo', 'Choose how you want to add a custom event photo.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Photo Library', onPress: () => void pickBannerFromLibrary() },
-      { text: 'Take Photo', onPress: () => void takeBannerPhoto() },
-    ]);
-  }, [pickBannerFromLibrary, takeBannerPhoto]);
 
   const captureGeneratedBanner = useCallback(async () => {
     if (!bannerCaptureRef.current) return null;
@@ -599,6 +440,7 @@ function CreateFanEventScreen() {
           venue_place_id: selectedPlace?.place_id,
           description: sanitizeText(description) || undefined,
           event_type: 'game',
+          live_window_hours_after_start: liveWindowHours,
           banner_url: finalBannerUrl,
           cover_image_url: finalBannerUrl,
           appearance,
@@ -627,6 +469,7 @@ function CreateFanEventScreen() {
           venue_address: selectedPlace?.description || location,
           venue_place_id: selectedPlace?.place_id,
           date: gameDateTime.toISOString(),
+          live_window_hours_after_start: liveWindowHours,
           banner_url: finalBannerUrl,
           cover_image_url: finalBannerUrl,
           appearance,
@@ -1130,98 +973,33 @@ function CreateFanEventScreen() {
           />
         </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Photo</Text>
-          <Text style={[styles.bannerHelperText, { color: Colors[colorScheme].mutedText }]}>
-            Upload a custom photo or keep the generated banner so this event never lands with a
-            blank card.
-          </Text>
-
-          {bannerUrl ? (
-            <View
-              style={[
-                styles.bannerCard,
-                {
-                  backgroundColor: Colors[colorScheme].card,
-                  borderColor: Colors[colorScheme].border,
-                },
-              ]}
-            >
-              <Image
-                source={{ uri: optimizeImageUrl(bannerUrl, 1200) }}
-                style={styles.customBannerImage}
-                resizeMode="cover"
+        <EventLiveWindowPicker value={liveWindowHours} onChange={setLiveWindowHours} />
+        <EventPreviewImageField
+          value={bannerUrl}
+          onChange={setBannerUrl}
+          label="Event Photo"
+          helperText="Add a custom photo or keep the generated banner below. Pinch and drag to fit your photo."
+          onUploadingChange={setUploadingBanner}
+          disabled={submitting}
+        />
+        {!bannerUrl && (
+          <View
+            style={styles.section}
+            onLayout={event => setBannerWidth(event.nativeEvent.layout.width)}
+          >
+            <ViewShot ref={bannerCaptureRef} options={{ format: 'png', quality: 0.9 }}>
+              <MatchBanner
+                leftImage={previewBanner.leftImage || undefined}
+                rightImage={previewBanner.rightImage || undefined}
+                leftName={previewBanner.leftName}
+                rightName={previewBanner.rightName}
+                height={bannerWidth / EVENT_BANNER_ASPECT_RATIO}
+                variant="compact"
+                appearance={appearance}
               />
-              <View style={styles.bannerActionRow}>
-                <Pressable
-                  style={[
-                    styles.bannerPrimaryButton,
-                    { backgroundColor: Colors[colorScheme].tint },
-                  ]}
-                  onPress={showBannerOptions}
-                  disabled={uploadingBanner}
-                >
-                  <MaterialIcons name="photo-camera" size={16} color="#FFFFFF" />
-                  <Text style={styles.bannerPrimaryButtonText}>
-                    {uploadingBanner ? 'Uploading...' : 'Change Photo'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.bannerSecondaryButton,
-                    { borderColor: Colors[colorScheme].border },
-                  ]}
-                  onPress={() => setBannerUrl(null)}
-                  disabled={uploadingBanner}
-                >
-                  <MaterialIcons name="delete-outline" size={16} color={Colors[colorScheme].text} />
-                  <Text
-                    style={[styles.bannerSecondaryButtonText, { color: Colors[colorScheme].text }]}
-                  >
-                    Use Generated
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <View
-              style={[
-                styles.bannerCard,
-                {
-                  backgroundColor: Colors[colorScheme].card,
-                  borderColor: Colors[colorScheme].border,
-                },
-              ]}
-            >
-              <ViewShot ref={bannerCaptureRef} options={{ format: 'png', quality: 0.9 }}>
-                <MatchBanner
-                  leftImage={previewBanner.leftImage || undefined}
-                  rightImage={previewBanner.rightImage || undefined}
-                  leftName={previewBanner.leftName}
-                  rightName={previewBanner.rightName}
-                  height={160}
-                  variant="compact"
-                  appearance={appearance}
-                />
-              </ViewShot>
-              <View style={styles.bannerActionRow}>
-                <Pressable
-                  style={[
-                    styles.bannerPrimaryButton,
-                    { backgroundColor: Colors[colorScheme].tint },
-                  ]}
-                  onPress={showBannerOptions}
-                  disabled={uploadingBanner}
-                >
-                  <MaterialIcons name="cloud-upload" size={16} color="#FFFFFF" />
-                  <Text style={styles.bannerPrimaryButtonText}>
-                    {uploadingBanner ? 'Uploading...' : 'Upload Custom Photo'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-        </View>
+            </ViewShot>
+          </View>
+        )}
 
         {/* Date & Time */}
         <View style={styles.section}>

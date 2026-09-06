@@ -1,248 +1,231 @@
-/**
- * Ad lifecycle structural invariants.
- *
- * These tests pin the ad status/payment_status state machine to the code that
- * exists today. The goal is not to invent a cleaner ad model than production
- * has; it is to make the current lifecycle explicit so future changes cannot
- * silently introduce impossible or contradictory tuples.
- *
- * If one of these tests fails, update the backend state transition, not the
- * invariant, unless the product/state-machine change is intentional.
- */
+/** Behavior contracts for purchased inventory; no source-shape assertions. */
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+let prisma: typeof import('../lib/prisma.js').prisma;
+let releaseAdPurchaseHolds: typeof import('../lib/adInventory.js').releaseAdPurchaseHolds;
+let releaseExpiredAdPurchaseHolds: typeof import('../lib/adInventory.js').releaseExpiredAdPurchaseHolds;
+let reserveAdSlots: typeof import('../lib/adInventory.js').reserveAdSlots;
+let finalizeAppleAdPurchase: typeof import('../lib/paymentInternals.js').finalizeAppleAdPurchase;
+let runFinalizeFromSession: typeof import('../lib/paymentInternals.js').runFinalizeFromSession;
 
-import { describe, expect, it } from '@jest/globals';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
-const SERVER_ROOT = process.cwd();
-const SRC_ROOT = join(SERVER_ROOT, 'src');
-
-const read = (...parts: string[]) => readFileSync(join(...parts), 'utf8');
-
-const schema = read(SERVER_ROOT, 'prisma', 'schema.prisma');
-const ads = read(SRC_ROOT, 'routes', 'ads.ts');
-const payments = read(SRC_ROOT, 'routes', 'payments.ts');
-const paymentInternals = read(SRC_ROOT, 'lib', 'paymentInternals.ts');
-const approvalService = read(SRC_ROOT, 'lib', 'approvalService.ts');
-const overnightTasks = read(SRC_ROOT, 'cron', 'overnightTasks.ts');
-
-function parseEnum(source: string, enumName: string): string[] {
-  const match = source.match(new RegExp(`enum ${enumName} \\{([\\s\\S]*?)\\n\\}`, 'm'));
-  expect(match).toBeTruthy();
-  return (match![1] || '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-    .filter(line => !line.startsWith('//'));
+let userId: string;
+const adIds: string[] = [];
+const run = String(Date.now());
+const paidDate = '2035-07-01';
+const nextDate = '2035-07-02';
+const date = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+beforeAll(async () => {
+  ({ prisma } = await import('../lib/prisma.js'));
+  ({ releaseAdPurchaseHolds, releaseExpiredAdPurchaseHolds, reserveAdSlots } =
+    await import('../lib/adInventory.js'));
+  ({ finalizeAppleAdPurchase, runFinalizeFromSession } =
+    await import('../lib/paymentInternals.js'));
+  const user = await prisma.user.create({
+    data: {
+      email: `ad-state-${run}@example.test`,
+      password_hash: 'no-login',
+      email_verified: true,
+    },
+  });
+  userId = user.id;
+});
+afterAll(async () => {
+  if (!userId) return;
+  await prisma.appleTransactionClaim.deleteMany({ where: { user_id: userId } });
+  await prisma.transactionLog.deleteMany({ where: { user_id: userId } });
+  await prisma.ad.deleteMany({ where: { id: { in: adIds } } });
+  await prisma.user.delete({ where: { id: userId } });
+});
+async function campaign(paid = true) {
+  const ad = await prisma.ad.create({
+    data: {
+      user_id: userId,
+      status: paid ? 'active' : 'approved',
+      payment_status: paid ? 'paid' : 'unpaid',
+      reservations: paid
+        ? { create: { date: date(paidDate), purchase_reference: 'pi_original' } }
+        : undefined,
+    },
+  });
+  adIds.push(ad.id);
+  return ad;
 }
-
-function sliceFunction(source: string, signature: string): string {
-  const start = source.indexOf(signature);
-  expect(start).toBeGreaterThanOrEqual(0);
-  return source.slice(start, start + 5000);
+async function hold(adId: string, reference: string, dates = [nextDate]) {
+  await prisma.$transaction(
+    tx =>
+      reserveAdSlots(tx, {
+        adId,
+        isoDates: dates,
+        paymentStatus: 'hold',
+        purchaseReference: reference,
+      }),
+    { isolationLevel: 'Serializable' }
+  );
 }
-
-const AD_STATUSES = parseEnum(schema, 'AdStatus');
-const AD_PAYMENT_STATUSES = parseEnum(schema, 'AdPaymentStatus');
-
-// These are the tuples the backend currently encodes. Some are awkward
-// (`active + hold`, `active + unpaid`) but they are real consequences of the
-// current "reuse an existing ad for another booking" model, so the invariant
-// must describe them honestly until that model is redesigned.
-const ALLOWED_TUPLES = [
-  'active/hold',
-  'active/paid',
-  'active/unpaid',
-  'approved/hold',
-  'approved/paid',
-  'approved/pending_approval',
-  'approved/unpaid',
-  'archived/paid',
-  'archived/unpaid',
-  'draft/refund_pending',
-  'draft/refunded',
-  'draft/unpaid',
-  'pending/paid',
-  'pending/pending_approval',
-] as const;
-
-const ALLOWED_TUPLE_SET = new Set(ALLOWED_TUPLES);
-
-function expectAllowedTuple(status: string, paymentStatus: string) {
-  expect(
-    ALLOWED_TUPLE_SET.has(`${status}/${paymentStatus}` as (typeof ALLOWED_TUPLES)[number])
-  ).toBe(true);
+async function snapshot(adId: string) {
+  return prisma.ad.findUniqueOrThrow({
+    where: { id: adId },
+    include: { reservations: { orderBy: { date: 'asc' } }, slot_holds: true },
+  });
 }
-
-describe('ad lifecycle structural invariants', () => {
-  it('pins the AdStatus enum surface', () => {
-    expect(AD_STATUSES).toEqual(['draft', 'pending', 'active', 'approved', 'rejected', 'archived']);
+describe('ad payment lifecycle behavior', () => {
+  it('cancellation of one Run Again attempt preserves earlier paid dates and another pending attempt', async () => {
+    const ad = await campaign();
+    await hold(ad.id, 'pi_canceled');
+    await hold(ad.id, 'pi_other', [new Date(Date.now() + 4 * 86400000).toISOString().slice(0, 10)]);
+    await releaseAdPurchaseHolds(ad.id, 'pi_canceled');
+    await releaseAdPurchaseHolds(ad.id, 'pi_canceled');
+    const state = await snapshot(ad.id);
+    expect(state).toMatchObject({ status: 'active', payment_status: 'paid' });
+    expect(state.reservations.map(row => row.date)).toEqual([date(paidDate)]);
+    expect(state.slot_holds.map(row => row.purchase_reference)).toEqual(['pi_other']);
   });
-
-  it('pins the AdPaymentStatus enum surface', () => {
-    expect(AD_PAYMENT_STATUSES).toEqual([
-      'unpaid',
-      'pending_approval',
-      'hold',
-      'paid',
-      'refund_pending',
-      'refunded',
-      // Terminal manual-review state for rejected Apple-IAP-paid ads (audit
-      // 2026-07-14) — the server cannot issue Apple refunds.
-      'manual_refund_review',
-    ]);
+  it('expiry of first-purchase holds returns the ad to approved/unpaid', async () => {
+    const ad = await campaign(false);
+    await hold(ad.id, 'pi_abandoned');
+    await prisma.adSlotHold.updateMany({
+      where: { ad_id: ad.id },
+      data: { expires_at: new Date(0) },
+    });
+    await releaseExpiredAdPurchaseHolds();
+    expect(await snapshot(ad.id)).toMatchObject({
+      status: 'approved',
+      payment_status: 'unpaid',
+      reservations: [],
+      slot_holds: [],
+    });
   });
-
-  it('allowed tuples only reference declared enum members', () => {
-    for (const tuple of ALLOWED_TUPLES) {
-      const [status, paymentStatus] = tuple.split('/');
-      expect(AD_STATUSES).toContain(status);
-      expect(AD_PAYMENT_STATUSES).toContain(paymentStatus);
-    }
+  it('ambiguous pre-migration reservations are retained on legacy cancellation', async () => {
+    const ad = await campaign();
+    await prisma.ad.update({ where: { id: ad.id }, data: { payment_status: 'hold' } });
+    await releaseAdPurchaseHolds(ad.id, 'cs_legacy');
+    expect((await snapshot(ad.id)).reservations.map(row => row.date)).toEqual([date(paidDate)]);
   });
-
-  it('draft creation and submit-for-approval transitions stay explicit', () => {
-    // Draft creation uses a ternary (bypassApproval ? 'approved' : 'draft') for App Review accounts;
-    // the nominal path always produces 'draft'. Verify the ternary + 'unpaid' literal.
-    expect(ads).toMatch(
-      /bypassApproval\s*\?\s*'approved'\s*:\s*'draft',\s*\n\s*payment_status:\s*'unpaid'/
-    );
-    expect(ads).toMatch(
-      /data:\s*\{\s*status:\s*'pending',\s*payment_status:\s*'pending_approval'\s*\}/
-    );
-    expectAllowedTuple('draft', 'unpaid');
-    expectAllowedTuple('pending', 'pending_approval');
+  it('a failed settlement rolls back promotion and keeps purchased dates and pending holds', async () => {
+    const ad = await campaign();
+    await hold(ad.id, 'pi_rollback');
+    await expect(
+      prisma.$transaction(
+        async tx => {
+          await reserveAdSlots(tx, {
+            adId: ad.id,
+            isoDates: [nextDate],
+            paymentStatus: 'paid',
+            status: 'active',
+            purchaseReference: 'pi_rollback',
+          });
+          throw new Error('simulated process failure before commit');
+        },
+        { isolationLevel: 'Serializable' }
+      )
+    ).rejects.toThrow('simulated process failure');
+    const state = await snapshot(ad.id);
+    expect(state.reservations.map(row => row.date)).toEqual([date(paidDate)]);
+    expect(state.slot_holds).toHaveLength(1);
+    expect(state.payment_status).toBe('paid');
   });
-
-  it('admin approval and rejection keep ads inside the allowed tuple set', () => {
-    const approveAd = sliceFunction(approvalService, 'export async function approveAd');
-    // A PAID ad re-approved (e.g. after a post-payment content edit bounced it
-    // back to `pending`) must return to `active` so it re-enters the feed —
-    // `/for-feed` requires status:'active' AND payment_status:'paid'. An UNPAID
-    // ad approves to `approved` and still waits for payment before going live.
-    expect(approveAd).toMatch(/status:\s*ad\.payment_status === 'paid' \? 'active' : 'approved'/);
-    expect(approveAd).toMatch(
-      /payment_status:\s*ad\.payment_status === 'paid' \? 'paid' : 'unpaid'/
-    );
-    expectAllowedTuple('active', 'paid');
-    expectAllowedTuple('approved', 'unpaid');
-
-    const rejectAd = sliceFunction(approvalService, 'export async function rejectAd');
-    expect(rejectAd).toMatch(/status:\s*'draft'/);
-    expect(rejectAd).toMatch(
-      /payment_status:\s*ad\.payment_status === 'paid' \? 'refund_pending' : 'unpaid'/
-    );
-    expect(rejectAd).toMatch(/data:\s*\{\s*payment_status:\s*'refunded'\s*\}/);
-    expectAllowedTuple('draft', 'refund_pending');
-    expectAllowedTuple('draft', 'unpaid');
-    expectAllowedTuple('draft', 'refunded');
+  it('Checkout Session success and duplicate callbacks add the new dates exactly once', async () => {
+    const ad = await campaign();
+    const reference = `cs_rerun_${ad.id}`;
+    await hold(ad.id, reference);
+    await prisma.transactionLog.create({
+      data: {
+        user_id: userId,
+        order_id: ad.id,
+        transaction_type: 'AD_PURCHASE',
+        status: 'PENDING',
+        stripe_session_id: reference,
+      },
+    });
+    const session = {
+      id: reference,
+      mode: 'payment',
+      status: 'complete',
+      payment_status: 'paid',
+      amount_total: 499,
+      metadata: { ad_id: ad.id, user_id: userId, dates: JSON.stringify([nextDate]) },
+    };
+    await runFinalizeFromSession(session as any);
+    await runFinalizeFromSession(session as any);
+    await releaseAdPurchaseHolds(ad.id, reference); // Out-of-order expiration is harmless.
+    const state = await snapshot(ad.id);
+    expect(state).toMatchObject({ status: 'active', payment_status: 'paid', slot_holds: [] });
+    expect(state.reservations.map(row => row.date)).toEqual([date(paidDate), date(nextDate)]);
+    expect(state.reservations[0].purchase_reference).toBe('pi_original');
+    expect(state.reservations[1].purchase_reference).toBe(reference);
   });
-
-  it('content edits trigger re-review by moving status back to pending without inventing a new payment state', () => {
-    const updateRoute = sliceFunction(ads, 'adsRouter.put(');
-    expect(updateRoute).toMatch(/const requiresReapproval/);
-    expect(updateRoute).toMatch(/data\.status = 'pending'/);
-    expect(updateRoute).not.toMatch(/data\.payment_status\s*=/);
-    // Current live model: re-review can happen before payment or after payment.
-    expectAllowedTuple('pending', 'pending_approval');
-    expectAllowedTuple('pending', 'paid');
+  it('Apple Run Again records each purchase and rejects reusing a receipt for different dates', async () => {
+    const ad = await campaign();
+    const first = {
+      userId,
+      adId: ad.id,
+      dates: [nextDate],
+      appleTransactionIds: [`apple_first_${ad.id}`],
+      receiptsCount: 1,
+    };
+    await finalizeAppleAdPurchase(first);
+    expect((await finalizeAppleAdPurchase(first)).idempotent).toBe(true);
+    await expect(
+      finalizeAppleAdPurchase({ ...first, dates: ['2035-07-03'] })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(
+      finalizeAppleAdPurchase({
+        ...first,
+        dates: ['2035-07-03'],
+        appleTransactionIds: [...first.appleTransactionIds, `apple_mixed_${ad.id}`],
+      })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await finalizeAppleAdPurchase({
+      ...first,
+      dates: ['2035-07-03'],
+      appleTransactionIds: [`apple_second_${ad.id}`],
+    });
+    expect((await snapshot(ad.id)).reservations).toHaveLength(3);
+    expect(
+      await prisma.transactionLog.count({
+        where: { user_id: userId, order_id: ad.id, status: 'COMPLETED' },
+      })
+    ).toBe(2);
   });
-
-  it('reserveAdSlots is the only hold/paid reservation writer and only writes hold or paid', () => {
-    const reserveAdSlots = sliceFunction(paymentInternals, 'export async function reserveAdSlots');
-    expect(reserveAdSlots).toMatch(/paymentStatus:\s*'hold' \| 'paid'/);
-    expect(reserveAdSlots).toMatch(/payment_status:\s*params\.paymentStatus/);
-  });
-
-  it('checkout entrypoints create holds, and successful finalization always lands on active + paid', () => {
-    const paymentSources = [payments, paymentInternals].join('\n');
-    const holdCalls = paymentSources.match(/paymentStatus:\s*'hold'/g) || [];
-    expect(holdCalls.length).toBeGreaterThanOrEqual(2);
-
-    const paidActiveWrites =
-      paymentSources.match(/payment_status:\s*'paid',\s*status:\s*'active'/g) || [];
-    expect(paidActiveWrites.length).toBeGreaterThanOrEqual(3);
-
-    expectAllowedTuple('approved', 'hold');
-    expectAllowedTuple('active', 'hold');
-    expectAllowedTuple('active', 'paid');
-  });
-
-  it('hold release paths fall back to unpaid rather than leaving a paid/pending tuple behind', () => {
-    const unpaidReleases = payments.match(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/g) || [];
-    expect(unpaidReleases.length).toBeGreaterThanOrEqual(3);
-    expect(overnightTasks).toMatch(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/);
-    expect(overnightTasks).toMatch(/status:\s*'pending',\s*payment_status:\s*'pending_approval'/);
-    expect(overnightTasks).toMatch(
-      /data:\s*\{[\s\S]*status:\s*'draft',[\s\S]*payment_status:\s*'unpaid'[\s\S]*\}/
-    );
-
-    expectAllowedTuple('approved', 'unpaid');
-    expectAllowedTuple('active', 'unpaid');
-  });
-
-  it('slot-full refund recovery explicitly releases reservations before marking the transaction refunded', () => {
-    const slotFullReleaseHelper = sliceFunction(
-      paymentInternals,
-      'export async function releaseAdInventoryAfterSlotFullRefund'
-    );
-    expect(slotFullReleaseHelper).toMatch(/adReservation\.deleteMany/);
-    expect(slotFullReleaseHelper).toMatch(
-      /payment_status:\s*\{\s*in:\s*\['hold', 'pending_approval'\]\s*\}/
-    );
-    expect(slotFullReleaseHelper).toMatch(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/);
-
-    const releaseCalls =
-      [payments, paymentInternals].join('\n').match(/releaseAdInventoryAfterSlotFullRefund\(/g) ||
-      [];
-    expect(releaseCalls.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('slot-full refund failures that happen after Stripe refund are flagged for recovery instead of pretending the refund failed', () => {
-    expect(payments).toMatch(/releaseAdInventoryAfterSlotFullRefundWithRetry/);
-    expect(payments).toMatch(/updateTransactionStatus\([^)]*,\s*'NEEDS_REVIEW'/);
-    expect(payments).toMatch(/release_pending:\s*true/);
-    expect(overnightTasks).toMatch(/export async function recoverSlotFullRefundReleaseFailures/);
-    expect(overnightTasks).toMatch(/status:\s*'REFUNDED'/);
-    expect(overnightTasks).toMatch(/release_pending:\s*false/);
-  });
-
-  it('refund and archive paths use the currently supported terminal tuples', () => {
-    expect(payments).toMatch(/data:\s*\{\s*status:\s*'draft',\s*payment_status:\s*'refunded'\s*\}/);
-
-    expect(overnightTasks).toMatch(/status:\s*'active',\s*payment_status:\s*'paid'/);
-    expect(overnightTasks).toMatch(/payment_status:\s*'unpaid',\s*status:\s*'approved'/);
-    expect(overnightTasks).toMatch(/data:\s*\{\s*status:\s*'archived'\s*\}/);
-
-    expectAllowedTuple('archived', 'paid');
-    expectAllowedTuple('archived', 'unpaid');
-    expectAllowedTuple('draft', 'refunded');
-  });
-
-  it('no ad approval path uses status=rejected; rejection is represented as a draft requiring changes', () => {
-    const rejectAd = sliceFunction(approvalService, 'export async function rejectAd');
-    expect(rejectAd).not.toMatch(/status:\s*'rejected'/);
-    expect(rejectAd).toMatch(/status:\s*'draft'/);
-  });
-
-  it('explicit literal ad tuples written by lifecycle code are all in the allowed set', () => {
-    const combined = [ads, payments, paymentInternals, approvalService, overnightTasks].join('\n');
-    const found = new Set<string>();
-
-    for (const match of combined.matchAll(
-      /status:\s*'([a-z_]+)'\s*,\s*payment_status:\s*'([a-z_]+)'/g
-    )) {
-      found.add(`${match[1]}/${match[2]}`);
-    }
-    for (const match of combined.matchAll(
-      /payment_status:\s*'([a-z_]+)'\s*,\s*status:\s*'([a-z_]+)'/g
-    )) {
-      found.add(`${match[2]}/${match[1]}`);
-    }
-
-    expect(found.size).toBeGreaterThan(0);
-    for (const tuple of found) {
-      expect(ALLOWED_TUPLE_SET.has(tuple as (typeof ALLOWED_TUPLES)[number])).toBe(true);
-    }
+  it('a refunded Apple receipt cannot fund a mixed bundle and refund wins over duplicate completed ledger rows', async () => {
+    const ad = await campaign();
+    const receipt = `apple_refunded_${ad.id}`;
+    const freshReceipt = `apple_fresh_${ad.id}`;
+    const purchase = {
+      userId,
+      adId: ad.id,
+      dates: [nextDate],
+      appleTransactionIds: [receipt],
+      receiptsCount: 1,
+    };
+    await finalizeAppleAdPurchase(purchase);
+    await prisma.transactionLog.updateMany({
+      where: { apple_transaction_id: receipt },
+      data: { status: 'REFUNDED' },
+    });
+    await prisma.adReservation.deleteMany({
+      where: { ad_id: ad.id, purchase_reference: `apple:${receipt}` },
+    });
+    await expect(
+      finalizeAppleAdPurchase({
+        ...purchase,
+        dates: ['2035-07-03'],
+        appleTransactionIds: [receipt, freshReceipt],
+        receiptsCount: 2,
+      })
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(
+      await prisma.appleTransactionClaim.count({ where: { apple_transaction_id: freshReceipt } })
+    ).toBe(0);
+    await prisma.transactionLog.create({
+      data: {
+        user_id: userId,
+        order_id: ad.id,
+        transaction_type: 'AD_PURCHASE',
+        status: 'COMPLETED',
+        metadata: { dates: [nextDate], apple_transaction_ids: [receipt] },
+      },
+    });
+    await expect(finalizeAppleAdPurchase(purchase)).rejects.toMatchObject({ statusCode: 409 });
+    expect((await snapshot(ad.id)).reservations.map(row => row.date)).toEqual([date(paidDate)]);
   });
 });

@@ -4,9 +4,30 @@
  * individual. Regression guard for components/EventMap.tsx clustering.
  */
 import { describe, expect, it } from '@jest/globals';
-import { clusterByCoordinate, DEFAULT_CLUSTER_PRECISION } from '@/utils/mapClustering';
+import {
+  clusterByCoordinate,
+  DEFAULT_CLUSTER_PRECISION,
+  stableMapGroups,
+  mapMarkerKey,
+} from '@/utils/mapClustering';
 
 const at = (id: string, latitude: number, longitude: number) => ({ id, latitude, longitude });
+
+describe('native marker identity and order', () => {
+  it('keeps identical sibling keys and cluster lead coordinates after input reorder', () => {
+    const events = [at('b', 40, -74), at('a', 40.00001, -74), at('c', 41, -75)];
+    expect(stableMapGroups(events)).toEqual(stableMapGroups([...events].reverse()));
+    expect(events.map(event => event.id)).toEqual(['b', 'a', 'c']);
+  });
+  it('namespaces game and event IDs and stabilizes approximate cluster identity', () => {
+    const marker = at('shared', 40, -74);
+    expect(mapMarkerKey([{ ...marker, type: 'game' }])).not.toBe(
+      mapMarkerKey([{ ...marker, type: 'event' }])
+    );
+    const group = [marker, at('b', 40.00001, -74)];
+    expect(mapMarkerKey(group)).toBe(mapMarkerKey([...group].reverse()));
+  });
+});
 
 describe('clusterByCoordinate', () => {
   it('collapses many events at the same venue into one cluster (the reported bug)', () => {
@@ -55,6 +76,20 @@ describe('clusterByCoordinate', () => {
     ]);
     expect(clusters).toHaveLength(1);
     expect(clusters[0][0].id).toBe('has-coords');
+  });
+
+  it('drops non-finite and out-of-range coordinates before they reach native maps', () => {
+    const clusters = clusterByCoordinate([
+      at('valid', 40.7128, -74.006),
+      at('nan-lat', Number.NaN, -74.006),
+      at('inf-lng', 40.7128, Number.POSITIVE_INFINITY),
+      at('lat-out-of-range', 91, -74.006),
+      at('lng-out-of-range', 40.7128, -181),
+      { id: 'string-lat', latitude: '40.7128' as any, longitude: -74.006 },
+    ]);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toEqual([expect.objectContaining({ id: 'valid' })]);
   });
 
   it('accepts lat/lng of exactly 0 (Gulf of Guinea is a valid point, not "missing")', () => {

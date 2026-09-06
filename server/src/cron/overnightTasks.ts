@@ -1,3 +1,4 @@
+import { releaseAdPurchaseHolds, releaseExpiredAdPurchaseHolds } from '../lib/adInventory.js';
 import cron from 'node-cron';
 import { debugLog } from '../lib/debugLog.js';
 import { runStripeSubscriptionReconciliation } from '../lib/billingLifecycle.js';
@@ -10,7 +11,6 @@ import {
   hardDeleteAnonymizedUsers,
   ANONYMIZED_USER_RETENTION_DAYS_DEFAULT,
 } from '../lib/accountDeletion.js';
-import { getObjectStorageAdapter, ObjectStorageNotConfiguredError } from '../lib/objectStorage.js';
 
 export async function recoverSlotFullRefundReleaseFailures(referenceTime = new Date()) {
   const cutoff = new Date(referenceTime.getTime() - 60 * 60 * 1000);
@@ -34,27 +34,21 @@ export async function recoverSlotFullRefundReleaseFailures(referenceTime = new D
     if (metadata.release_pending !== true) continue;
     if (!tx.order_id) continue;
 
-    await prisma.$transaction([
-      prisma.adReservation.deleteMany({ where: { ad_id: tx.order_id } }),
-      prisma.ad.updateMany({
-        where: {
-          id: tx.order_id,
-          payment_status: { in: ['hold', 'pending_approval'] },
+    const reference = tx.stripe_session_id || tx.stripe_payment_intent_id;
+    if (!reference) continue; // Legacy recovery needs an explicit purchase identity.
+    await releaseAdPurchaseHolds(tx.order_id, reference);
+    await prisma.transactionLog.update({
+      where: { id: tx.id },
+      data: {
+        status: 'REFUNDED',
+        metadata: {
+          ...metadata,
+          release_pending: false,
+          release_recovered_at: new Date().toISOString(),
         },
-        data: { payment_status: 'unpaid' },
-      }),
-      prisma.transactionLog.update({
-        where: { id: tx.id },
-        data: {
-          status: 'REFUNDED',
-          metadata: {
-            ...metadata,
-            release_pending: false,
-            release_recovered_at: new Date().toISOString(),
-          },
-        },
-      }),
-    ]);
+      },
+    });
+
     recovered += 1;
   }
 
@@ -242,31 +236,8 @@ export function startAdGoLiveCheck() {
         debugLog(`[ad-lifecycle] Archived ${expiredAds.length} expired ads`);
       }
 
-      // 3. Clean up stale holds (older than 1 hour since last status change)
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      const staleHoldAds = await prisma.ad.findMany({
-        where: {
-          payment_status: 'hold',
-          updated_at: { lt: oneHourAgo },
-        },
-        select: { id: true },
-        take: 1000,
-      });
-      if (staleHoldAds.length > 0) {
-        const staleAdIds = staleHoldAds.map(a => a.id);
-        // Idempotent: only update ads still in 'hold' status (prevents double-processing on retry)
-        await prisma.$transaction([
-          prisma.adReservation.deleteMany({ where: { ad_id: { in: staleAdIds } } }),
-          prisma.ad.updateMany({
-            where: { id: { in: staleAdIds }, payment_status: 'hold' },
-            data: { payment_status: 'unpaid' },
-          }),
-        ]);
-      }
-      const staleHolds = { count: staleHoldAds.length };
-      if (staleHolds.count > 0) {
-        debugLog(`[ad-lifecycle] Released ${staleHolds.count} stale ad holds`);
-      }
+      // Expire only the purchase's temporary rows; paid and ambiguous legacy dates survive.
+      const staleHolds = await releaseExpiredAdPurchaseHolds();
 
       // 4. Release stale pending approvals that never progressed to checkout.
       const stalePendingApprovalCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -281,22 +252,30 @@ export function startAdGoLiveCheck() {
       });
       if (stalePendingApprovalAds.length > 0) {
         const stalePendingApprovalIds = stalePendingApprovalAds.map(ad => ad.id);
-        await prisma.$transaction([
-          prisma.adReservation.deleteMany({ where: { ad_id: { in: stalePendingApprovalIds } } }),
-          prisma.ad.updateMany({
-            where: {
-              id: { in: stalePendingApprovalIds },
-              status: 'pending',
-              payment_status: 'pending_approval',
-            },
-            data: {
-              status: 'draft',
-              payment_status: 'unpaid',
-              admin_note:
-                '[Auto] Ad approval request expired after 24 hours without payment. Re-submit to re-reserve dates.',
-            },
-          }),
-        ]);
+        await prisma.$transaction(
+          [
+            prisma.adReservation.deleteMany({
+              where: {
+                ad_id: { in: stalePendingApprovalIds },
+                ad: { status: 'pending', payment_status: 'pending_approval' },
+              },
+            }),
+            prisma.ad.updateMany({
+              where: {
+                id: { in: stalePendingApprovalIds },
+                status: 'pending',
+                payment_status: 'pending_approval',
+              },
+              data: {
+                status: 'draft',
+                payment_status: 'unpaid',
+                admin_note:
+                  '[Auto] Ad approval request expired after 24 hours without payment. Re-submit to re-reserve dates.',
+              },
+            }),
+          ],
+          { isolationLevel: 'Serializable' }
+        );
         debugLog(
           `[ad-lifecycle] Released ${stalePendingApprovalAds.length} stale pending approval ads (>24 hours)`
         );
@@ -336,13 +315,21 @@ export function startAdGoLiveCheck() {
       });
       if (unpaidAds.length > 0) {
         const unpaidAdIds = unpaidAds.map(a => a.id);
-        await prisma.$transaction([
-          prisma.adReservation.deleteMany({ where: { ad_id: { in: unpaidAdIds } } }),
-          prisma.ad.updateMany({
-            where: { id: { in: unpaidAdIds } },
-            data: { status: 'archived' },
-          }),
-        ]);
+        await prisma.$transaction(
+          [
+            prisma.adReservation.deleteMany({
+              where: {
+                ad_id: { in: unpaidAdIds },
+                ad: { status: 'approved', payment_status: 'unpaid' },
+              },
+            }),
+            prisma.ad.updateMany({
+              where: { id: { in: unpaidAdIds }, status: 'approved', payment_status: 'unpaid' },
+              data: { status: 'archived' },
+            }),
+          ],
+          { isolationLevel: 'Serializable' }
+        );
         debugLog(`[ad-lifecycle] Archived ${unpaidAds.length} unpaid approved ads (>30 days)`);
       }
 
@@ -669,71 +656,8 @@ export function startAnonymizedUserPurge() {
  *
  * Both sweeps are bounded — this is defensive cleanup, not bulk batch.
  */
-export async function runDataExportCleanupSweep(): Promise<{
-  expiredCleaned: number;
-  stuckReaped: number;
-  storageDeleteFailed: number;
-}> {
-  const p = prisma as any;
-  const now = new Date();
-  const storage = getObjectStorageAdapter();
-
-  // ── Sweep 1: expire ready archives ────────────────────────────────
-  const expired = await p.dataExport.findMany({
-    where: {
-      status: 'ready',
-      expires_at: { not: null, lt: now },
-    },
-    select: { id: true, storage_key: true },
-    take: 500,
-    orderBy: { expires_at: 'asc' },
-  });
-
-  let expiredCleaned = 0;
-  let storageDeleteFailed = 0;
-  for (const row of expired) {
-    if (row.storage_key) {
-      try {
-        if (storage.isConfigured()) {
-          await storage.deleteObject(row.storage_key);
-        }
-      } catch (err) {
-        // Keep going — we still flip status to 'expired' so the row
-        // doesn't get reprocessed every run. Orphan object is a sunk
-        // cost; operator can sweep externally.
-        if (!(err instanceof ObjectStorageNotConfiguredError)) {
-          storageDeleteFailed += 1;
-          captureException(err instanceof Error ? err : new Error(String(err)), {
-            extra: {
-              context: 'data_export_cleanup_storage_delete_failed',
-            },
-          });
-        }
-      }
-    }
-    await p.dataExport.update({
-      where: { id: row.id },
-      data: { status: 'expired', storage_key: null, size_bytes: null },
-    });
-    expiredCleaned += 1;
-  }
-
-  // ── Sweep 2: reap stuck builds ────────────────────────────────────
-  const stuckCutoff = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-  const stuckReaped = await p.dataExport.updateMany({
-    where: {
-      status: 'building',
-      started_at: { not: null, lt: stuckCutoff },
-    },
-    data: { status: 'failed', error_category: 'stuck_build_reaped' },
-  });
-
-  return {
-    expiredCleaned,
-    stuckReaped: stuckReaped.count,
-    storageDeleteFailed,
-  };
-}
+export { runDataExportCleanupSweep } from '../lib/dataExport/cleanup.js';
+import { runDataExportCleanupSweep } from '../lib/dataExport/cleanup.js';
 
 /**
  * Data export cleanup — runs daily at 5:00 AM. Thin scheduler wrapper around

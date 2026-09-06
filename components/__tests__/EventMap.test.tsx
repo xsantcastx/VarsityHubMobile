@@ -1,6 +1,10 @@
 import { cleanup, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import EventMap from '../EventMap';
+import EventMap, {
+  resolveMarkerColor,
+  GAME_MARKER_COLOR,
+  SPORT_TEAM_MARKER_COLOR,
+} from '../EventMap';
 import type { EventMapProps } from '../EventMap.types';
 
 const flushPromises = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -94,21 +98,98 @@ describe('EventMap', () => {
     expect(markers.length).toBe(1);
   });
 
-  it('fires onEventPress with event id on single pin tap (no callout step)', async () => {
+  it('colors game pins with the game category color', () => {
+    expect(resolveMarkerColor({ type: 'game' })).toBe(GAME_MARKER_COLOR);
+  });
+
+  it('does not render native markers for invalid coordinates', async () => {
+    const events = [
+      mockEvents[0],
+      { ...mockEvents[0], id: 'nan-lat', latitude: Number.NaN },
+      { ...mockEvents[0], id: 'inf-lng', longitude: Number.POSITIVE_INFINITY },
+      { ...mockEvents[0], id: 'bad-lat', latitude: 91 },
+      { ...mockEvents[0], id: 'bad-lng', longitude: -181 },
+      { ...mockEvents[0], id: 'string-lat', latitude: '37.7749' as any },
+    ];
+
+    const { findAllByTestId } = render(<EventMap {...baseProps({ events })} />);
+    const markers = await findAllByTestId('Marker');
+
+    expect(markers.length).toBe(1);
+    expect(markers[0].props.coordinate).toEqual({
+      latitude: mockEvents[0].latitude,
+      longitude: mockEvents[0].longitude,
+    });
+  });
+
+  it('shows a marker preview first, then opens details from the preview', async () => {
     const onEventPress = jest.fn();
-    const { findByTestId } = render(<EventMap {...baseProps({ onEventPress })} />);
+    const { findByTestId, findByText } = render(<EventMap {...baseProps({ onEventPress })} />);
     const marker = await findByTestId('Marker');
     fireEvent.press(marker);
+
+    expect(onEventPress).not.toHaveBeenCalled();
+    expect(await findByText('Test Event')).toBeTruthy();
+
+    fireEvent.press(await findByTestId('map-marker-preview'));
     expect(onEventPress).toHaveBeenCalledWith('1', undefined);
   });
 
-  it('dedupes marker press + callout press so one tap cannot open two pages', async () => {
+  it('does not surface a create-post shortcut from marker previews', async () => {
+    const onEventPress = jest.fn();
+    const onCreatePostPress = jest.fn();
+    const eventWithTarget = {
+      ...mockEvents[0],
+      event_id: 'event-1',
+      game_id: 'game-1',
+      type: 'game' as const,
+    };
+    const { findByTestId, queryByTestId } = render(
+      <EventMap
+        {...baseProps({
+          events: [eventWithTarget],
+          onEventPress,
+          onCreatePostPress,
+        })}
+      />
+    );
+
+    fireEvent.press(await findByTestId('Marker'));
+
+    expect(queryByTestId('map-marker-create-post')).toBeNull();
+    expect(onCreatePostPress).not.toHaveBeenCalled();
+    expect(onEventPress).not.toHaveBeenCalled();
+  });
+
+  it('removes a selected preview when filtering removes its event', async () => {
+    const screen = render(<EventMap {...baseProps()} />);
+    fireEvent.press(await screen.findByTestId('Marker'));
+    expect(screen.queryByTestId('map-marker-preview')).toBeTruthy();
+    screen.rerender(<EventMap {...baseProps({ events: [] })} />);
+    expect(screen.queryByTestId('map-marker-preview')).toBeNull();
+  });
+
+  it('closes marker previews without navigating', async () => {
+    const onEventPress = jest.fn();
+    const { findByTestId, queryByText } = render(<EventMap {...baseProps({ onEventPress })} />);
+
+    fireEvent.press(await findByTestId('Marker'));
+    expect(queryByText('Test Event')).toBeTruthy();
+
+    fireEvent.press(await findByTestId('map-marker-preview-close'));
+
+    expect(queryByText('Test Event')).toBeNull();
+    expect(onEventPress).not.toHaveBeenCalled();
+  });
+
+  it('dedupes preview press + native callout press so one tap cannot open two pages', async () => {
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(1100);
     const onEventPress = jest.fn();
     const { findByTestId } = render(<EventMap {...baseProps({ onEventPress })} />);
     const marker = await findByTestId('Marker');
 
     fireEvent.press(marker);
+    fireEvent.press(await findByTestId('map-marker-preview'));
     fireEvent(marker, 'onCalloutPress');
 
     expect(onEventPress).toHaveBeenCalledTimes(1);
@@ -117,7 +198,59 @@ describe('EventMap', () => {
 
   it('renders empty state when no events', async () => {
     const { findByText } = render(<EventMap {...baseProps({ events: [] })} />);
-    const empty = await findByText(/no games with locations yet/i);
+    const empty = await findByText(/no matching events/i);
     expect(empty).toBeTruthy();
+  });
+
+  it('searches loaded map event pins by venue, sport, and league metadata', async () => {
+    const events = [
+      {
+        id: 'tennis-1',
+        title: 'Player One vs Player Two - US Open',
+        location: 'USTA Billie Jean King National Tennis Center',
+        latitude: 40.7499,
+        longitude: -73.8476,
+        date: new Date().toISOString(),
+        sport: 'tennis',
+        league_slug: 'wta',
+        league_name: 'WTA Tour',
+      },
+      {
+        id: 'baseball-1',
+        title: 'Rays at Yankees',
+        location: 'Yankee Stadium',
+        latitude: 40.8296,
+        longitude: -73.9262,
+        date: new Date().toISOString(),
+        sport: 'baseball',
+        league_slug: 'mlb',
+        league_name: 'MLB',
+      },
+    ];
+    const { findAllByTestId, getByPlaceholderText } = render(
+      <EventMap {...baseProps({ events })} />
+    );
+
+    expect(await findAllByTestId('Marker')).toHaveLength(2);
+
+    fireEvent.changeText(getByPlaceholderText('Search games or events...'), 'USTA');
+    expect(await findAllByTestId('Marker')).toHaveLength(1);
+
+    fireEvent.changeText(getByPlaceholderText('Search games or events...'), 'mlb');
+    expect(await findAllByTestId('Marker')).toHaveLength(1);
+  });
+
+  it('collapses every non-game pin to the single sport/team color, ignoring brand and sport colors', () => {
+    // Owner rule (2026-09): the legend has exactly three categories, so a pin's
+    // color comes only from its category. Custom marker/pro-team brand colors and
+    // per-sport colors no longer change a pin's color — that mismatch was the bug.
+    expect(resolveMarkerColor({ type: 'event' })).toBe(SPORT_TEAM_MARKER_COLOR);
+    expect(resolveMarkerColor({ type: 'post' })).toBe(SPORT_TEAM_MARKER_COLOR);
+    expect(
+      resolveMarkerColor({ type: 'event', marker_color: '#111111', sport: 'mma' } as any)
+    ).toBe(SPORT_TEAM_MARKER_COLOR);
+    expect(resolveMarkerColor({ type: 'event', pro_home_color: '#222222' } as any)).toBe(
+      SPORT_TEAM_MARKER_COLOR
+    );
   });
 });

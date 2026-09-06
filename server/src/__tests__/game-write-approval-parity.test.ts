@@ -12,6 +12,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import ts from 'typescript';
 
 const gamesSrcRaw = readFileSync(join(process.cwd(), 'src', 'routes', 'games.ts'), 'utf8');
 
@@ -38,9 +39,29 @@ describe('game-write approval authority parity', () => {
     expect(calls.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('never hardcodes approval_status: "approved" (must come from the authority)', () => {
-    expect(gamesSrc).not.toMatch(/approval_status:\s*'approved'/);
-    expect(gamesSrc).not.toMatch(/approval_status:\s*"approved"/);
+  it('never hardcodes approval_status in mutation data (read filters may require approved)', () => {
+    const source = ts.createSourceFile('games.ts', gamesSrc, ts.ScriptTarget.Latest, true);
+    const violations: string[] = [];
+    const visit = (node: ts.Node) => {
+      if (
+        ts.isPropertyAssignment(node) &&
+        node.name.getText(source) === 'approval_status' &&
+        ts.isStringLiteral(node.initializer) &&
+        node.initializer.text === 'approved'
+      ) {
+        let parent: ts.Node | undefined = node.parent;
+        while (parent) {
+          if (ts.isPropertyAssignment(parent) && parent.name.getText(source) === 'data') {
+            violations.push(node.getText(source));
+            break;
+          }
+          parent = parent.parent;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    expect(violations).toEqual([]);
   });
 
   it('writes opponent_approval_status only from a decision, never an inline literal/ternary', () => {

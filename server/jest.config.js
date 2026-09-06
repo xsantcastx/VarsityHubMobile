@@ -3,17 +3,20 @@ export default {
   resolver: '<rootDir>/jest.resolver.cjs',
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.(ts|tsx|js)$': ['ts-jest', {
-      useESM: true,
-      tsconfig: {
-        isolatedModules: true,
-        allowJs: true,
-        module: 'ESNext',
-        moduleResolution: 'node',
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
+    '^.+\\.(ts|tsx|js)$': [
+      'ts-jest',
+      {
+        useESM: true,
+        tsconfig: {
+          isolatedModules: true,
+          allowJs: true,
+          module: 'ESNext',
+          moduleResolution: 'node',
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true,
+        },
       },
-    }],
+    ],
   },
   roots: ['<rootDir>/src'],
   // 2 workers is the sweet spot for this suite (140+ ESM tests):
@@ -47,6 +50,8 @@ export default {
   globalTeardown: '<rootDir>/src/__tests__/globalTeardown.cjs',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // Use the SDK's equivalent CJS entry to avoid Jest VM-module linking collisions.
+    '^stripe$': '<rootDir>/node_modules/stripe/cjs/stripe.cjs.node.js',
     '^zod$': '<rootDir>/node_modules/zod/index.cjs',
   },
   testTimeout: 10000,

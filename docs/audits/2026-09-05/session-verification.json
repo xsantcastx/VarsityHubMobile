@@ -1,0 +1,264 @@
+{
+  "baseline": "2ef9d9773b78007144ffe10b6852a899fca76b3a",
+  "productCommit": "8b8543e3",
+  "scope": "Session restoration and refresh; physical iPhone weekly symptom remains unconfirmed",
+  "runs": [
+    {
+      "name": "storage-before",
+      "success": false,
+      "passedSuites": 0,
+      "failedSuites": 1,
+      "passedAssertions": 3,
+      "failedAssertions": 3,
+      "skippedAssertions": 0,
+      "failedTitles": [
+        "native credential storage recovery distinguishes an unreadable access token from an absent token and recovers on retry",
+        "native credential storage recovery does not classify an unreadable refresh token as a missing session",
+        "native credential storage recovery preserves credentials across an expired access request while Keychain is unavailable"
+      ]
+    },
+    {
+      "name": "stale-read-before",
+      "success": false,
+      "passedSuites": 0,
+      "failedSuites": 1,
+      "passedAssertions": 6,
+      "failedAssertions": 2,
+      "skippedAssertions": 0,
+      "failedTitles": [
+        "native credential storage recovery ignores a persisted access read completed after new login",
+        "native credential storage recovery ignores a persisted access read completed after logout"
+      ]
+    },
+    {
+      "name": "provider-before",
+      "success": false,
+      "passedSuites": 0,
+      "failedSuites": 1,
+      "passedAssertions": 5,
+      "failedAssertions": 3,
+      "skippedAssertions": 0,
+      "failedTitles": [
+        "AuthProvider iPhone session restoration audit restores a server-confirmed identity even when onboarding cache writes fail",
+        "AuthProvider iPhone session restoration audit restores the stored session automatically after an initial health outage recovers",
+        "AuthProvider iPhone session restoration audit ignores an old missing-token read after a newer successful account restoration"
+      ]
+    },
+    {
+      "name": "storage-after-focused",
+      "success": true,
+      "passedSuites": 4,
+      "failedSuites": 0,
+      "passedAssertions": 66,
+      "failedAssertions": 0,
+      "skippedAssertions": 0,
+      "failedTitles": []
+    },
+    {
+      "name": "provider-after-focused",
+      "success": true,
+      "passedSuites": 6,
+      "failedSuites": 0,
+      "passedAssertions": 104,
+      "failedAssertions": 0,
+      "skippedAssertions": 0,
+      "failedTitles": []
+    },
+    {
+      "name": "client-complete",
+      "success": true,
+      "passedSuites": 217,
+      "failedSuites": 0,
+      "passedAssertions": 1534,
+      "failedAssertions": 0,
+      "skippedAssertions": 0,
+      "failedTitles": []
+    },
+    {
+      "name": "server-new-http-db",
+      "success": true,
+      "passedSuites": 1,
+      "failedSuites": 0,
+      "passedAssertions": 11,
+      "failedAssertions": 0,
+      "skippedAssertions": 0,
+      "failedTitles": []
+    },
+    {
+      "name": "server-existing-session",
+      "success": true,
+      "passedSuites": 5,
+      "failedSuites": 0,
+      "passedAssertions": 27,
+      "failedAssertions": 0,
+      "skippedAssertions": 0,
+      "failedTitles": []
+    }
+  ],
+  "serverBefore": [
+    {
+      "scenario": "same_device_grace_control",
+      "firstRefreshStatus": 200,
+      "retryStatus": 200,
+      "retryCode": null,
+      "epochDelta": 0,
+      "siblingSurvives": true,
+      "previousAccessStatus": 200,
+      "graceMs": 60000
+    },
+    {
+      "scenario": "missing_device_grace_false_revoke",
+      "firstRefreshStatus": 200,
+      "retryStatus": 401,
+      "retryCode": "TOKEN_REUSED",
+      "epochDelta": 1,
+      "siblingSurvives": false,
+      "previousAccessStatus": 401,
+      "graceMs": 60000
+    },
+    {
+      "scenario": "legacy_ua_change_grace_false_revoke",
+      "firstRefreshStatus": 200,
+      "retryStatus": 401,
+      "retryCode": "TOKEN_REUSED",
+      "epochDelta": 1,
+      "siblingSurvives": false,
+      "previousAccessStatus": 401,
+      "graceMs": 60000
+    },
+    {
+      "scenario": "genuine_device_mismatch_control",
+      "status": 401,
+      "code": "TOKEN_REUSED",
+      "epochDelta": 1,
+      "siblingSurvives": false
+    },
+    {
+      "scenario": "multiple_sessions_and_explicit_revocation_control",
+      "secondLoginEpochDelta": 0,
+      "beforeRevoke": [200, 200],
+      "afterRevoke": [401, 401]
+    },
+    {
+      "scenario": "expired_access_refresh_control",
+      "expiredAccess": 401,
+      "refresh": 200,
+      "renewedAccess": 200,
+      "epochDelta": 0
+    },
+    {
+      "scenario": "invalid_expired_revoked_refresh_controls",
+      "invalidStatus": 401,
+      "invalidRowPreserved": true,
+      "expiredStatus": 401,
+      "revokedStatus": 401
+    },
+    {
+      "scenario": "real_pool_timeout_misreported_as_invalid_token",
+      "duringPoolExhaustionStatus": 401,
+      "protectedRequestDuringPoolExhaustionStatus": 503,
+      "duringError": "Invalid refresh token",
+      "originalTokenStillPresent": true,
+      "originalTokenStillUnrotated": true,
+      "retryAfterPoolRecoveryStatus": 200,
+      "epochDelta": 0
+    }
+  ],
+  "serverAfter": [
+    {
+      "scenario": "same_device_grace_control",
+      "firstRefreshStatus": 200,
+      "retryStatus": 200,
+      "retryCode": null,
+      "epochDelta": 0,
+      "siblingSurvives": true,
+      "bindingPreserved": true,
+      "previousAccessStatus": 200,
+      "graceMs": 60000
+    },
+    {
+      "scenario": "missing_device_grace_recovery",
+      "firstRefreshStatus": 200,
+      "retryStatus": 200,
+      "retryCode": null,
+      "epochDelta": 0,
+      "siblingSurvives": true,
+      "bindingPreserved": true,
+      "previousAccessStatus": 200,
+      "graceMs": 60000
+    },
+    {
+      "scenario": "legacy_ua_change_grace_recovery",
+      "firstRefreshStatus": 200,
+      "retryStatus": 200,
+      "retryCode": null,
+      "epochDelta": 0,
+      "siblingSurvives": true,
+      "bindingPreserved": true,
+      "previousAccessStatus": 200,
+      "graceMs": 60000
+    },
+    {
+      "scenario": "genuine_device_mismatch_control",
+      "status": 401,
+      "code": "TOKEN_REUSED",
+      "epochDelta": 1,
+      "siblingSurvives": false
+    },
+    {
+      "scenario": "multiple_sessions_and_explicit_revocation_control",
+      "secondLoginEpochDelta": 0,
+      "beforeRevoke": [200, 200],
+      "afterRevoke": [401, 401]
+    },
+    {
+      "scenario": "expired_access_refresh_control",
+      "expiredAccess": 401,
+      "refresh": 200,
+      "renewedAccess": 200,
+      "epochDelta": 0
+    },
+    {
+      "scenario": "invalid_expired_revoked_refresh_controls",
+      "invalidStatus": 401,
+      "invalidRowPreserved": true,
+      "expiredStatus": 401,
+      "revokedStatus": 401
+    },
+    {
+      "scenario": "past_grace_missing_header_still_rejected",
+      "status": 401,
+      "code": "TOKEN_REUSED",
+      "epochDelta": 1,
+      "siblingSurvives": false
+    },
+    {
+      "scenario": "concurrent_missing_header_refreshes_recover",
+      "statuses": [200, 200],
+      "epochDelta": 0,
+      "siblingSurvives": true
+    },
+    {
+      "scenario": "login_and_eight_day_idle_refresh_lifetimes",
+      "loginStatus": 200,
+      "configuredRefreshDays": 365,
+      "accessTtlSeconds": 900,
+      "loginRefreshLifetimeDays": 364.9999999768518,
+      "eightDayIdleRefreshStatus": 200,
+      "newRefreshLifetimeDays": 364.99999994212965,
+      "expiryExtendedDays": 8.000001655092593
+    },
+    {
+      "scenario": "real_pool_timeout_returns_retryable_503",
+      "duringPoolExhaustionStatus": 503,
+      "protectedRequestDuringPoolExhaustionStatus": 503,
+      "duringError": "Service temporarily unavailable. Please try again.",
+      "errorCode": "AUTH_REFRESH_UNAVAILABLE",
+      "aliasCode": "AUTH_REFRESH_UNAVAILABLE",
+      "originalTokenStillPresent": true,
+      "originalTokenStillUnrotated": true,
+      "retryAfterPoolRecoveryStatus": 200,
+      "epochDelta": 0
+    }
+  ]
+}

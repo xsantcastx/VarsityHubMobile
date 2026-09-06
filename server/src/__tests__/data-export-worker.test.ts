@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { describeDb } from './helpers/dbTestSuite.js';
 import { prisma } from '../lib/prisma.js';
 import {
   makeFakeStorage,
@@ -15,9 +16,6 @@ jest.unstable_mockModule('../lib/objectStorage.js', () => ({
 const { processExportJob } = await import('../workers/dataExportWorker.js');
 
 const PASSWORD = 'TestPassword123!';
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
 
 describeDb('GDPR data export — worker', () => {
   const { getUserId } = setupDataExportUserLifecycle({
@@ -79,7 +77,7 @@ describeDb('GDPR data export — worker', () => {
     expect(fake.puts.length).toBe(0);
   });
 
-  it('flips to failed with job_user_mismatch when payload user does not match row', async () => {
+  it('leaves the row untouched when payload user does not match', async () => {
     const { fake, userId, row } = await setupExportJob(true);
 
     await processExportJob({
@@ -89,8 +87,8 @@ describeDb('GDPR data export — worker', () => {
     const after = await (prisma as any).dataExport.findUnique({
       where: { id: row.id },
     });
-    expect(after.status).toBe('failed');
-    expect(after.error_category).toBe('job_user_mismatch');
+    expect(after.status).toBe('pending');
+    expect(after.error_category).toBeNull();
     expect(fake.puts.length).toBe(0);
   });
 
