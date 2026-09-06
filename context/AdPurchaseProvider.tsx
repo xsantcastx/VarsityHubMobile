@@ -56,6 +56,7 @@ export function AdPurchaseProvider({ children }: { children: React.ReactNode }) 
   const active = useRef<Checkout | null>(null);
   const processing = useRef(new Map<string, Promise<AdPurchaseIntent>>());
   const recovery = useRef<Promise<void> | null>(null);
+  const recoveryOwner = useRef<string | null>(null);
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const finishCheckout = (checkout: Checkout, result: Result) => {
@@ -162,10 +163,18 @@ export function AdPurchaseProvider({ children }: { children: React.ReactNode }) 
     processing.current.set(key, operation);
     return operation;
   };
-  const recover = async () => {
-    if (recovery.current) return recovery.current;
+  const recover = async (): Promise<void> => {
     const account = ownerRef.current;
-    if (!account || !enabled || !storeRef.current.connected) return;
+    if (!account || !enabled || !storeRef.current.connected || !mounted.current) return;
+    if (recovery.current) {
+      if (recoveryOwner.current === account) return recovery.current;
+      // A new account must get its own recovery after the old request settles.
+      // The old account's failure was reported by its original caller.
+      await recovery.current.catch(() => undefined);
+      if (ownerRef.current === account && mounted.current) return recover();
+      return;
+    }
+    recoveryOwner.current = account;
     const operation = (async () => {
       const purchases = await pendingTransactions();
       let failed = false;
@@ -186,6 +195,7 @@ export function AdPurchaseProvider({ children }: { children: React.ReactNode }) 
         throw new Error('Unfinished Apple transactions must be recovered before charging again');
     })().finally(() => {
       recovery.current = null;
+      recoveryOwner.current = null;
     });
     recovery.current = operation;
     return operation;

@@ -6,6 +6,7 @@ import { createAdIntent, recoverAdReceipt, reconcileAdIntents } from '@/lib/adPu
 let mockOwner = 'account-a';
 let mockCallbacks: any;
 let mockPurchases: any[] = [];
+const mockPending = jest.fn(async () => mockPurchases);
 const mockRequest = jest.fn(async () => undefined);
 const mockFinish = jest.fn(async () => undefined);
 const mockFetch = jest.fn(async () => undefined);
@@ -29,7 +30,7 @@ jest.mock('react-native-iap', () => ({
       fetchProducts: mockFetch,
     };
   },
-  getPendingTransactionsIOS: async () => mockPurchases,
+  getPendingTransactionsIOS: () => mockPending(),
 }));
 jest.mock('@/lib/adPurchaseRecovery', () => ({
   createAdIntent: jest.fn(),
@@ -62,6 +63,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockOwner = 'account-a';
   mockPurchases = [];
+  mockPending.mockReset().mockImplementation(async () => mockPurchases);
 });
 it('recovers receipts on sign-in without charging an unpaid remaining product', async () => {
   mockPurchases = [{ id: 'tx-a', productId: 'MOND_THURS', appAccountToken: intent.id }];
@@ -178,5 +180,40 @@ it('does not start a store charge when the account changes during intent creatio
   });
   expect(mockRequest).not.toHaveBeenCalled();
   await expect(checkout!).resolves.toMatchObject({ ok: false });
+  act(() => tree.unmount());
+});
+
+it('starts recovery for a newly signed-in account after superseded recovery finishes', async () => {
+  let release!: (value: any[]) => void;
+  mockPending.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        release = resolve;
+      })
+  );
+  let tree: any;
+  await act(async () => {
+    tree = create(
+      <AdPurchaseProvider>
+        <Child />
+      </AdPurchaseProvider>
+    );
+    await flush();
+  });
+  await act(async () => {
+    mockOwner = 'account-b';
+    tree.update(
+      <AdPurchaseProvider>
+        <Child />
+      </AdPurchaseProvider>
+    );
+    await flush();
+  });
+  await act(async () => {
+    release([]);
+    await flush();
+  });
+  expect(mockPending).toHaveBeenCalledTimes(2);
+  expect(reconcileAdIntents).toHaveBeenCalledTimes(1);
   act(() => tree.unmount());
 });
