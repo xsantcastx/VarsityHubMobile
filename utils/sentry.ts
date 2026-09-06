@@ -308,7 +308,17 @@ export function captureException(error: Error | unknown, context?: Record<string
   Sentry.withScope(scope => {
     scope.setTag('service', MOBILE_SERVICE_TAG);
     if (context) {
-      const { tags, ...rest } = context;
+      const { tags, fingerprint, ...rest } = context;
+      if (
+        Array.isArray(fingerprint) &&
+        fingerprint.length > 0 &&
+        fingerprint.length <= 5 &&
+        fingerprint.every(
+          value => typeof value === 'string' && value.length > 0 && value.length <= 100
+        )
+      ) {
+        scope.setFingerprint(fingerprint.map(redactSensitiveString));
+      }
       if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
         Object.entries(tags).forEach(([key, value]) => {
           if (value !== undefined && value !== null && !SENSITIVE_BREADCRUMB_KEY_RE.test(key)) {

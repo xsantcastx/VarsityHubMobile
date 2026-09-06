@@ -71,6 +71,25 @@ export function getVerificationErrorMessage(err: any) {
   return err?.message || err?.data?.error || 'Receipt verification is taking longer than usual';
 }
 
+function reportRecoveryFailure(
+  stage: 'verify' | 'ack_cleanup' | 'incomplete_bundle',
+  item: PendingAdVerification,
+  error?: unknown
+) {
+  const status = (error as { status?: unknown } | undefined)?.status;
+  captureException(new Error(`Ad receipt recovery failed: ${stage}`), {
+    fingerprint: ['ad_receipt_recovery', stage],
+    tags: { context: 'ad_receipt_recovery', stage },
+    // Never send signed receipts or provider error bodies to telemetry.
+    extra: {
+      recovery_id: item.id,
+      ad_id: item.adId,
+      attempt_count: item.attemptCount + (stage === 'incomplete_bundle' ? 0 : 1),
+      http_status: typeof status === 'number' && Number.isFinite(status) ? status : null,
+    },
+  });
+}
+
 export async function flushPendingAdVerifications(onError?: (message: string) => void) {
   if (flushQueuePromise) return flushQueuePromise;
 
@@ -80,15 +99,19 @@ export async function flushPendingAdVerifications(onError?: (message: string) =>
 
     for (const item of queue) {
       if (item.ready === false) {
+        reportRecoveryFailure('incomplete_bundle', item);
         onError?.(
           'An incomplete ad purchase needs recovery. Contact support before purchasing again.'
         );
         continue;
       }
+      let stage: 'verify' | 'ack_cleanup' = 'verify';
       try {
         await submitAdVerification(item);
+        stage = 'ack_cleanup';
         await mutateQueue(current => current.filter(entry => entry.id !== item.id));
       } catch (err: any) {
+        reportRecoveryFailure(stage, item, err);
         const message = getVerificationErrorMessage(err);
         onError?.(message);
         await mutateQueue(current =>
@@ -103,7 +126,8 @@ export async function flushPendingAdVerifications(onError?: (message: string) =>
     .catch(err => {
       onError?.(getVerificationErrorMessage(err));
       captureException(new Error('Ad recovery storage failed'), {
-        tags: { context: 'ad_receipt_recovery' },
+        fingerprint: ['ad_receipt_recovery', 'storage'],
+        tags: { context: 'ad_receipt_recovery', stage: 'storage' },
       });
     })
     .finally(() => {

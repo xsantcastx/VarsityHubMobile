@@ -1,8 +1,11 @@
+const mockSetFingerprint = jest.fn();
 jest.mock('@sentry/react-native', () => ({
   init: jest.fn(),
   setTag: jest.fn(),
   captureException: jest.fn(),
-  withScope: jest.fn(callback => callback({ setTag: jest.fn(), setContext: jest.fn() })),
+  withScope: jest.fn(callback =>
+    callback({ setTag: jest.fn(), setContext: jest.fn(), setFingerprint: mockSetFingerprint })
+  ),
 }));
 jest.mock('@/config/env', () => ({
   getConfig: () => ({ sentryDsn: 'https://test@o1.ingest.sentry.io/1', nodeEnv: 'production' }),
@@ -36,4 +39,18 @@ describe('terminal transport telemetry', () => {
       expect(Sentry.captureException).toHaveBeenCalledTimes(1);
     }
   );
+});
+
+it('passes a stable failure fingerprint to Sentry rather than custom context only', () => {
+  const original = __DEV__;
+  (global as any).__DEV__ = false;
+  try {
+    initSentry();
+    captureException(new Error('Recovery failed'), {
+      fingerprint: ['ad_receipt_recovery', 'verify'],
+    });
+    expect(mockSetFingerprint).toHaveBeenCalledWith(['ad_receipt_recovery', 'verify']);
+  } finally {
+    (global as any).__DEV__ = original;
+  }
 });

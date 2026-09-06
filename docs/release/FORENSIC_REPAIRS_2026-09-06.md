@@ -38,4 +38,6 @@ Read-only comparison found 616 primary columns versus 606 backup columns. Nine b
 
 ## Still open
 
+Follow-up: [remaining systems investigation](../audits/2026-09-05/remaining-systems-investigation-2026-09-06.md) completed a real full-table backup restore. All 59 table fingerprints matched, but ordinary migration startup failed with P3018 because backup migration history is stale. Schema/index/RLS parity and safe promotion remain open; data readability alone is not recovery readiness.
+
 Native map/SharedObject/EXC_BAD_ACCESS incident closure requires native evidence; no simulator used in this repair pass. Complete backup restore and sequence/schema recovery drills, five-concurrent-request payment certification, interrupted multi-product ad purchase automation, and missing provider integrations remain open. These repairs must not be described as all historical notes fixed or whole-app production certification.
