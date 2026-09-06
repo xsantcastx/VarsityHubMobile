@@ -1,7 +1,7 @@
 # September 6 desktop-notes repair release
 
 **Published:** API, iOS/Android OTA and web from code commit `cf46471c`.
-Account-specific grants and physical-device acceptance remain pending as detailed below.
+Account access is verified below; Nico's renewal target and physical-device acceptance remain open.
 
 Publication authorized by the owner in this session: “keep going … then push to
 production through EAS or OTA. I will verify on my end.” The owner owns physical
@@ -27,7 +27,7 @@ that the entire app passed the broader launch-readiness checklist.
 | Three map legend entries             | Existing Game / Sport-team / Multiple legend verified in simulator screenshot.                                                                                                                          | Owner's visual acceptance.                                                                           |
 | Push status wording                  | Replaced exposed token preview with “Notifications enabled” and plain-language device registration status.                                                                                              | No delivery guarantee implied.                                                                       |
 | Remove personal name/location        | Removed those fields from the exact Copyright & DMCA contact card shown in the PDF.                                                                                                                     | Organization/email/website retained.                                                                 |
-| @superfan and Nico story exceptions  | Existing platform-admin grant path writes both required ledgers atomically with seven-day expiry. No blanket geofence change.                                                                           | Pending exact account/event targets and expiry clarification; no production grants made.             |
+| @superfan and Nico story exceptions  | Production permission checks pass for both users. @superfan refreshed through September 13; @nico already has both August 29 Yankees grants through September 12. See exact audit below.                | Nico's intended game must be distinguished before renewing either existing grant.                    |
 | Catch/report bugs accurately         | Terminal transport reporting, distinct share failure contexts, durable per-league ingestion outcomes, worker rejection after aggregate failure.                                                         | Controlled alert delivery and source-line/native symbolication acceptance; 3M/4A causes remain open. |
 
 Screenshots from both PDFs were visually inspected during this follow-up. Earlier
@@ -116,8 +116,54 @@ or feed/map parity fails. Owner's device review remains an explicit follow-up.
   failure is thumbnail generation, not evidence the actual trim operation failed.
   The original media file is unavailable; no speculative trim fix was shipped.
 
-The owner still needs to supply Nico's exact account/Yankees game and the grant
-expiration requested in the pending clarification. No grant was silently applied.
+## September 6 operator follow-up (16:17–16:26 UTC)
+
+The owner identified **@nico**, Yankees home game **August 29, 2026**, and said
+to proceed after the standard seven-day grant proposal. Production lookup found
+two distinct Red Sox at Yankees records; ESPN's summary endpoint returned both
+as completed games, matching their separate source IDs and start times:
+
+| User / event                                           | Production event ID                           | Verified expiry (UTC)      | Action this session       |
+| ------------------------------------------------------ | --------------------------------------------- | -------------------------- | ------------------------- |
+| @superfan / Giants at Jets, August 28                  | `cmsgoxrtw007bf6nioxe8yllz`                   | September 13, 16:22:53.007 | Refreshed existing access |
+| @nico / Red Sox at Yankees, August 29, 1:05 PM Eastern | `cmsgoyfva00qzf6niwaz4axpf` (`mlb:401874913`) | September 12, 07:22:43.568 | Existing access preserved |
+| @nico / Red Sox at Yankees, August 29, 7:15 PM Eastern | `cmsgoygmd00rnf6nixj1os096` (`mlb:401816717`) | September 12, 07:22:46.435 | Existing access preserved |
+
+**Correction to earlier assumptions:** access already existed for all three
+user/event pairs. Nico's designation rows date to August 30, and both unlocks
+were refreshed September 5. This session did not create those Nico grants or
+establish who authorized their original scope. Ask which game the owner intends
+before refreshing either; do not infer both from the date alone.
+
+Superfan's refresh used the canonical `grantEventPostAccess` helper inside an
+outer database transaction that also wrote `AdminActivityLog` record
+`operator-grant-superfan-20260906`. The audit identifies an owner-authorized
+operator action, with no impersonated app-admin account. Both ledgers and the
+audit committed together; a fixed audit ID prevents rerunning this operation
+from silently extending the window. Start: `2026-09-06T16:22:53.007Z`.
+
+Read-only production calls to the real `verifyEventPostingPermission` and
+`verifyStoryPostingPermission` helpers, with null device coordinates, returned
+`allowed: true` for all three pairs. Superfan's checks were also true before the
+refresh; this is an expiry refresh, not proof of fixing a denied-upload bug.
+Control: Nico remains denied both post and story access to Giants at Jets
+(`POSTING_WINDOW_CLOSED`). Audit row readback succeeded. No test media was posted.
+
+Sentry recheck at approximately 16:18 UTC leaves all three investigations open:
+
+- **3T:** 12 occurrences, latest `2026-09-06T06:41:24Z`, before the published
+  07:47 OTA. No new occurrence in this issue is evidence of non-recurrence so
+  far, not evidence of affected-flow traffic or complete native resolution.
+- **3M:** issue lookup succeeds, count 2, `lastSeen: null`; latest-event lookup
+  remains 404. Feed-clipping attribution remains unverified.
+- **4A:** count 1, latest `2026-09-06T06:42:18.826Z`, stage `thumbnail_gen`, file
+  URI. No new event; original input media is still needed for a matched repro.
+
+`xcrun xctrace list devices` still reports the physical iPhone offline. Existing
+simulator baseline/candidate evidence remains valid; no physical-device pass is
+claimed. No Sentry issues were marked resolved. No code changed or additional
+OTA/native build was published for this database-only grant operation.
+
 Physical-device checks, OS preview behavior and alert delivery are not certified
 by this publication. Unknown venue photos remain honest fallbacks rather than
 invented imagery or fixture data.
