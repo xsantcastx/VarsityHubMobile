@@ -1,6 +1,8 @@
 # September 6 desktop-notes repair release
 
 **Published:** API, iOS/Android OTA and web from code commit `cf46471c`.
+**Latest mobile follow-up:** `ec862033`, OTA `99d1b7cb-24bc-4b35-b756-db6ac525c0e5`;
+Sentry runtime Debug IDs and duplicate-reload coordination are published.
 Account access is verified below; Nico's renewal target and physical-device acceptance remain open.
 
 Publication authorized by the owner in this session: “keep going … then push to
@@ -245,3 +247,27 @@ synchronous native failure. All passed, along with four terminal-transport
 tests. This corrects duplicate reload requests; it does **not** establish that
 the duplicate was the cause of native crash 49 or that Expo's native lifetime
 defect is resolved. The separate error-screen recovery path remains intentional.
+
+Final mobile publication from `ec862033` completed through the guarded
+`npm run update:production`, including successful artifact-bundle uploads:
+
+- Production OTA group: `99d1b7cb-24bc-4b35-b756-db6ac525c0e5`, runtime 1.0.5.
+- iOS update: `01a0779d-3e0d-7a35-9f0b-ce22cc15f781`.
+- Android update: `01a0779d-3e0d-7ba4-bc6f-c9c52cf3b6fc`.
+- iOS Debug ID: `1f8a6bdf-9257-4812-b358-bde160f4e96a`.
+- Android Debug ID: `9f3f6be5-6d5a-45cb-a83a-414572bef8f7`.
+
+Readback of the actual published export found each map's Debug ID in its native
+bundle; the diagnostic entry was absent on both platforms. The full local
+release gate passed again after the reload correction, and both typechecks and
+normal commit/push hooks passed. API health returned HTTP 200 / `ok`. These
+client changes required no server migration or native dependency change.
+
+Rollback target for this follow-up is the earlier desktop-notes OTA
+`f6d00d02-0588-45d2-a569-753f476002a7`; rolling back loses the reporting and reload
+coordination improvements. The unchanged API remains compatible.
+
+Still open: matched native acceptance for 3T/49, a new retained payload or
+reproduction for 3M, the failing media for 4A, physical UI/share acceptance,
+and end-to-end notification delivery. Nico's existing verified access remains
+active; only an additional renewal is waiting for the game-time distinction.
