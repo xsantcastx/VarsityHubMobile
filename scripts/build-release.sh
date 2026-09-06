@@ -2,7 +2,7 @@
 # Build and deploy VarsityHub Release to iPhone
 # Usage: ./scripts/build-release.sh
 
-set -e
+set -euo pipefail
 
 DEVICE_ID="00008120-000A19E81A33401E"
 WORKSPACE="ios/VarsityHub.xcworkspace"
@@ -14,7 +14,7 @@ echo "Building VarsityHub Release..."
 cd "$(dirname "$0")/.."
 
 # Build release
-SENTRY_DISABLE_AUTO_UPLOAD=true xcodebuild \
+xcodebuild \
   -workspace "$WORKSPACE" \
   -scheme "$SCHEME" \
   -configuration Release \

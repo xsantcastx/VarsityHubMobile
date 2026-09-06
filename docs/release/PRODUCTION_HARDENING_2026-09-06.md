@@ -24,12 +24,12 @@ See [backup repair procedure](../../server/backup-migrations/README.md). Schedul
 
 ## Remaining ordered gates
 
-| Phase | Required result                                                                                  | Current status                                                                      |
-| ----- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| 1     | Unmodified repaired backup passes migration startup; daily check active; guarded mirror deployed | Passed: deployed mirror, as-is local restore and independent scheduled-runner drill |
-| 2     | Durable account-bound purchase intent and re-authentication reconciliation                       | Open; no new charge should occur silently for an unpaid remainder                   |
-| 3     | Explicit provider/coverage health, including unsupported leagues                                 | Open                                                                                |
-| 4     | Native dSYM delivery and physical/TestFlight lifetime/session evidence                           | Open; seven-day evidence cannot be manufactured in one session                      |
+| Phase | Required result                                                                                  | Current status                                                                                |
+| ----- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| 1     | Unmodified repaired backup passes migration startup; daily check active; guarded mirror deployed | Passed: deployed mirror, as-is local restore and independent scheduled-runner drill           |
+| 2     | Durable account-bound purchase intent and re-authentication reconciliation                       | Backend/live DB verified; client prepared; physical and legacy/needs-action cases remain open |
+| 3     | Explicit provider/coverage health, including unsupported leagues                                 | Deployed; unsupported entries disabled                                                        |
+| 4     | Native dSYM delivery and physical/TestFlight lifetime/session evidence                           | Open; seven-day evidence cannot be manufactured in one session                                |
 
 Whole-service failover, external storage/Redis recovery and ownership/ACL provisioning remain distinct from this database restore drill. Existing PushTicket data remains an intentional ephemeral exclusion.
 
@@ -65,3 +65,31 @@ Migration rollout: additive migration `20260906194000_durable_ad_purchase_intent
 - MiLB and MLS NEXT Pro remain unsupported/disabled, not newly imported. Youth MLS NEXT is separate and still has no catalog/provider integration. This is honest coverage handling, not a claim those schedules have been added.
 - 22 focused catalog/ingestion tests pass. A stale structural feed test was aligned to the existing shared `fetchDiscoveryItems` contract rather than its retired query-key name.
 - The first restore after adding purchase checks failed strict schema parity despite matching contents. A minimal real PostgreSQL dump/restore reproduced `varchar` IN-array deparser normalization. New additive migration `20260906203500_canonical_purchase_predicates` uses explicit text predicates that round-trip identically; it preserves the constraints and unique-index semantics. Historical migration SQL was not edited and parity validation was not relaxed. Acceptance requires rerunning the actual backup drill after this correction is deployed.
+
+## Phase 4 native diagnostics — evidence, not crash closure
+
+Sentry was queried directly on September 6. Both 3T (`7655376217`) and 49 (`7714008476`) refer to iOS release `com.varsithub.varsityhub-ios@1.0.5+56`. Their app UUID `8e445c90-617a-36e8-9d5a-26cb1b785c82` has full debug/symtab/unwind information in Sentry. The live UUID verification script passed. React UUID `76fbcee9-3517-30b3-9dc6-62c4e914e908` and Hermes UUID `80d5528f-2c78-3b90-b90f-747e89a9f880` have symtab/unwind only; those library entries are not full line-level dSYMs. Do not conflate missing dependency line detail with a missing application dSYM.
+
+- 3T: 12 events, latest 2026-09-06T06:41:24Z, event `3fe572adc2a74317abf61c7b9e6097c4`; native interop/marker lifetime remains unresolved.
+- 49: 2 events, latest 2026-09-06T15:40:49Z, event `e5197dda7329450c825ce13392e90ad7`; frames include `SharedObjectRegistry.clear` and JSI pointer destruction (`jsi.h:591/1135`), unresolved.
+- 3M: issue record exists, latest event still 404. No feed-clipping cause asserted.
+- Session API at 2026-09-06T20:37:41Z: 34 build-56 production sessions, crash-free rate **85.294%**. The requested seven-day query is day-rounded by Sentry (August 30–September 7 bounds), with activity on only two days. This is not seven active days, not a confirmed TestFlight-only cohort, and not evidence of stability after a native fix.
+
+Changes prepared for subsequent native builds:
+
+- Retain Sentry's existing debug uploader and verify full app debug information for the exact archive UUID through Sentry's API. Release builds reject disabled upload, missing credentials, missing UUIDs and symbol-table-only matches. An Expo config plugin preserves the gate when regenerating iOS.
+- Removed the manual release script's forced `SENTRY_DISABLE_AUTO_UPLOAD=true` and enabled pipeline failure propagation.
+- Added read-only `scripts/report-native-session-health.cjs` requiring an explicit release. Empty telemetry cannot report healthy. Session tracking was already enabled; the production EAS environment has the Sentry token and no observed native-upload-disable flag.
+- UUID/feature and plugin regeneration tests pass; Xcode project parsing and shell syntax pass. Build readiness is checked separately from actually executing an archive. No simulator, EAS build, or native crash-fix release was performed.
+
+These checks cannot produce source-line information absent from prebuilt React/Hermes artifacts, reproduce native object lifetimes, or manufacture seven days of candidate-build use. Physical reproduction, suitable dependency debug artifacts and a measured candidate-build observation window remain open.
+
+References: [Sentry debug-file API](https://docs.sentry.io/api/projects/list-a-projects-debug-information-files/), [Sentry session statistics](https://docs.sentry.io/api/releases/retrieve-release-health-session-statistics/), [Apple dSYM generation](https://developer.apple.com/documentation/xcode/building-your-app-to-include-debugging-information).
+
+## Latest operational acceptance
+
+- Live server source `73bfa87c`; Railway deployment `12d69347-545a-436b-a610-97a1ed33ce17` succeeded. Runtime gate passed after this deployment.
+- Backup refreshed: 62 tables / 4,338 rows, including 159 migration-history rows; primary and backup migration histories match exactly by content fingerprint.
+- As-is backup restore after the corrective migration passed at 2026-09-06T20:38:38Z: content match, strict schema parity, migration startup, real purchase recovery and application constraints; disposable target removed.
+- Full local release gate passed. Client regression suites: 158 tests; server regression suites: 125 tests. Both TypeScript projects passed. Build readiness passed with four warnings and zero blocking errors; no archive or simulator was run.
+- Native gate tests: four pass, including UUID/full-debug checks and Expo regeneration. Actual Sentry UUID validation passes for build 56's application binary. React/Hermes source-line limitations and physical crash reproduction remain open.

@@ -242,6 +242,7 @@ module.exports = ({ config }) => {
           uploadSourcemaps: sentryAutoUploadEnabled,
         },
       ],
+      './plugins/withSentryNativeGate',
       'react-native-iap',
       'react-native-compressor',
     ],

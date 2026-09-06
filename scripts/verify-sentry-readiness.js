@@ -116,6 +116,9 @@ function checkLocalSourceMapConfig(failures) {
   if (!androidGradle.includes('sentry.gradle')) {
     failures.push('Android Sentry Gradle upload hook is missing');
   }
+  if (!iosProject.includes('sentry-native-release.sh')) {
+    failures.push('iOS native dSYM upload/UUID verification gate is missing');
+  }
   if (!iosProject.includes('sentry-xcode.sh')) {
     failures.push('iOS Sentry Xcode source-map upload hook is missing');
   }
