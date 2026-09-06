@@ -9,61 +9,11 @@
  */
 
 import { Prisma, PrismaClient } from '@prisma/client';
+import { assertBackupSchemaParity } from './dbBackupSchema.js';
 import { debugLog } from './debugLog.js';
 import { captureException } from './sentry.js';
 import { buildRowValuesClause, enumCastTypeName } from './dbBackupSql.js';
 import { TABLES_IN_ORDER, DEFERRED_FK_COLUMNS, BACKUP_EXCLUDED_TABLES } from './dbBackupTables.js';
-
-/**
- * Replay the primary's enum catalog onto the backup.
- *
- * The backup Postgres never receives `prisma migrate deploy` (start.sh only
- * migrates DATABASE_URL), so enum TYPES and VALUES drift: new migrations add
- * enums the backup has never seen (sync fails with 42704 `type "X" does not
- * exist`) or add labels to existing enums (22P02 `invalid enum value`).
- * Idempotent: CREATE TYPE is wrapped in a DO block that swallows
- * duplicate_object, and each label uses ADD VALUE IF NOT EXISTS.
- */
-async function reconcileBackupEnums(primary: PrismaClient, backup: PrismaClient): Promise<void> {
-  try {
-    const enumRows = await primary.$queryRaw<Array<{ type_name: string; label: string }>>`
-      SELECT t.typname AS type_name, e.enumlabel AS label
-      FROM pg_type t
-      JOIN pg_enum e ON e.enumtypid = t.oid
-      JOIN pg_namespace n ON n.oid = t.typnamespace
-      WHERE n.nspname = 'public'
-      ORDER BY t.typname ASC, e.enumsortorder ASC
-    `;
-
-    const labelsByType = new Map<string, string[]>();
-    for (const row of enumRows) {
-      if (!labelsByType.has(row.type_name)) labelsByType.set(row.type_name, []);
-      labelsByType.get(row.type_name)!.push(row.label);
-    }
-
-    const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
-    for (const [typeName, labels] of labelsByType) {
-      // CREATE TYPE has no IF NOT EXISTS — swallow duplicate_object instead.
-      await backup.$executeRawUnsafe(
-        `DO $$ BEGIN CREATE TYPE "${typeName}" AS ENUM (${labels.map(quote).join(', ')}); EXCEPTION WHEN duplicate_object THEN NULL; END $$`
-      );
-      // Type may pre-exist with a stale label set — append any missing values.
-      for (const label of labels) {
-        await backup.$executeRawUnsafe(
-          `ALTER TYPE "${typeName}" ADD VALUE IF NOT EXISTS ${quote(label)}`
-        );
-      }
-    }
-    debugLog(`[db-backup] Enum reconciliation complete: ${labelsByType.size} type(s) checked`);
-  } catch (err: any) {
-    // Degrade gracefully — a failed reconciliation just means enum drift (if
-    // any) surfaces as per-table sync failures below, same as before.
-    console.error(
-      '[db-backup] Enum reconciliation failed — continuing with table sync:',
-      String(err?.message || err).slice(0, 300)
-    );
-  }
-}
 
 export async function syncDatabaseBackup(): Promise<{
   success: boolean;
@@ -105,11 +55,6 @@ export async function syncDatabaseBackup(): Promise<{
     `;
     const existingTables = new Set(tableNames.map(t => t.tablename));
 
-    // Bring the backup's enum catalog up to date with the primary before
-    // touching any tables — missing types/values are the root cause of the
-    // recurring 42704/22P02 per-table sync failures.
-    await reconcileBackupEnums(primary, backup);
-
     // NOTE: no `SET session_replication_role = replica` here. It only ever
     // applied to one pooled Prisma connection while inserts ran on others, so
     // it never disabled FK checks reliably — and making it stick would be
@@ -129,8 +74,12 @@ export async function syncDatabaseBackup(): Promise<{
       string,
       Map<string, { dataType: string; udtName: string }>
     >();
-    const enumCastForColumn = (table: string, col: string): string =>
-      enumCastTypeName(primaryColumnTypeCache.get(table)?.get(col));
+    const timestampType = (table: string, col: string): string => {
+      const type = primaryColumnTypeCache.get(table)?.get(col)?.udtName;
+      return type === 'timestamp' || type === 'timestamptz' ? type : '';
+    };
+    const castForColumn = (table: string, col: string): string =>
+      timestampType(table, col) || enumCastTypeName(primaryColumnTypeCache.get(table)?.get(col));
     const resolvePrimaryColumns = async (table: string): Promise<string[]> => {
       const cached = primaryColumnCache.get(table);
       if (cached && cached.length > 0) return cached;
@@ -198,6 +147,9 @@ export async function syncDatabaseBackup(): Promise<{
     }
 
     const syncableTables = TABLES_IN_ORDER.filter(t => existingTables.has(t));
+    // Migration history describes the schema, so copy it only after strict
+    // schema parity succeeds, in the same snapshot/transaction as application data.
+    if (primaryColumnCache.has('_prisma_migrations')) syncableTables.push('_prisma_migrations');
 
     // Empty ALL tables in one statement before inserting anything. The old
     // per-table `TRUNCATE "<table>" CASCADE` was the root cause of the
@@ -221,18 +173,31 @@ export async function syncDatabaseBackup(): Promise<{
     }
     await backup.$transaction(
       async backupTx => {
-        if (truncatable.length > 0) {
-          await backupTx.$executeRawUnsafe(
-            `TRUNCATE TABLE ${truncatable.map(t => `"${t}"`).join(', ')} CASCADE`
-          );
-        }
-
         // All primary reads happen inside one REPEATABLE READ transaction so every
         // table is captured from the same snapshot — otherwise rows written while
         // the sync runs can reference parents that were read out before they
         // existed, failing the child table's insert.
         await primary.$transaction(
           async tx => {
+            await assertBackupSchemaParity(tx, backupTx);
+            if (syncableTables.includes('_prisma_migrations')) {
+              const [pending] = await tx.$queryRawUnsafe<Array<{ count: number }>>(
+                'SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL'
+              );
+              if (pending.count > 0)
+                throw new Error('Primary migration is incomplete; backup refresh refused');
+            }
+            const sequences = await tx.$queryRawUnsafe<Array<{ sequence_name: string }>>(
+              "SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public'"
+            );
+            if (sequences.length > 0) {
+              throw new Error('Backup sequence recovery is not implemented; refresh refused');
+            }
+            if (truncatable.length > 0) {
+              await backupTx.$executeRawUnsafe(
+                `TRUNCATE TABLE ${truncatable.map(t => `"${t}"`).join(', ')} CASCADE`
+              );
+            }
             for (const table of syncableTables) {
               try {
                 // Build column list: if we have backup column info, restrict to columns
@@ -266,6 +231,12 @@ export async function syncDatabaseBackup(): Promise<{
                 }
 
                 const colList = columns.map(c => `"${c}"`).join(', ');
+                // PostgreSQL timestamps may contain microseconds; JS Date only
+                // retains milliseconds. Preserve exact source text and cast it
+                // back on INSERT, including immutable migration audit timestamps.
+                const selectList = columns
+                  .map(c => (timestampType(table, c) ? `"${c}"::text AS "${c}"` : `"${c}"`))
+                  .join(', ');
                 const orderBy = columns.map(c => `"${c}"`).join(', ');
                 const [{ count: totalCountRaw }] = await tx.$queryRawUnsafe<
                   Array<{ count: bigint | number | string }>
@@ -281,7 +252,7 @@ export async function syncDatabaseBackup(): Promise<{
                 const batchSize = 500;
                 for (let offset = 0; offset < totalTableRows; offset += batchSize) {
                   const batch = await tx.$queryRawUnsafe<Record<string, unknown>[]>(
-                    `SELECT ${colList} FROM "${table}" ORDER BY ${orderBy} LIMIT ${batchSize} OFFSET ${offset}`
+                    `SELECT ${selectList} FROM "${table}" ORDER BY ${orderBy} LIMIT ${batchSize} OFFSET ${offset}`
                   );
                   if (batch.length === 0) break;
                   const valueClauses: string[] = [];
@@ -290,7 +261,7 @@ export async function syncDatabaseBackup(): Promise<{
 
                   for (const row of batch) {
                     const { clause, nextParamIdx } = buildRowValuesClause(columns, paramIdx, col =>
-                      enumCastForColumn(table, col)
+                      castForColumn(table, col)
                     );
                     paramIdx = nextParamIdx;
                     valueClauses.push(clause);
@@ -384,27 +355,6 @@ export async function syncDatabaseBackup(): Promise<{
       },
       { timeout: 16 * 60_000, maxWait: 60_000 }
     );
-
-    // Reset sequences to match primary
-    try {
-      const sequences = await primary.$queryRaw<Array<{ sequence_name: string }>>`
-        SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public'
-      `;
-      for (const seq of sequences) {
-        try {
-          const [val] = await primary.$queryRawUnsafe<[{ last_value: bigint }]>(
-            `SELECT last_value FROM "${seq.sequence_name}"`
-          );
-          await backup.$executeRawUnsafe(
-            `SELECT setval('"${seq.sequence_name}"', ${val.last_value}, true)`
-          );
-        } catch {
-          // Sequence may not exist on backup yet
-        }
-      }
-    } catch {
-      debugLog('[db-backup] Sequence sync skipped');
-    }
 
     // A partial sync is a failure — the old unconditional `success: true` made
     // the scheduler log a green "sync complete" over 30 days of missing tables.

@@ -26,24 +26,54 @@ try {
   for (const db of [primary, backup]) {
     await db.$executeRawUnsafe('CREATE TABLE "User" (id text PRIMARY KEY)');
     await db.$executeRawUnsafe('CREATE TABLE "Post" (id text PRIMARY KEY, title text NOT NULL)');
+    await db.$executeRawUnsafe(
+      'CREATE TABLE _prisma_migrations (id text PRIMARY KEY, finished_at timestamp DEFAULT now(), rolled_back_at timestamp)'
+    );
   }
   await primary.$executeRawUnsafe(`INSERT INTO "User" VALUES ('new-user')`);
   await primary.$executeRawUnsafe(`INSERT INTO "Post" VALUES ('new-post','reject')`);
   await backup.$executeRawUnsafe(`INSERT INTO "User" VALUES ('old-user')`);
   await backup.$executeRawUnsafe(`INSERT INTO "Post" VALUES ('old-post','preserve')`);
-  await backup.$executeRawUnsafe(
-    `ALTER TABLE "Post" ADD CONSTRAINT test_failure CHECK (title <> 'reject')`
+  await primary.$executeRawUnsafe(
+    "INSERT INTO _prisma_migrations (id, finished_at) VALUES ('new-history', '2026-09-06 12:00:00.123456')"
   );
+  await backup.$executeRawUnsafe("INSERT INTO _prisma_migrations (id) VALUES ('old-history')");
+  // Identical NOT VALID constraints retain pre-existing source data but reject
+  // its destination insert. This exercises rollback after truncation, not only
+  // the schema preflight.
+  for (const db of [primary, backup]) {
+    await db.$executeRawUnsafe(
+      `ALTER TABLE "Post" ADD CONSTRAINT test_failure CHECK (title <> 'reject') NOT VALID`
+    );
+  }
   const failed = await syncDatabaseBackup();
   assert.equal(failed.success, false);
   assert.deepEqual(await backup.$queryRawUnsafe('SELECT id FROM "User"'), [{ id: 'old-user' }]);
   assert.deepEqual(await backup.$queryRawUnsafe('SELECT id FROM "Post"'), [{ id: 'old-post' }]);
+  assert.deepEqual(await backup.$queryRawUnsafe('SELECT id FROM _prisma_migrations'), [
+    { id: 'old-history' },
+  ]);
   console.log('PASS: middle-table insert failure preserves both previous backup tables');
-  await backup.$executeRawUnsafe('ALTER TABLE "Post" DROP CONSTRAINT test_failure');
+  for (const db of [primary, backup])
+    await db.$executeRawUnsafe('ALTER TABLE "Post" DROP CONSTRAINT test_failure');
   assert.equal((await syncDatabaseBackup()).success, true);
   assert.deepEqual(await backup.$queryRawUnsafe('SELECT id FROM "User"'), [{ id: 'new-user' }]);
   assert.deepEqual(await backup.$queryRawUnsafe('SELECT id FROM "Post"'), [{ id: 'new-post' }]);
-  console.log('PASS: successful refresh replaces both tables');
+  assert.deepEqual(await backup.$queryRawUnsafe('SELECT id FROM _prisma_migrations'), [
+    { id: 'new-history' },
+  ]);
+  assert.deepEqual(
+    await backup.$queryRawUnsafe('SELECT finished_at::text AS value FROM _prisma_migrations'),
+    await primary.$queryRawUnsafe('SELECT finished_at::text AS value FROM _prisma_migrations')
+  );
+  console.log('PASS: successful refresh replaces data and migration history atomically');
+  await primary.$executeRawUnsafe('CREATE INDEX title_boundary ON "Post" (title)');
+  assert.equal((await syncDatabaseBackup()).success, false);
+  assert.deepEqual(await backup.$queryRawUnsafe('SELECT id FROM _prisma_migrations'), [
+    { id: 'new-history' },
+  ]);
+  console.log('PASS: missing index refuses refresh and preserves prior migration history');
+  await primary.$executeRawUnsafe('DROP INDEX title_boundary');
   await primary.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN new_field text');
   assert.equal((await syncDatabaseBackup()).success, false);
   assert.deepEqual(await backup.$queryRawUnsafe('SELECT id FROM "User"'), [{ id: 'new-user' }]);

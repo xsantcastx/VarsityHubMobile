@@ -87,7 +87,7 @@ zero overlap configuration alone is not an atomic transition. See the
 
 The startup placeholder returns 503, primary migration exhaustion aborts startup,
 and migration/backup commands are bounded. Railway's 600-second health window
-waits for the real API. Backup schema mutations are excluded from startup; reviewed additive changes precede deployment and the atomic backup job validates coverage.
+waits for the real API. Backup schema mutations are excluded from startup; reviewed repairs are rehearsed on an isolated restore before deployment. The atomic backup job checks PostgreSQL object parity and copies migration history with data; a scheduled isolated restore verifies migration startup.
 its success is separate from a tested restoration of production data.
 
 ## Org → program → team hierarchy (sport-program layer, 2026-07, Phase 0+1; re-keyed 2026-07-10)

@@ -182,7 +182,7 @@ npm run verify:error-envelope
 
 ## Security Invariants (Do Not Break)
 
-- **Backup preservation:** API startup must not run destructive backup schema convergence (`prisma db push --accept-data-loss`). Apply reviewed additive backup schema changes separately; atomic refresh validates coverage and rolls back data writes on failure. Scheduler failures must propagate to job monitoring.
+- **Backup preservation:** API startup must not run destructive backup schema convergence (`prisma db push --accept-data-loss`). Apply reviewed backup schema repairs separately and rehearse them on an isolated restore first. Atomic refresh requires PostgreSQL object parity (including enum order, indexes, functions, policies and RLS), copies migration history in the same data transaction, and refuses incomplete source migrations or unsupported sequences. A scheduled restore drill must pass migration startup without applying repairs. Scheduler failures must propagate to job monitoring.
 
 - **Private data exports:** use only dedicated private `DATA_EXPORT_S3_*` storage, never the public media bucket. All ZIP sections must succeed. Request/worker transitions are atomic; cancellation is terminal; signed URLs cannot outlive archive expiry. Failed deletion retains its key for scheduled retry. The BullMQ scheduler owns cleanup; do not also start the legacy cron wrapper.
 
